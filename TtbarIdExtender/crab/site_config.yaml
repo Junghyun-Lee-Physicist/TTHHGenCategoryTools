@@ -12,7 +12,7 @@
 #   CRAB maps this to /eos/user/<u>/<user>/... (root://eosuser.cern.ch/).
 #   This is your personal CERNBOX/EOS home; any CERN account can write here.
 #
-#   NOTE: T2_CH_CERN is NOT this — it maps /store/user/ to the CMS experiment
+#   NOTE: T2_CH_CERN is NOT this -- it maps /store/user/ to the CMS experiment
 #   EOS (/eos/cms/store/user/), which needs separate CMS-EOS write activation
 #   and otherwise fails at submit with SUBMITREFUSED / HTTP 403 MAKE_PARENT.
 #   (For a home T2/T3 instead, e.g. T3_KR_KNU, set that as storage_site.)

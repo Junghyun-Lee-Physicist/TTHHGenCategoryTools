@@ -218,7 +218,7 @@ def main():
     if bulk_action == "kill" and not args.yes:
         sel = args.process or "ALL enabled+listed samples"
         era_sel = args.era or "all eras"
-        ans = input(f"About to 'crab kill' — process={sel}, era={era_sel}. "
+        ans = input(f"About to 'crab kill' -- process={sel}, era={era_sel}. "
                     f"Continue? [y/N] ").strip().lower()
         if ans not in ("y", "yes"):
             sys.exit("Aborted (no jobs killed).")
