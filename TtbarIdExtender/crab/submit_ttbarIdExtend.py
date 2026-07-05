@@ -28,7 +28,11 @@ from pathlib import Path
 
 THIS_DIR  = Path(__file__).resolve().parent
 PKG_ROOT  = THIS_DIR.parent
-EXTEND_PSET_REL = "TTHHGenCategoryTools/TtbarIdExtender/test/run_ttbarIdExtend_cfg.py"
+# Absolute path to the cfg. CRAB resolves JobType.psetName against the *current
+# working directory*, so a repo-relative string only works when you run from
+# .../src/. Deriving it from PKG_ROOT (= .../TtbarIdExtender) makes submission
+# work from any directory (e.g. from inside TtbarIdExtender/ itself).
+EXTEND_PSET = str(PKG_ROOT / "test" / "run_ttbarIdExtend_cfg.py")
 
 
 # ----- YAML --------------------------------------------------------------
@@ -84,7 +88,7 @@ def build_config(*, process_name, era, dataset_entry, site_cfg, era_block,
 
     # JobType
     cfg.JobType.pluginName     = "Analysis"
-    cfg.JobType.psetName       = EXTEND_PSET_REL
+    cfg.JobType.psetName       = EXTEND_PSET
     cfg.JobType.pyCfgParams    = ["outputFile=ttbarIDExtend.root"]
     # NB: run_ttbarIdExtend_cfg.py has no `year` parameter (that was an
     # enriched-cfg option).  CRAB injects inputFiles for FileBased

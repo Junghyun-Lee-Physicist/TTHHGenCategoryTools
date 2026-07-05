@@ -59,3 +59,7 @@ v11 직후 사용자 요청으로 이름 체계를 한 번 더 정리했다. 핵
 ## 2026-07-05 — v12.1: 첫 lxplus 빌드 수정 (`Validation/src` → `Validation/tools`)
 
 첫 `scram b -j8`에서 scram이 `Validation/src/*.cc`를 BuildFile 없이 자동 컴파일하려다 ROOT 헤더(`TChain.h` 등)를 못 찾아 전량 실패([08](08_troubleshooting.md) T-15). 원인은 scram이 `<Package>/src/`를 특수 취급하는 것. **해결**: 소스 디렉토리 `Validation/src/` → `Validation/tools/` rename, Makefile `SRCDIR := tools`. scram은 `tools/`를 무시하고 standalone `make`만 빌드. plugin 패키지(`TtbarIdExtender/`)는 정상 컴파일되어 subsystem/패키지/plugin-lib 이름 정합 확인됨([04](04_decisions.md) D14 fallback 적용). 부수로 `-Wcomment` 경고 유발하던 주석 예시의 줄 끝 `\` 제거. README(top·Validation)의 빌드 서술을 이 레이아웃으로 갱신하고, 최상위 README·패키지 README에 `cmsrel CMSSW_10_6_32_patch1` + `git clone` 설정 절차 추가.
+
+## 2026-07-05 — v12.2: CRAB psetName을 절대경로로 (제출 실패 수정)
+
+첫 CRAB 제출이 전 샘플 `Cannot find CMSSW configuration file ...run_ttbarIdExtend_cfg.py`로 실패. 원인: `submit_ttbarIdExtend.py`가 `JobType.psetName`을 저장소-상대 문자열(`TTHHGenCategoryTools/TtbarIdExtender/test/...`)로 넘겼는데, CRAB은 이를 **실행 시점의 현재 디렉토리 기준**으로 해석한다. `TtbarIdExtender/`에서 실행하면 경로가 이중으로 붙어 못 찾음(`src/`에서 실행할 때만 맞았음). `--dry-run`은 pset 존재를 확인하지 않아 통과했다. **해결**: `EXTEND_PSET = str(PKG_ROOT / "test" / "run_ttbarIdExtend_cfg.py")` 절대경로로 변경 → 어느 디렉토리에서 실행해도 해결됨. (preflight는 `$CMSSW_BASE/src/<rel>` 절대경로로 확인하므로 원래 통과했음.) 참고: 실패한 제출도 빈 `crab_projects/crab_*` 껍데기를 남기며(`.requestcache` 없음), 재제출 전 이 디렉토리들을 지워야 한다([08](08_troubleshooting.md) T-16).

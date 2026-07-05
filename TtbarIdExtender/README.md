@@ -102,6 +102,8 @@ python3 crab/submit_ttbarIdExtend.py --resubmit --process TTbar_Hadronic,TTbb_Ha
 CRAB 출력이 `out_lfn_base` 아래에 쌓이면, 그 위치를 `Validation/filelists/make_filelists_miniAOD.py`의 `SAMPLE_DIR`로 지정해 filelist를 생성하고([../Validation/README.md](../Validation/README.md) §0), §1의 검증 워크플로로 넘어간다.
 
 **주의사항**
+- **`crab-setup.sh`를 먼저 source**해야 한다(세션당 1회) — 안 하면 `ModuleNotFoundError: No module named 'CRABClient'`.
+- 제출은 `TtbarIdExtender/` 등 어느 디렉토리에서 실행해도 된다(psetName은 절대경로로 해결됨, v12.2). 제출이 실패하면 빈 `crab_projects/crab_*` 껍데기가 남아 재제출을 막으니, 재시도 전 `rm -rf crab_projects/crab_*_2017_extend`로 지운다([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-16).
 - 출력 LFN: `site_config.yaml`의 `out_lfn_base` 아래. 2026-06 기존 production은 구 경로 `/store/user/<user>/ExtendedTtbarId/sidecar/...`에 있고(rename이 데이터를 안 옮김), 신규 제출은 위에서 설정한 새 경로로 간다.
 - **v11 이전에 제출한 `crab_*` 프로젝트의 `--status`/`--resubmit`은 그 당시 체크아웃에서** 실행할 것 — CRAB 프로젝트 디렉토리가 제출 당시의 pset 경로를 기억한다 ([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-13).
 - 같은 샘플을 재제출해 `requestName`이 충돌하면 `site_config.yaml`의 `request_name_tag`를 bump.
