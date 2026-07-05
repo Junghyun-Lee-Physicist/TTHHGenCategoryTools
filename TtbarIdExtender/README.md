@@ -89,13 +89,20 @@ python3 crab/submit_ttbarIdExtend.py
 
 특정 샘플/era만 제출하려면 `--process TT4b,TTbb_Hadronic` 또는 `--era 2017` 필터를 붙인다.
 
-### 2.3 진행 확인 / 재제출
+### 2.3 진행 확인 / 재제출 / kill
 
 ```bash
 python3 crab/submit_ttbarIdExtend.py --status                          # 전 태스크 상태
 python3 crab/submit_ttbarIdExtend.py --resubmit                        # 실패 job 일괄 재제출
 python3 crab/submit_ttbarIdExtend.py --resubmit --process TTbar_Hadronic,TTbb_Hadronic
+
+# 실행 중/대기 중 job 죽이기 (crab kill). 파괴적이라 확인 프롬프트가 뜬다.
+python3 crab/submit_ttbarIdExtend.py --kill                            # 전 태스크 kill (y/N 확인)
+python3 crab/submit_ttbarIdExtend.py --kill --process TT4b            # 한 샘플만
+python3 crab/submit_ttbarIdExtend.py --kill --process TT4b --yes      # 확인 없이 (스크립트용)
 ```
+
+`--status`/`--resubmit`/`--kill`은 셋 중 하나만 쓸 수 있다(동시 지정 시 에러). 셋 다 새 task를 제출하지 않고 기존 `crab_projects/crab_*` 프로젝트에 대해서만 동작하며, `--process`/`--era` 필터를 존중한다. `--kill`은 job만 죽일 뿐 프로젝트 디렉토리를 지우지 않는다 — 같은 이름으로 다시 제출하려면 `rm -rf crab_projects/crab_<req>` 후 `request_name_tag`를 bump하거나 프로젝트를 지운다.
 
 ### 2.4 생산 후 → filelist 만들기 → 검증
 

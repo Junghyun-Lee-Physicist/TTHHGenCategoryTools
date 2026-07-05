@@ -65,6 +65,13 @@ def parse_args():
     p.add_argument("--status",   action="store_true",
                    help="Bulk 'crab status' on the existing crab_* project of "
                         "every selected sample. Does not submit new tasks.")
+    p.add_argument("--kill",     action="store_true",
+                   help="Bulk 'crab kill' on the existing crab_* project of "
+                        "every selected sample (kills all running/idle jobs). "
+                        "Honors --process / --era. Prompts for confirmation "
+                        "unless --yes is given. Does not remove project dirs.")
+    p.add_argument("--yes",      action="store_true",
+                   help="Skip the confirmation prompt for --kill.")
     return p.parse_args()
 
 
@@ -160,7 +167,7 @@ def submit_one(cfg, *, dry_run):
 
 
 def crab_action_one(cfg, *, action):
-    """Run 'crab resubmit' or 'crab status' on an existing project dir.
+    """Run 'crab resubmit' / 'crab status' / 'crab kill' on an existing project dir.
 
     Returns True if the CRAB command ran (regardless of per-job outcome),
     False if the project dir is missing or the command raised.
@@ -201,9 +208,20 @@ def main():
                    if args.era else None)
 
     # Which mode are we in? submit (default), or a bulk action on existing tasks.
-    bulk_action = "resubmit" if args.resubmit else ("status" if args.status else None)
-    if args.resubmit and args.status:
-        sys.exit("ERROR: choose only one of --resubmit / --status.")
+    chosen = [a for a in ("resubmit", "status", "kill")
+              if getattr(args, a)]
+    if len(chosen) > 1:
+        sys.exit("ERROR: choose only one of --resubmit / --status / --kill.")
+    bulk_action = chosen[0] if chosen else None
+
+    # kill is destructive: confirm which samples first, unless --yes.
+    if bulk_action == "kill" and not args.yes:
+        sel = args.process or "ALL enabled+listed samples"
+        era_sel = args.era or "all eras"
+        ans = input(f"About to 'crab kill' — process={sel}, era={era_sel}. "
+                    f"Continue? [y/N] ").strip().lower()
+        if ans not in ("y", "yes"):
+            sys.exit("Aborted (no jobs killed).")
 
     n_total = n_skipped = n_attempted = n_submitted = 0
     for era, era_block in (cat.get("eras") or {}).items():
@@ -243,7 +261,8 @@ def main():
     if bulk_action is None:
         print(f"  skipped   : {n_skipped}  (enabled:false; use --force to override)")
     print(f"  attempted : {n_attempted}")
-    label = {"resubmit": "resubmitted", "status": "queried"}.get(bulk_action, "submitted")
+    label = {"resubmit": "resubmitted", "status": "queried",
+             "kill": "killed"}.get(bulk_action, "submitted")
     print(f"  {label:9s} : {n_submitted}")
 
 
