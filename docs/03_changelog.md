@@ -67,3 +67,7 @@ v11 직후 사용자 요청으로 이름 체계를 한 번 더 정리했다. 핵
 ## 2026-07-05 — v12.3: CRAB `--kill` 추가
 
 `submit_ttbarIdExtend.py`에 `--kill`(+ `--yes`) 추가. 기존 `crab_action_one(action=...)` 경로를 그대로 재사용하므로 `crab kill`이 `--status`/`--resubmit`과 동일하게 `--process`/`--era` 필터를 존중하고 기존 프로젝트에만 동작한다. 파괴적 명령이라 기본적으로 y/N 확인 프롬프트를 띄우고 `--yes`로 생략 가능. 세 bulk action(`--status`/`--resubmit`/`--kill`)은 상호배타(동시 지정 시 에러). `--kill`은 job만 죽이고 프로젝트 디렉토리는 남긴다. README §2.3 갱신.
+
+## 2026-07-05 — v12.4: CRAB 출력지를 개인 EOS로 (`T3_CH_CERNBOX`)
+
+첫 실제 제출이 `SUBMITREFUSED`(EOS write-check 403)로 grid에 안 나감. 원인: `storage_site: T2_CH_CERN`이 `/store/user/`를 CMS 실험 EOS(`/eos/cms/store/user/`, 별도 활성화 필요)로 매핑([08](08_troubleshooting.md) T-17). lxplus 개인 EOS(`/eos/user/j/junghyun/`)가 목적지이므로 `site_config.yaml`의 `storage_site`를 **`T3_CH_CERNBOX`**로 정정(out_lfn_base는 `/store/user/junghyun/...` 유지 — CERNBOX 사이트가 이를 `/eos/user/j/junghyun/...`로 매핑). README §2.0의 잘못된 T2_CH_CERN 설명 정정 + `crab checkwrite` 사전확인 단계 추가. (이전 v12에서 T2_CH_CERN을 개인 EOS로 안내한 것은 오류였음.)

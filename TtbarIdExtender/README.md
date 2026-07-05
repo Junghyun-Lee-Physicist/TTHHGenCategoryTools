@@ -48,11 +48,18 @@ compareExtendToCentral \
 `crab/site_config.yaml`을 열어 **본인 계정으로 두 줄만** 고친다:
 
 ```yaml
-storage_site:    "T2_CH_CERN"                                 # lxplus EOS 개인영역으로 출력
+storage_site:    "T3_CH_CERNBOX"                              # lxplus 개인 EOS(/eos/user/)로 출력
 out_lfn_base:    "/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2"   # /store/user/<본인계정>/...
 ```
 
-`T2_CH_CERN` + `/store/user/<user>/...` 조합이면 CRAB이 lxplus EOS 개인영역(`/eos/user/<첫글자>/<user>/...`, `root://eosuser.cern.ch/`)으로 출력을 보낸다 — CERN 계정이면 별도 사이트 등록 없이 쓸 수 있다. 홈 T2/T3(예: `T3_KR_KNU`)로 보내려면 그걸 `storage_site`에 넣으면 된다.
+`T3_CH_CERNBOX` + `/store/user/<user>/...` 조합이면 CRAB이 lxplus **개인 EOS**(`/eos/user/<첫글자>/<user>/...`, `root://eosuser.cern.ch/`)로 출력을 보낸다 — CERN 계정이면 별도 활성화 없이 쓸 수 있다. 홈 T2/T3(예: `T3_KR_KNU`)로 보내려면 그걸 `storage_site`에 넣는다.
+
+> **주의**: `T2_CH_CERN`은 개인 EOS가 **아니다** — `/store/user/`가 CMS 실험 EOS(`/eos/cms/store/user/`)로 매핑되며 별도 CMS-EOS 쓰기 활성화가 필요하다. 안 되어 있으면 제출이 `SUBMITREFUSED` / `HTTP 403 MAKE_PARENT`로 거부된다([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-17).
+
+제출 전에 목적지 쓰기 권한을 미리 확인하면 SUBMITREFUSED를 피할 수 있다:
+```bash
+crab checkwrite --site=T3_CH_CERNBOX --lfn=/store/user/junghyun
+```
 
 대상 샘플은 `crab/datasets.yaml`에 정의돼 있다 (era `2017` 아래 7종: `TT4b`, `TTbar_SemiLep`, `TTbar_Hadronic`, `TTbar_DiLep`, `TTbb_SemiLep`, `TTbb_Hadronic`, `TTbb_DiLep`; 각 `enabled: true/false`로 선택). MiniAODv2 parent 경로(`-v1`/`-v2` 접미사)가 grid에서 정확한지 확인하려면 (grid proxy 필요):
 
