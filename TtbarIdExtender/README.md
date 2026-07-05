@@ -39,35 +39,72 @@ compareExtendToCentral \
 
 `compareExtendToCentral`은 두 파일을 `(run, lumi, event)`로 매칭해 `genTtbarId` 완전 일치를 확인하고(불일치·미매치 시 non-zero exit), `Expanded_genTtbarId % 100` 분포와 tt+bb 보존식을 표로 보여준다. 참고: 위 스팟체크는 ttbarId-extend 쪽 event가 central 파일에 다 있어야 의미가 있다 — 임의 파일 쌍이면 unmatched가 크게 나올 수 있으며, 전량 검증은 `../Validation`의 filelist 기반 도구로 한다.
 
-## 2. 대량 생산 (CRAB) — 4단계 강제 순서
+## 2. 대량 생산 (CRAB) — 2017 UL 7샘플 전량 제출
+
+7개 stitching 샘플의 MiniAODv2를 전부 훑어 ttbarId-extend 파일을 grid에서 생산한다. **로컬 run(§1)이 성공한 뒤에** 하는 단계다.
+
+### 2.0 최초 1회 설정 (제출 전 반드시)
+
+`crab/site_config.yaml`을 열어 **본인 계정으로 두 줄만** 고친다:
+
+```yaml
+storage_site:    "T2_CH_CERN"                                 # lxplus EOS 개인영역으로 출력
+out_lfn_base:    "/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2"   # /store/user/<본인계정>/...
+```
+
+`T2_CH_CERN` + `/store/user/<user>/...` 조합이면 CRAB이 lxplus EOS 개인영역(`/eos/user/<첫글자>/<user>/...`, `root://eosuser.cern.ch/`)으로 출력을 보낸다 — CERN 계정이면 별도 사이트 등록 없이 쓸 수 있다. 홈 T2/T3(예: `T3_KR_KNU`)로 보내려면 그걸 `storage_site`에 넣으면 된다.
+
+대상 샘플은 `crab/datasets.yaml`에 정의돼 있다 (era `2017` 아래 7종: `TT4b`, `TTbar_SemiLep`, `TTbar_Hadronic`, `TTbar_DiLep`, `TTbb_SemiLep`, `TTbb_Hadronic`, `TTbb_DiLep`; 각 `enabled: true/false`로 선택). MiniAODv2 parent 경로(`-v1`/`-v2` 접미사)가 grid에서 정확한지 확인하려면 (grid proxy 필요):
 
 ```bash
-# 세션마다 1회
-cmssw-el7
+voms-proxy-init -voms cms
+bash crab/resolve_parents.sh   # 각 샘플의 DAS parent 를 출력 → datasets.yaml 의 dataset: 에 반영
+```
+
+### 2.1 세션마다 1회 — 환경 + proxy
+
+```bash
+cmssw-el7                                            # lxplus(EL9) → SLC7 컨테이너 (필수)
 cd CMSSW_10_6_32_patch1/src && cmsenv
 source /cvmfs/cms.cern.ch/common/crab-setup.sh
-voms-proxy-init -voms cms -valid 192:00
+voms-proxy-init -voms cms -valid 192:00              # 8일짜리 proxy
 cd TTHHGenCategoryTools/TtbarIdExtender
+```
 
-# 최초 1회: crab/site_config.yaml 의 __YOUR_CERN_USERNAME__ 을 본인 계정으로.
-# 샘플 추가 시: parent(-v1/-v2 접미사) 를 DAS 로 확인
-bash crab/resolve_parents.sh
+### 2.2 제출 — 강제 순서 (preflight → dry-run → 스모크 → 본제출)
 
-# (1) 환경 점검 → (2) 계획 미리보기 → (3) 스모크 → (4) 본제출
+```bash
+# (1) 환경 점검: cmsenv/proxy/pset/plugin lib 존재 확인
 python3 crab/preflight.py
-python3 crab/submit_ttbarIdExtend.py --dry-run
-python3 crab/submit_ttbarIdExtend.py --process TT4b --max-files 5
-python3 crab/submit_ttbarIdExtend.py
 
-# 진행 확인 / 실패 재제출 (일괄; --process/--era 필터 병용 가능)
-python3 crab/submit_ttbarIdExtend.py --status
-python3 crab/submit_ttbarIdExtend.py --resubmit
+# (2) 계획 미리보기: 무엇이 몇 job 제출될지 (실제 제출 안 함)
+python3 crab/submit_ttbarIdExtend.py --dry-run
+
+# (3) 스모크 테스트: tt4b 한 샘플, 파일 5개만 먼저 (grid 왕복 확인)
+python3 crab/submit_ttbarIdExtend.py --process TT4b --max-files 5
+
+# (4) 본제출: enabled=true 인 전 샘플
+python3 crab/submit_ttbarIdExtend.py
+```
+
+특정 샘플/era만 제출하려면 `--process TT4b,TTbb_Hadronic` 또는 `--era 2017` 필터를 붙인다.
+
+### 2.3 진행 확인 / 재제출
+
+```bash
+python3 crab/submit_ttbarIdExtend.py --status                          # 전 태스크 상태
+python3 crab/submit_ttbarIdExtend.py --resubmit                        # 실패 job 일괄 재제출
 python3 crab/submit_ttbarIdExtend.py --resubmit --process TTbar_Hadronic,TTbb_Hadronic
 ```
 
-- 대상 샘플 정의: `crab/datasets.yaml` (2017 UL stitching 7종; `enabled` 플래그로 선택).
-- 출력: `site_config.yaml`의 `out_lfn_base` 아래 (기존 production: T3_KR_KNU `/store/user/<user>/ExtendedTtbarId/sidecar/...` — 신규 제출은 `site_config.yaml`의 새 LFN `/store/user/<user>/TTHHGenCategoryTools/ttbarIdExtend/...`).
-- **v11 이전에 제출한 `crab_*` 프로젝트의 `--status/--resubmit`은 구 체크아웃에서** 실행할 것 — 프로젝트가 구 pset 경로를 기억한다 ([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-13).
+### 2.4 생산 후 → filelist 만들기 → 검증
+
+CRAB 출력이 `out_lfn_base` 아래에 쌓이면, 그 위치를 `Validation/filelists/make_filelists_miniAOD.py`의 `SAMPLE_DIR`로 지정해 filelist를 생성하고([../Validation/README.md](../Validation/README.md) §0), §1의 검증 워크플로로 넘어간다.
+
+**주의사항**
+- 출력 LFN: `site_config.yaml`의 `out_lfn_base` 아래. 2026-06 기존 production은 구 경로 `/store/user/<user>/ExtendedTtbarId/sidecar/...`에 있고(rename이 데이터를 안 옮김), 신규 제출은 위에서 설정한 새 경로로 간다.
+- **v11 이전에 제출한 `crab_*` 프로젝트의 `--status`/`--resubmit`은 그 당시 체크아웃에서** 실행할 것 — CRAB 프로젝트 디렉토리가 제출 당시의 pset 경로를 기억한다 ([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-13).
+- 같은 샘플을 재제출해 `requestName`이 충돌하면 `site_config.yaml`의 `request_name_tag`를 bump.
 
 ## 3. 디렉토리 안내
 

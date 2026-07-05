@@ -52,6 +52,14 @@ cmsRun TTHHGenCategoryTools/TtbarIdExtender/test/run_ttbarIdExtend_cfg.py \
 cd TTHHGenCategoryTools/Validation && make
 bin/matchTtbarId --extend-filelist <S> --nano-filelist <N> --out match_X.root
 bin/extractTtbarIdPatch --filelist <S> --out ttbarIdPatch_X.root
+
+# (3) 대량 생산은 CRAB 로 — 7샘플 전량 (설정·제출 순서는 TtbarIdExtender/README.md §2)
+cd ../TtbarIdExtender
+python3 crab/preflight.py
+python3 crab/submit_ttbarIdExtend.py --process TT4b --max-files 5   # 스모크
+python3 crab/submit_ttbarIdExtend.py                                # 본제출
 ```
 
-자세한 명령은 각 지역 README, 설계 근거는 `docs/04`, 숫자는 `docs/06`.
+- **로컬 1파일 생산 → 스팟체크 → CRAB 대량 생산**: [`TtbarIdExtender/README.md`](TtbarIdExtender/README.md) (CRAB 설정·제출·재제출은 §2)
+- **검증 풀 런 + patch 추출**(복붙용 7샘플 명령): [`Validation/README.md`](Validation/README.md)
+- 설계 근거는 `docs/04`, 검증 숫자는 `docs/06`.

@@ -5,12 +5,23 @@
 #
 # IMPORTANT: out_lfn_base must start with /store/user/<your username>/...
 # CRAB resolves /store/user/... against the storageSite PFN root.  You must
-# have write permission at storage_site (typically your home T2/T3).
+# have write permission at storage_site.
+#
+# Output -> lxplus EOS personal area:
+#   storage_site = T2_CH_CERN  and  out_lfn_base = /store/user/<user>/...
+#   CRAB maps this to /eos/user/<u>/<user>/... (root://eosuser.cern.ch/).
+#   Any CERN account can write here; no extra site registration needed.
+#   (For a home T2/T3 instead, e.g. T3_KR_KNU, set that as storage_site.)
 # =============================================================================
 
 # ---- EDIT THESE TWO LINES BEFORE SUBMITTING --------------------------------
-storage_site:    "T3_KR_KNU"
-out_lfn_base:    "/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend"
+storage_site:    "T2_CH_CERN"
+out_lfn_base:    "/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2"
+
+# Alternative: home Tier3 (KNU).  Comment out the two lines above and
+# uncomment the two below to send output to T3_KR_KNU instead of lxplus EOS.
+# storage_site:    "T3_KR_KNU"
+# out_lfn_base:    "/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2"
 # ----------------------------------------------------------------------------
 
 work_area:       "crab_projects"

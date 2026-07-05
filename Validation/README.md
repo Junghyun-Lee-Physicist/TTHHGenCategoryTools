@@ -47,6 +47,25 @@ make
 
 Makefile은 `tools/*.cc` 와일드카드 — 파일 하나 추가 = 도구 하나 추가.
 
+### 가장 먼저 — 실제로 도는 최소 예시 하나 (tt4b)
+
+빌드가 끝나면 이 한 줄로 파이프라인이 동작하는지 바로 확인한다. `tt4b`는 확장 카테고리(61/62/71/72)가 실제로 채워지는 샘플이라 첫 검증 대상으로 가장 적합하다. **동봉된 filelist를 그대로 쓰므로 경로 수정 없이 복붙 가능**하다(단, filelist 안의 파일들이 실제로 접근 가능한 위치여야 한다):
+
+```bash
+# ttbarId-extend ↔ 중앙 NanoAOD per-event byte-identity 검증 (정렬 불필요)
+bin/matchTtbarId \
+    --extend-filelist filelists/sidecar/filelist_tt4b.txt \
+    --nano-filelist   filelists/nano/filelist_tt4b.txt \
+    --out match_tt4b.root --label tt4b
+
+# 결과 플롯 (nano vs extend 겹쳐 그리고 per-bin ratio 숫자 표시)
+bin/plotTtbarCompare --match match_tt4b.root --out tt4b.png --label tt4b
+```
+
+성공 신호: `matchTtbarId` 종료 코드 `0`, 로그에 `disagree = 0` / `unmatched = 0`, 확장 무결성 위반 0. 0이 아니면 §2 표의 exit code로 원인을 안다(5 unmatched / 6 mismatch / 7 dup / 8 확장위반). tt4b 플롯의 `h_extend_Expanded_sub`에서 61/62·71/72 bin이 채워져 있으면 확장이 제대로 된 것.
+
+나머지 6개 샘플로 확장하는 전체 명령은 §3.
+
 ## 2. 도구 요약 (무엇이 언제 필요한가)
 
 | 도구 | 역할 | 실패 신호 (exit) |
