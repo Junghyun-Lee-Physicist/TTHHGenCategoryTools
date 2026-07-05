@@ -29,3 +29,8 @@
 
 - **T-13** | (예상) 구 `crab_*` 프로젝트에 `--resubmit`이 실패하거나 엉뚱한 cfg를 집음 | CRAB 프로젝트 디렉토리는 제출 당시의 pset 경로(`.../NanoExtension/...`)를 기억 | 구(pre-v11) 태스크의 resubmit은 구 체크아웃에서 수행; 신규 제출은 새 경로로. `requestName`이 겹치면 `site_config.yaml`의 `request_name_tag`를 bump.
 - **T-14** | (예상) `preflight.py`가 "plugin .so missing" | rename 후 stale build area | `scram b clean && scram b -j8` — plugin lib 이름이 `pluginTTHHGenCategoryToolsTtbarIdExtender*`로 재생성되는지 확인 ([01](01_status.md) O1).
+
+## v12 첫 lxplus 빌드 (실측)
+
+- **T-15** | `scram b`가 `Validation/`을 컴파일하려다 `fatal error: TChain.h / TCanvas.h: No such file or directory`로 전량 실패 (2026-07-05 첫 빌드) | scram은 `<Package>/src/*.cc`를 **BuildFile.xml이 없어도** 자동으로 패키지 라이브러리로 컴파일하려 든다. `Validation/src/`가 바로 그 특수 경로에 걸려, scram이 ROOT include 경로(`root-config --cflags`) 없이 컴파일 → ROOT 헤더 못 찾음. (로그의 `Entering library rule at TTHHGenCategoryTools/Validation` + `.../Validation/src/TTHHGenCategoryToolsValidation/*.cc.o`가 증거.) | **소스 디렉토리를 `Validation/src/` → `Validation/tools/`로 rename**하고 Makefile의 `SRCDIR := tools`로 변경. `tools/`는 scram의 자동 컴파일 대상이 아니므로 scram이 완전히 무시하고, standalone `make`만 `tools/*.cc`를 빌드한다. 이것이 [04](04_decisions.md) D14에서 예고한 fallback의 실제 적용. — plugin 패키지(`TtbarIdExtender/`)는 정상 컴파일됐으므로 subsystem/패키지/plugin-lib 이름 자체는 문제 없음이 이 빌드로 확인됨.
+- **T-15 부수**: 같은 빌드에서 `-Wcomment`(multi-line comment) 경고가 여러 도구에서 발생 — `//` 주석 줄 끝의 `\`(예시 명령 줄바꿈)를 컴파일러가 comment continuation으로 해석. 무해하나, 주석 예시에서 줄 끝 `\`를 제거해 정리함.

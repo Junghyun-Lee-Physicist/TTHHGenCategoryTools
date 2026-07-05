@@ -26,7 +26,7 @@
 
 | # | 항목 | 세부 |
 |---|---|---|
-| O1 | **rename 후 첫 실빌드/실행 확인 (lxplus)** | 이번 v11 변경은 AI 환경(CMSSW/ROOT 없음)에서 문법 검토만 됨. 필요: EL7 컨테이너에서 `scram b -j8` → `cmsRun TtbarIdExtender/test/run_ttbarIdExtend_cfg.py inputFiles=<miniaodv2> maxEvents=100` → `Validation`에서 `make` → 소규모 `matchTtbarId` 1회. 특히 (a) plugin lib 이름이 `pluginTTHHGenCategoryToolsTtbarIdExtender*`로 나오는지(`crab/preflight.py` 글롭과 일치), (b) `Validation/`이 scram에 무시되는지 확인 |
+| O1 | **rename 후 첫 실빌드/실행 확인 (lxplus)** — 부분 완료 (v12) | ✅ `scram b -j8` 통과: plugin 패키지(`TtbarIdExtender/`) 정상 컴파일, `Validation/src/`→`tools/` rename으로 scram 간섭 제거([08](08_troubleshooting.md) T-15, [04](04_decisions.md) D14). plugin-lib 이름은 빌드 성공으로 preflight 글롭과 정합 추정(직접 `.so` 확인은 권장). ⏳ 아직 안 함: `cmsRun run_ttbarIdExtend_cfg.py`로 실제 ttbarId-extend 생산 1회, `Validation`에서 `make`(standalone) 후 소규모 `matchTtbarId` 1회 — 이 두 개로 end-to-end 확인 |
 | O2 | **analyzer 측 좌표 변경 (PROPOSED)** | patch 파일 새 명명(`ttbarIdPatch_*`/`TtbarIdPatch`)을 tempTTHH `ExpandedTtbarId` loader에 반영할지 결정. 정확한 3-line diff는 [07](07_analyzer_integration.md) §4. 반영 전까지 기존 산출물(`Validation/lookup/ttnb_*.root`, 구 규약)이 현행 계약 |
 | O3 | `das_lineage.py` 실사용 검증 여부 불명 | `Validation/scripts/`로 이동 보관. docstring상 file-level MiniAOD↔NanoAOD lineage 도구이나, 과거 실행 기록이 문서에 없음 — 사용 전 1회 동작 확인 필요 |
 | O4 | 이전에 제출된 CRAB 프로젝트의 resubmit | 기존 `crab_*` 디렉토리는 구 경로(`.../NanoExtension/...`) pset을 기억함. 구 태스크 resubmit은 구 체크아웃에서 할 것 ([08](08_troubleshooting.md) T-13) |

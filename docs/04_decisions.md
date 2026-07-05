@@ -83,7 +83,7 @@
 
 - **선택**: tar 루트 `TTHHGenCategoryTools/` = CMSSW subsystem 디렉토리이자 저장소 루트. `Validation/`은 BuildFile.xml 없는 standalone(Makefile)으로 병치.
 - **근거**: 사용자의 기존 배포 관행(subsystem tar를 `src/`에서 풀기)과 호환; 생산·검증이 한 이력·한 문서 세트를 공유; scram은 BuildFile 없는 디렉토리를 빌드하지 않으므로 간섭 없음.
-- **주의(OPEN)**: "scram이 무시한다"는 이 환경에서 실검증 불가 — [01](01_status.md) O1의 첫 `scram b`에서 확인. 문제가 되면 `Validation/`을 subsystem 밖으로 빼는 fallback이 준비돼 있다(경로 참조는 상대링크뿐).
+- **실측·해결 (v12, 2026-07-05)**: 첫 `scram b`에서 예상대로 문제가 터졌다 — scram이 `Validation/src/*.cc`를 BuildFile 없이 자동 컴파일하려다 ROOT 헤더를 못 찾고 전량 실패([08](08_troubleshooting.md) T-15). `Validation/`을 subsystem 밖으로 빼는 대신 **더 가벼운 fallback**을 적용: 소스 디렉토리를 `Validation/src/` → `Validation/tools/`로 rename(Makefile `SRCDIR := tools`). scram은 `src/`만 자동 컴파일 대상으로 보므로 `tools/`는 완전히 무시하고, standalone `make`만 이를 빌드한다. plugin 패키지는 이 빌드에서 정상 컴파일 → subsystem/패키지/plugin-lib 이름은 문제없음이 확인됨.
 
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 

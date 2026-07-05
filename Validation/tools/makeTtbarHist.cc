@@ -25,8 +25,8 @@
 // h_genTtbarId* histograms must be bin-by-bin identical.
 //
 // Usage:
-//   makeTtbarHist --filelist filelist_TTToSemiLeptonic.txt \
-//                 --mode nano --out hist_nano_TTToSemiLeptonic.root \
+//   makeTtbarHist --filelist filelist_TTToSemiLeptonic.txt
+//                 --mode nano --out hist_nano_TTToSemiLeptonic.root
 //                 [--tree Events] [--max-events -1] [--label TTToSemiLeptonic]
 //
 // The output file holds the histograms at top level so plotTtbarCompare can

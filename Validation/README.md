@@ -3,7 +3,7 @@
 > **목적**: ttbarId-extend ↔ 중앙 NanoAODv9의 전량 byte-identity 검증, 분포 비교, analyzer용 patch 파일 추출의 **복붙 가능한 명령 모음**.
 > **대상 독자**: 검증을 (재)수행하거나 새 샘플을 추가하는 사람. 검사 로직·설계는 [../docs/05_architecture.md](../docs/05_architecture.md) §3, 완료된 결과 수치는 [../docs/06_validation_results.md](../docs/06_validation_results.md).
 > **상태**: 워크플로 DECIDED (2026-06 캠페인에서 그대로 사용). 2026-07-05: 도구 rename `extractTtNb` → `extractTtbarIdPatch` (로직 무변경, D12) — 이 문서의 명령은 신규약 기준, 구규약 재생산법 병기.
-> **환경**: CMSSW 불필요. `root-config`가 PATH에 있는 아무 ROOT 6.x 환경 (KNU Tier3, lxplus 등). 이 디렉토리는 BuildFile.xml이 없어 `scram b` 대상이 아니다.
+> **환경**: CMSSW 불필요. `root-config`가 PATH에 있는 아무 ROOT 6.x 환경 (KNU Tier3, lxplus 등). 소스는 `Validation/tools/`에 있고 BuildFile.xml이 없어 **scram이 건드리지 않는다**(standalone `make`). 소스를 `src/`가 아니라 `tools/`에 둔 이유는 [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-15.
 
 ## 0. 한눈에 보는 워크플로
 
@@ -45,7 +45,7 @@ make
 #    bin/sortSplitExtend bin/extractTtbarIdPatch bin/scanOrder
 ```
 
-Makefile은 `src/*.cc` 와일드카드 — 파일 하나 추가 = 도구 하나 추가.
+Makefile은 `tools/*.cc` 와일드카드 — 파일 하나 추가 = 도구 하나 추가.
 
 ## 2. 도구 요약 (무엇이 언제 필요한가)
 

@@ -37,8 +37,8 @@
 //   nAddBJets/I  nAddBJetsMulti/I
 //
 // Usage:
-//   sortSplitExtend --filelist extend_files.txt --out-dir sorted_TTToHadronic \
-//       [--part-size 500000] [--chunk-size 10000000] [--tree Events] \
+//   sortSplitExtend --filelist filelists/sidecar/filelist_TTToHadronic.txt --out-dir sorted_TTToHadronic
+//       [--part-size 500000] [--chunk-size 10000000] [--tree Events]
 //       [--tmp-dir /tmp/ssX]
 //
 // Memory knobs:

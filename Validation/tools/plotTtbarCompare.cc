@@ -16,9 +16,9 @@
 //   extend file file  must contain h_genTtbarId_sub (and h_Expanded_sub)
 //
 // Usage:
-//   plotTtbarCompare --match match_TTHHto4b.root \
-//                    --nano    hist_nano_TTHHto4b.root \
-//                    --out     TTHHto4b_ttbarId_compare.png \
+//   plotTtbarCompare --match match_TTHHto4b.root
+//                    --nano    hist_nano_TTHHto4b.root
+//                    --out     TTHHto4b_ttbarId_compare.png
 //                    [--label TTHHto4b] [--normalize] [--logy]
 //
 // --normalize : scale both to unit area before comparing (use when extend file and

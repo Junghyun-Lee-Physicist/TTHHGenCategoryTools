@@ -34,7 +34,7 @@
 //   (Equivalently nAddBJets >= 3; both are cross-checked and must agree.)
 //
 // Usage:
-//   extractTtbarIdPatch --filelist filelists/extend file/filelist_tt4b.txt \
+//   extractTtbarIdPatch --filelist filelists/sidecar/filelist_tt4b.txt
 //       --out ttbarIdPatch_tt4b.root [--tree Events] [--out-tree TtbarIdPatch] [--label tt4b]
 //
 // Naming compatibility: until 2026-07-05 this tool was `extractTtNb`, writing

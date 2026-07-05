@@ -55,3 +55,7 @@ v11 직후 사용자 요청으로 이름 체계를 한 번 더 정리했다. 핵
 **구조**: tar 루트 = `TTHHGenCategoryTools/`, 배포물 `TTHHGenCategoryTools_v12.tar.gz`. `docs/legacy/`의 병합-이전 원본 4편과 `archive/enriched_nanoaod/`는 v12에서도 **무수정 동결** (그 안의 옛 이름은 역사적으로 정확함).
 
 **검증 경계**: 이 rename은 AI 환경(CMSSW/ROOT 없음)에서 문법 검토·py compile만 됨. lxplus 실빌드는 [01](01_status.md) O1. 특히 scram이 생성하는 plugin-lib 이름이 `pluginTTHHGenCategoryToolsTtbarIdExtender*`로 나오는지(preflight 글롭과 일치) 실기기 확인 필요.
+
+## 2026-07-05 — v12.1: 첫 lxplus 빌드 수정 (`Validation/src` → `Validation/tools`)
+
+첫 `scram b -j8`에서 scram이 `Validation/src/*.cc`를 BuildFile 없이 자동 컴파일하려다 ROOT 헤더(`TChain.h` 등)를 못 찾아 전량 실패([08](08_troubleshooting.md) T-15). 원인은 scram이 `<Package>/src/`를 특수 취급하는 것. **해결**: 소스 디렉토리 `Validation/src/` → `Validation/tools/` rename, Makefile `SRCDIR := tools`. scram은 `tools/`를 무시하고 standalone `make`만 빌드. plugin 패키지(`TtbarIdExtender/`)는 정상 컴파일되어 subsystem/패키지/plugin-lib 이름 정합 확인됨([04](04_decisions.md) D14 fallback 적용). 부수로 `-Wcomment` 경고 유발하던 주석 예시의 줄 끝 `\` 제거. README(top·Validation)의 빌드 서술을 이 레이아웃으로 갱신하고, 최상위 README·패키지 README에 `cmsrel CMSSW_10_6_32_patch1` + `git clone` 설정 절차 추가.

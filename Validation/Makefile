@@ -36,10 +36,10 @@ ROOTCFLAGS := $(shell root-config --cflags)
 ROOTLIBS   := $(shell root-config --libs)
 
 # --- Layout ------------------------------------------------------------------
-SRCDIR := src
+SRCDIR := tools
 BINDIR := bin
 
-# Each .cc in src/ becomes a standalone executable in bin/.
+# Each .cc in tools/ becomes a standalone executable in bin/.
 SOURCES := $(wildcard $(SRCDIR)/*.cc)
 BINARIES := $(patsubst $(SRCDIR)/%.cc,$(BINDIR)/%,$(SOURCES))
 
@@ -49,7 +49,7 @@ BINARIES := $(patsubst $(SRCDIR)/%.cc,$(BINDIR)/%,$(SOURCES))
 all: $(BINARIES)
 	@echo "[Makefile] built: $(BINARIES)"
 
-# Pattern rule: bin/<name> from src/<name>.cc
+# Pattern rule: bin/<name> from tools/<name>.cc
 $(BINDIR)/%: $(SRCDIR)/%.cc | $(BINDIR)
 	@echo "[Makefile] compiling $< -> $@"
 	$(CXX) $(CXXFLAGS) $(ROOTCFLAGS) $< -o $@ $(ROOTLIBS)

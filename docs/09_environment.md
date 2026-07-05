@@ -20,7 +20,7 @@
 | Scheduling | Task 결합은 `Task.associate()` (Sequence `+=` 금지) | "Unrunnable schedule" (T-6) |
 | 실행 환경 | lxplus(EL9)에서는 `cmssw-el7` 컨테이너 진입 후 `cmsenv` | scram arch 불일치 |
 
-`crab/*.py`와 `Validation/scripts/*.py`는 이 제약 밖 (Python 3 실행 전제; README 명령이 `python3` 명시). `Validation/src/*.cc`는 CMSSW 무관 — `root-config` 기반 Makefile로 어느 ROOT 6.x에서든 빌드.
+`crab/*.py`와 `Validation/scripts/*.py`는 이 제약 밖 (Python 3 실행 전제; README 명령이 `python3` 명시). `Validation/tools/*.cc`는 CMSSW 무관 — `root-config` 기반 Makefile로 어느 ROOT 6.x에서든 빌드.
 
 ## 2. 10_6_X ↔ 14_X+ 호환 요약 (실측 기반)
 

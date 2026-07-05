@@ -33,8 +33,8 @@
 //   * nAddBJets <= 2  =>  Expanded_genTtbarId == genTtbarId  (unchanged)
 //
 // Usage:
-//   matchTtbarIdSorted --sorted-dir sorted_TTToHadronic \
-//       --nano-filelist nano_TTToHadronic.txt [--out match.root] [--label NAME] \
+//   matchTtbarIdSorted --sorted-dir sorted_TTToHadronic
+//       --nano-filelist nano_TTToHadronic.txt [--out match.root] [--label NAME]
 //       [--tree-nano Events] [--dump-mismatches N]
 //
 // Exit codes: 0 ok; 5 nothing matched; 6 genTtbarId disagreement; 9 nano run!=1;

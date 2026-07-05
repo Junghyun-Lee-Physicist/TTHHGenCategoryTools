@@ -1,8 +1,8 @@
 # TtbarIdExtender — ttbarId 확장(gen-level) 생산 패키지 (지역 README)
 
-> **목적**: 이 디렉토리에서 sidecar를 **만들고**(로컬/CRAB) **스팟체크**하는 실행 명령 모음.
-> **대상 독자**: sidecar를 생산·재생산하는 사람. 개념·설계는 저장소 문서로 — 인코딩 [../docs/02_physics.md](../docs/02_physics.md), 구조 [../docs/05_architecture.md](../docs/05_architecture.md), 문제 발생 시 [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md).
-> **상태**: DECIDED 워크플로 (v10에서 확립, v11에서 `TtbarIdExtender`, v12에서 `TtbarIdExtender`로 rename). **v11 rename 이후 lxplus 재빌드 확인은 OPEN** ([../docs/01_status.md](../docs/01_status.md) O1).
+> **목적**: 이 디렉토리에서 ttbarId-extend 파일을 **만들고**(로컬/CRAB) **스팟체크**하는 실행 명령 모음.
+> **대상 독자**: ttbarId-extend 파일을 생산·재생산하는 사람. 개념·설계는 저장소 문서로 — 인코딩 [../docs/02_physics.md](../docs/02_physics.md), 구조 [../docs/05_architecture.md](../docs/05_architecture.md), 문제 발생 시 [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md).
+> **상태**: DECIDED 워크플로 (v10 확립). rename 이력: 패키지 `NanoExtension`→`GenSidecar`(v11)→`TtbarIdExtender`(v12), 출력 `sidecar.root`→`ttbarIDExtend.root`(v12). **lxplus 첫 빌드는 확인됨(v12): plugin 라이브러리 컴파일 성공, `Validation/`은 `tools/`로 옮겨 scram 간섭 제거** ([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-15).
 > **환경**: CMSSW_10_6_32_patch1 (lxplus에서 `cmssw-el7` 컨테이너 필수) — [../docs/09_environment.md](../docs/09_environment.md).
 
 산출물 스키마 한 줄: top-level `Events` TTree = `run/i, luminosityBlock/i, event/l, genTtbarId/I, Expanded_genTtbarId/I, nAddBJets/I, nAddBJetsMulti/I` (event당 ~32 B).
@@ -10,13 +10,14 @@
 ## 1. 빠른 시작 — ttbarId-extend 하나 만들고 중앙 NanoAOD와 대조
 
 ```bash
-# 1. EL7 컨테이너 진입 후 CMSSW 설정
-cmssw-el7
-cd CMSSW_10_6_32_patch1/src
-cmsenv
+# 1. EL7 컨테이너 진입 후 CMSSW 릴리스 생성 + 저장소 clone
+cmssw-el7                                  # lxplus(EL9)에서 SLC7 컨테이너 진입 (필수)
+cmsrel CMSSW_10_6_32_patch1
+cd CMSSW_10_6_32_patch1/src && cmsenv
+git clone https://github.com/Junghyun-Lee-Physicist/TTHHGenCategoryTools.git
+#   (tar 배포본을 쓸 경우: tar xzf TTHHGenCategoryTools_v12.tar.gz)
 
-# 2. 저장소 압축 해제 후 빌드 (rename 직후 첫 빌드는 clean 권장)
-tar xzf TTHHGenCategoryTools_v12.tar.gz   # TTHHGenCategoryTools/{TtbarIdExtender,Validation,docs,...} 생성
+# 2. 빌드
 scram b -j8
 
 # 3. MiniAODv2 파일 하나로 ttbarId-extend 생산
@@ -65,7 +66,7 @@ python3 crab/submit_ttbarIdExtend.py --resubmit --process TTbar_Hadronic,TTbb_Ha
 ```
 
 - 대상 샘플 정의: `crab/datasets.yaml` (2017 UL stitching 7종; `enabled` 플래그로 선택).
-- 출력: `site_config.yaml`의 `out_lfn_base` 아래 (기존 production: T3_KR_KNU `/store/user/<user>/ExtendedTtbarId/ttbarId-extend/...`).
+- 출력: `site_config.yaml`의 `out_lfn_base` 아래 (기존 production: T3_KR_KNU `/store/user/<user>/ExtendedTtbarId/sidecar/...` — 신규 제출은 `site_config.yaml`의 새 LFN `/store/user/<user>/TTHHGenCategoryTools/ttbarIdExtend/...`).
 - **v11 이전에 제출한 `crab_*` 프로젝트의 `--status/--resubmit`은 구 체크아웃에서** 실행할 것 — 프로젝트가 구 pset 경로를 기억한다 ([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-13).
 
 ## 3. 디렉토리 안내

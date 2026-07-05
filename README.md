@@ -1,18 +1,18 @@
 # TTHHGenCategoryTools
 
 > **한 줄 목적**: 표준 NanoAODv9 `genTtbarId`가 구분하지 못하는 **tt+bbb(추가 b-jet 정확히 3개) / tt+4b(4개 이상)** 를 MiniAODv2 gen 정보로부터 복원(`Expanded_genTtbarId`)하여, ttHH(4b) 분석의 ttbar stitching에 공급한다.
-> **대상 독자**: 이 코드를 이어받는 모든 사람/AI. **상태**: 2017 UL 7개 샘플 전량 검증 완료 (2026-06), 병합·rename v11 (2026-07-05).
+> **대상 독자**: 이 코드를 이어받는 모든 사람/AI. **상태**: 2017 UL 7개 샘플 전량 검증 완료 (2026-06), 병합·rename v12 (2026-07-05).
 > **정본 규칙**: 저장소의 문서화 계약은 `DOCUMENTATION_GUIDELINE`(프로젝트 무관 계약)을 따르며, AI 작업 계약은 [`00_PROMPT.md`](00_PROMPT.md)에 있다.
 
 이 저장소(`TTHHGenCategoryTools`)는 세 부분으로 구성된다:
 
 | 디렉토리 | 무엇 | 빌드 방식 |
 |---|---|---|
-| [`TtbarIdExtender/`](TtbarIdExtender/README.md) | CMSSW 패키지. MiniAODv2에서 gen-level ttbar+HF categorization을 돌려 작은 **sidecar** TTree(`run, luminosityBlock, event, genTtbarId, Expanded_genTtbarId, nAddBJets, nAddBJetsMulti`)를 생산 + CRAB 인프라 + byte-identity 비교기 | `scram b` (CMSSW_10_6_32_patch1) |
-| [`Validation/`](Validation/README.md) | 독립(standalone) ROOT/Makefile 도구 모음. sidecar ↔ 중앙 NanoAODv9 의 **per-event byte-identity 검증**, 대용량 external-sort 매칭, 분포 비교 플롯, 그리고 analyzer가 소비할 **per-sample ttbar-Id patch 파일** 추출 | `make` (ROOT만 필요, CMSSW 불필요) |
+| [`TtbarIdExtender/`](TtbarIdExtender/README.md) | CMSSW 패키지. MiniAODv2에서 gen-level ttbar+HF categorization을 돌려 작은 **ttbarId-extend** TTree(`run, luminosityBlock, event, genTtbarId, Expanded_genTtbarId, nAddBJets, nAddBJetsMulti`)를 생산 + CRAB 인프라 + byte-identity 비교기 | `scram b` (CMSSW_10_6_32_patch1) |
+| [`Validation/`](Validation/README.md) | 독립(standalone) ROOT/Makefile 도구 모음. ttbarId-extend ↔ 중앙 NanoAODv9 의 **per-event byte-identity 검증**, 대용량 external-sort 매칭, 분포 비교 플롯, 그리고 analyzer가 소비할 **per-sample ttbar-Id patch 파일** 추출 | `make` (ROOT만 필요, CMSSW 불필요) |
 | [`docs/`](docs/) | 저장소 전체의 번호 붙은 문서 세트 (아래 읽기 순서) | — |
 
-`Validation/`에는 **BuildFile.xml이 없으므로 scram이 빌드하지 않는다** (lxplus에서 `scram b` 1회로 최종 확인 필요 — [OPEN, docs/01_status.md](docs/01_status.md) 참조).
+`Validation/`은 소스가 `Validation/tools/`에 있고 BuildFile.xml이 없어 **scram이 빌드하지 않는다**(standalone `make`로 빌드). 소스 디렉토리를 `src/`가 아니라 `tools/`로 둔 것이 핵심 — scram은 `<Package>/src/*.cc`를 BuildFile 없이도 자동 컴파일하려 들다 ROOT 헤더를 못 찾고 실패하기 때문이다([docs/08_troubleshooting.md](docs/08_troubleshooting.md) T-15, [docs/04_decisions.md](docs/04_decisions.md) D14).
 
 ## 읽기 순서 (reading order)
 
@@ -37,17 +37,20 @@
 ## 30초 빠른 시작
 
 ```bash
-# (1) sidecar 생산 — lxplus, EL7 컨테이너
-cmssw-el7
+# (0) lxplus 에서 CMSSW 준비 (EL7 컨테이너 안에서) + 저장소 clone
+cmssw-el7                                  # lxplus(EL9)면 SLC7 컨테이너 진입 (필수)
+cmsrel CMSSW_10_6_32_patch1
 cd CMSSW_10_6_32_patch1/src && cmsenv
-tar xzf TTHHGenCategoryTools_v12.tar.gz   # TTHHGenCategoryTools/{TtbarIdExtender,Validation,docs,...} 생성
+git clone https://github.com/Junghyun-Lee-Physicist/TTHHGenCategoryTools.git
+
+# (1) ttbarId-extend 생산
 scram b -j8
 cmsRun TTHHGenCategoryTools/TtbarIdExtender/test/run_ttbarIdExtend_cfg.py \
     inputFiles=<miniaodv2.root> outputFile=ttbarIDExtend.root maxEvents=1000
 
-# (2) 검증 + patch 추출 — ROOT만 있으면 어디서든
+# (2) 검증 + patch 추출 — ROOT만 있으면 어디서든 (CMSSW 불필요)
 cd TTHHGenCategoryTools/Validation && make
-bin/matchTtbarId --sidecar-filelist <S> --nano-filelist <N> --out match_X.root
+bin/matchTtbarId --extend-filelist <S> --nano-filelist <N> --out match_X.root
 bin/extractTtbarIdPatch --filelist <S> --out ttbarIdPatch_X.root
 ```
 
