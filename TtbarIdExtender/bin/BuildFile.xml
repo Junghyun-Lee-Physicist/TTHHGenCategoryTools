@@ -1,0 +1,3 @@
+<bin file="compareExtendToCentral.cc" name="compareExtendToCentral">
+  <use name="root"/>
+</bin>

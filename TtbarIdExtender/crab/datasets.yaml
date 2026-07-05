@@ -1,0 +1,126 @@
+# =============================================================================
+# CRAB dataset catalogue for extend production (Approach 3)
+# =============================================================================
+# Each enabled entry triggers a CRAB submission of run_ttbarIdExtend_cfg.py over the
+# given UL MiniAODv2 input.  The output is a small ROOT TTree ("Events") with
+# one row per event holding
+#     (run, luminosityBlock, event, genTtbarId, Expanded_genTtbarId, nAddBJets, nAddBJetsMulti).
+#
+# `nano_child` is the central NanoAODv9 dataset that the MiniAOD parent
+# produces.  Comparators (bin/compareExtendToCentral) use it to validate
+# byte-identity of `genTtbarId`.
+#
+# SCOPE: only the ttbar samples that participate in the ttbar categorization
+# stitching are listed (3 inclusive 5FS + 3 ttbb 4FS + 1 tt4b = 7).  Each of
+# these can contain tt+bbb / tt+4b events hidden inside its tt+bb bucket
+# (genTtbarId 53/54/55), so every one needs a extend (Expanded_genTtbarId) for the
+# stitching to assign tt+nb consistently.  The signal TTHHTo4b is NOT a
+# stitching sample and is intentionally excluded; re-add it only if you want
+# to validate the extended sub-codes on signal.
+#
+# !! MiniAODv2 PARENT VERIFICATION REQUIRED !!
+# The MiniAODv2 dataset names below are constructed from the NanoAODv9 names by
+# the standard transform (RunIISummer20UL17NanoAODv9 -> RunIISummer20UL17MiniAODv2,
+# NANOAODSIM -> MINIAODSIM, same 106X_mc2017_realistic_v9 campaign tag).
+# HOWEVER the processing-version suffix (-v1 / -v2) is assigned independently for
+# MiniAOD and NanoAOD, so it MUST be confirmed on the grid.  The reliable way is
+# the DAS "parent" query against the (known-good) NanoAODv9 child:
+#
+#   dasgoclient -query="parent dataset=<nano_child>"
+#
+# A ready-to-run script that prints the true parent for every entry below is in
+#   crab/resolve_parents.sh
+# Run it on cms01 (with a valid grid proxy) and paste the exact parent string
+# into the `dataset:` field if it differs from the constructed name.  Entries
+# whose suffix is not yet grid-confirmed are marked `verified: true`.
+# =============================================================================
+
+eras:
+
+  "2017":
+    global_tag: "106X_mc2017_realistic_v9"
+    era_modifiers: ["Run2_2017", "run2_nanoAOD_106Xv2"]
+    datasets:
+
+      # ======================================================================
+      # Dedicated tt4b  ->  provides tt+nb (tt+bbb + tt+4b)
+      # ======================================================================
+      - name: "TT4b"
+        dataset:    "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9-v2/MINIAODSIM"
+        nano_child: "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v2/NANOAODSIM"
+        enabled: true
+        verified: true
+        notes: >
+          Dedicated tt4b matrix-element sample.  In the stitching this is the
+          source of the tt+nb category: keep events with Expanded_genTtbarId%100 in
+          {61,62,71,72} (nAddBJets >= 3), reject the rest.  Populates the
+          highest extended sub-codes (71/72).
+
+      # ======================================================================
+      # Inclusive ttbar (5FS, powheg)  ->  tt+LF, tt+cc, and the tt+mb tail
+      # ======================================================================
+      - name: "TTbar_SemiLep"
+        dataset:    "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9-v1/MINIAODSIM"
+        nano_child: "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+        enabled: true
+        verified: true
+        notes: >
+          Inclusive ttbar, single-lepton top channel.  Source of tt+LF / tt+cc
+          (and tt+mb when ttbb 4FS is not used).  Its tt+bb bucket (53/54/55)
+          contains some nAddBJets >= 3 events that must be REJECTED here (tt+nb
+          is taken from TT4b), so a extend is required.
+
+      - name: "TTbar_Hadronic"
+        dataset:    "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9-v2/MINIAODSIM"
+        nano_child: "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+        enabled: true
+        verified: true
+        notes: >
+          Inclusive ttbar, fully-hadronic top channel.  The dominant ttbar
+          background for the fully-hadronic ttHH(4b) analysis, so this extend
+          is essential.  Same role as TTbar_SemiLep: tt+LF / tt+cc / tt+mb,
+          with nAddBJets >= 3 events rejected in favour of TT4b.
+
+      - name: "TTbar_DiLep"
+        dataset:    "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9-v1/MINIAODSIM"
+        nano_child: "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+        enabled: true
+        verified: true
+        notes: >
+          Inclusive ttbar, dilepton top channel.  Smaller contribution in the
+          fully-hadronic channel but included for stitching completeness so the
+          tt+LF/cc/mb labelling is consistent across all three inclusive ttbar
+          decay modes.
+
+      # ======================================================================
+      # ttbb 4FS (powheg+openloops)  ->  better-modelled tt+b / tt+2b / tt+bb
+      # ======================================================================
+      - name: "TTbb_SemiLep"
+        dataset:    "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9-v1/MINIAODSIM"
+        nano_child: "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+        enabled: true
+        verified: true
+        notes: >
+          4-flavour ttbb, single-lepton top channel.  Provides the
+          better-modelled tt+b / tt+2b / tt+bb (tt+mb) shapes.  nAddBJets >= 3
+          events rejected here (tt+nb from TT4b).  Extend file required.
+
+      - name: "TTbb_Hadronic"
+        dataset:    "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9-v1/MINIAODSIM"
+        nano_child: "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+        enabled: true
+        verified: true
+        notes: >
+          4-flavour ttbb, fully-hadronic top channel (campaign label TTbb_4f).
+          The 4FS tt+mb source for the fully-hadronic ttHH(4b) analysis, so
+          essential alongside TTbar_Hadronic.
+
+      - name: "TTbb_DiLep"
+        dataset:    "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9-v1/MINIAODSIM"
+        nano_child: "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+        enabled: true
+        verified: true
+        notes: >
+          4-flavour ttbb, dilepton top channel.  Included for stitching
+          completeness so the 4FS tt+mb labelling is consistent across decay
+          modes.
