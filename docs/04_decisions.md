@@ -137,6 +137,13 @@
   정한다**), MiniAOD 로 방향을 돌리거나 10,000 파일 초과 dataset 을 추가하면 즉시 이 함정에
   빠진다. 그 저장소의 `submit_crab.py`·`crabConfig/*.yaml`·`script/build_ul18_from_log.py` 에
   같은 경고를 박아 뒀다.
+- **범위 밖 (의도적, 사용자 확인 2026-07-27)**: 워크스페이스의 rename 이전 사본
+  `ExtendedTtbarId/NanoExtension/`(구 `submit_sidecar.py` + `units_per_job: 1` +
+  `max_memory_mb: 2000`)에는 **경고를 넣지 않는다.** 이 규칙이 적용되는 살아있는 경로는
+  `TTHHGenCategoryTools/TtbarIdExtender` 뿐이고, 그 디렉토리는 D11 이력의 유물로 남겨 둔다.
+  다시 손대지 말 것 — "일관성"을 이유로 건드리면 동결된 사본을 흔드는 것이다.
+  같은 이유로 `NtupleForge` 의 CPV config 8개 + `config_crabTest.yaml` 도 지역 주석 없이
+  submitter 측 경고에 의존한다(전부 NanoAOD 입력, 최대 수백 파일).
 - **상태**: DECIDED. 값을 바꾸려면 이 항목을 먼저 갱신하고, `--preflight --check-das` 로 검증한
   job 수를 근거로 남긴다.
 
