@@ -12,7 +12,7 @@
 #
 # 2026-07-26: made era-aware (was 2017-hardcoded). The 2018 NanoAODv9 children
 # below are the exact datasets found by NtupleForge/script/das_ul18_scan.sh
-# (log: NtupleForge/script/das_ul18_scan_20260726_1657.log) — standard campaign
+# (log: NtupleForge/script/das_ul18_scan_20260726_1657.log) -- standard campaign
 # RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-vN, i.e. the
 # same 7 stitching samples that config_ttHH2018UL.yaml uses. Their MiniAODv2
 # parents (and the -vN suffixes) are what this script resolves; do NOT guess them.
@@ -72,7 +72,7 @@ case "$ERA" in
     exit 2
     ;;
 esac
-echo "### resolve_parents.sh — ERA=$ERA (nano campaign: $NANO_CAMPAIGN)"
+echo "### resolve_parents.sh -- ERA=$ERA (nano campaign: $NANO_CAMPAIGN)"
 
 if ! command -v dasgoclient >/dev/null 2>&1; then
   echo "ERROR: dasgoclient not found. Source a CMSSW environment (cmsenv) first." >&2

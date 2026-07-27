@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-26**.
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.2).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -103,3 +103,38 @@ v11 직후 사용자 요청으로 이름 체계를 한 번 더 정리했다. 핵
   사용: `./make_nano_filelists_das.sh 2018` → `nano2018/`.
 - 문서 정합성 수정(2026-07-26 감사): `datasets.yaml` 헤더의 "미확인 항목은 `verified: true` 로
   표시" 문구를 `verified: false`(+ `enabled: false`)로 정정 — 2018 블록의 실제 상태와 일치.
+
+## 2026-07-27 — v13.2: 2018 부모 확정 + ASCII 위반 수정 + 로컬 불변조건 검증 매크로
+
+**lxplus 실행으로 확인된 것** (사용자 로그, 2026-07-27):
+
+- `scram b -j8` 통과, `crab/preflight.py` 5/5 PASS, `cmsRun ... year=2018` 이 의도대로
+  `era modifier = Run2_2018 + run2_nanoAOD_106Xv2` 를 선택. **v13 의 era 파라미터화가 실기기에서 동작.**
+- `cmsRun` 로컬 실행(UL18 MiniAODv2, 2000 event) 성공: top-level `Events` 7 branch 생성,
+  `endJob summary: total rows=2000 missing genTtbarId=0 missing Expanded_genTtbarId=0
+  missing nAddBJets=0 missing nAddBJetsMulti=0`.
+- **`resolve_parents.sh 2018` 로 7개 MiniAODv2 부모 전부 확정** → `datasets.yaml` 2018 블록에
+  반영하고 `verified/enabled: true` 로 개방. **`TTbar_SemiLep` 이 비대칭이었다** —
+  MiniAOD `-v2` / Nano `-v1`. 추측했다면 틀렸을 자리다(파일 헤더가 경고했던 바로 그 케이스).
+
+**수정 (2건, 모두 실행 중 발견):**
+
+1. **ASCII 위반 재발 (v12.5 와 동일 계열).** `datasets.yaml` 에 em-dash 1개와 `sec.` 기호 1개가
+   들어가 있어 submitter 가 즉사했다:
+   `UnicodeDecodeError: 'ascii' codec can't decode byte 0xe2 in position 7566`.
+   원인은 CMSSW_10_6_X 의 `LANG=C` — python3.6 `open()` 기본 인코딩이 ASCII 라서 파일 전체가
+   못 읽힌다. 조치: (a) `datasets.yaml`·`submit_ttbarIdExtend.py`·`resolve_parents.sh` 를
+   **순수 ASCII 로 환원**(패키지 전체 재검사: 위반 0), (b) `load_yaml()` 이 `encoding="utf-8"`
+   을 명시하도록 고쳐 **같은 실수가 다시는 치명적이 되지 않게** 함.
+2. **PyROOT 사용 불가 발견.** CMSSW_10_6_32_patch1 의 ROOT 6.14 는 python2 용 빌드라
+   python3 에서 `import ROOT` 가 `ImportError: ... (PyInit_libPyROOT)` 로 죽는다. 따라서
+   신규 **`Validation/scripts/check_extend_invariants.C`** (순수 ROOT 매크로)를 추가:
+   `Expanded_genTtbarId` 인코딩 계약 7개를 로컬 산출물에서 검증한다 —
+   `nAddBJets<=2` 불변 / `==3`→61,62 / `>=4`→71,72 / **sub-code 56 부재** / prefix 보존 /
+   원 sub-code∈{53,54,55} / `run==1`, 그리고 61·62·71·72 카운트와 "확장 분기가 한 번도
+   안 타졌다"는 경고까지 출력. 사용: `root -l -b -q 'scripts/check_extend_invariants.C("<file>")'`.
+   로직은 합성 데이터로 파이썬 이식본을 통해 검증(정상 4행 위반 0, 오류 5행 전부 검출);
+   **ROOT 실행은 미검증.**
+   부수 확인: VarParsing 이 `maxEvents` 지정 시 출력 파일명에 `_numEventN` 을 붙인다
+   (`ttbarIDExtend_local2018_numEvent2000.root`). CRAB 은 maxEvents 를 쓰지 않으므로
+   `JobType.outputFiles` 와의 정합은 유지된다.

@@ -40,11 +40,22 @@ EXTEND_PSET = str(PKG_ROOT / "test" / "run_ttbarIdExtend_cfg.py")
 
 # ----- YAML --------------------------------------------------------------
 def load_yaml(path):
+    """Load a YAML file with an EXPLICIT utf-8 encoding.
+
+    Do not drop `encoding=`: inside CMSSW_10_6_X the locale is `LANG=C`, so
+    python3.6's `open()` defaults to ASCII and a single non-ASCII byte anywhere
+    in the file aborts the whole submitter with
+        UnicodeDecodeError: 'ascii' codec can't decode byte 0xe2 ...
+    (observed 2026-07-27: one em-dash in a datasets.yaml comment). The YAML
+    files themselves are kept ASCII-only by convention (v12.5), but reading
+    them as utf-8 means a stray character degrades to a cosmetic issue instead
+    of a hard failure.
+    """
     try:
         import yaml
     except ImportError:
         sys.exit("ERROR: PyYAML not installed.  pip install --user pyyaml")
-    with open(path) as fh:
+    with open(path, encoding="utf-8") as fh:
         return yaml.safe_load(fh)
 
 
@@ -209,7 +220,7 @@ def crab_action_one(cfg, *, action):
 
 
 # =============================================================================
-# PREFLIGHT (--preflight) — read-only, era-aware pre-submission check
+# PREFLIGHT (--preflight) -- read-only, era-aware pre-submission check
 # =============================================================================
 # Complements crab/preflight.py (environment + build + pset compile) by checking
 # the things that actually differ per era: the datasets.yaml era block, the

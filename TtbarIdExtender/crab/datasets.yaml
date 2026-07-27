@@ -129,7 +129,7 @@ eras:
   # ===========================================================================
   # 2018 UL  (added 2026-07-26)
   # ===========================================================================
-  # STATE: nano_child paths are DAS-CONFIRMED — they are exactly the datasets
+  # STATE: nano_child paths are DAS-CONFIRMED -- they are exactly the datasets
   #        found by NtupleForge/script/das_ul18_scan.sh (log
   #        NtupleForge/script/das_ul18_scan_20260726_1657.log) and used by
   #        NtupleForge/crabConfig/config_ttHH2018UL.yaml, so the extend output
@@ -138,7 +138,7 @@ eras:
   #        -vN PROCESSING SUFFIX IS UNVERIFIED (copied from the nano child).
   #        UL17 already shows an asymmetric case (TTbar_Hadronic: MiniAOD -v2 vs
   #        Nano -v1), so the suffix must NOT be assumed.
-  # ACTION BEFORE SUBMITTING (docs/05_architecture.md §5):
+  # ACTION BEFORE SUBMITTING (docs/05_architecture.md sec.5):
   #        bash crab/resolve_parents.sh 2018
   #        -> paste each "PARENT (from DAS)" string into `dataset:` below,
   #           then set verified: true and enabled: true per entry.
@@ -157,8 +157,8 @@ eras:
       - name: "TT4b"
         dataset:    "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v2/MINIAODSIM"
         nano_child: "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v2/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Dedicated tt4b, 2018UL.  Same role as the 2017 entry: sole source of
           the tt+nb category (Expanded_genTtbarId%100 in {61,62,71,72}).
@@ -169,10 +169,10 @@ eras:
           MiniAOD suffix unverified -> run resolve_parents.sh 2018.
 
       - name: "TTbar_SemiLep"
-        dataset:    "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v1/MINIAODSIM"
+        dataset:    "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v2/MINIAODSIM"
         nano_child: "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar SL, 2018UL.  LARGEST sample: nano child has
           476,408,000 events (2017: 346,052,000), i.e. ~38% more than the 2017
@@ -184,8 +184,8 @@ eras:
       - name: "TTbar_Hadronic"
         dataset:    "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v1/MINIAODSIM"
         nano_child: "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar FH, 2018UL.  Nano child 334,206,000 events
           (2017: 232,999,999) -> sorted validation path required.
@@ -195,8 +195,8 @@ eras:
       - name: "TTbar_DiLep"
         dataset:    "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v1/MINIAODSIM"
         nano_child: "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar DL, 2018UL.  Nano child 145,020,000 events
           (2017: 106,724,000) -> sorted validation path required.
@@ -205,8 +205,8 @@ eras:
       - name: "TTbb_SemiLep"
         dataset:    "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v1/MINIAODSIM"
         nano_child: "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           4FS ttbb SL, 2018UL.  Nano child 10,378,681 events (2017: 7,318,891)
           -> small enough for the in-memory matchTtbarId path.
@@ -215,8 +215,8 @@ eras:
       - name: "TTbb_Hadronic"
         dataset:    "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v1/MINIAODSIM"
         nano_child: "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           4FS ttbb FH, 2018UL.  Nano child 8,049,064 events (2017: 5,694,656)
           -> in-memory path.  MiniAOD suffix unverified.
@@ -224,8 +224,8 @@ eras:
       - name: "TTbb_DiLep"
         dataset:    "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v1/MINIAODSIM"
         nano_child: "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           4FS ttbb DL, 2018UL.  Nano child 4,792,850 events (2017: 3,472,503)
           -> in-memory path; smallest sample, use it for the first smoke test
