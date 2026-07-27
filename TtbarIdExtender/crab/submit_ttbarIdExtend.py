@@ -303,6 +303,39 @@ def build_config(*, process_name, era, dataset_entry, site_cfg, era_block,
     cfg.Data.inputDataset    = dataset_entry["dataset"]
     cfg.Data.inputDBS        = "global"
     cfg.Data.splitting       = "FileBased"
+    # =========================================================================
+    # !!  DO NOT LOWER units_per_job WITHOUT CHECKING THE JOB COUNT FIRST  !!
+    # =========================================================================
+    # FileBased splitting means:  njobs = ceil(nfiles / unitsPerJob).
+    # CRAB REFUSES any task with more than CRAB_MAX_JOBS_PER_TASK (= 10,000)
+    # jobs -- and it refuses it SILENTLY from the client's point of view:
+    #   * `crab submit` returns success and this script prints "[submitted]"
+    #   * the SERVER then parks the task as SUBMITREFUSED with
+    #     "The splitting on your task generated N jobs. The maximum number of
+    #      jobs in each task is 10000"
+    #   * jobsPerStatus stays empty, so --report shows a row of all zeros,
+    #     indistinguishable from "submitted, not started yet"
+    #   * `crab resubmit` CANNOT fix it (it only requeues FAILED jobs of a task
+    #     that reached the scheduler) -- the task must be re-submitted
+    # Net effect: a whole sample produces nothing and you may not notice for
+    # days. This happened on 2026-07-27 with 2018 TTbar_SemiLep (10,010 MiniAOD
+    # files, units_per_job was 1 -> 10,010 jobs). See docs/08_troubleshooting.md
+    # T-19 and docs/04_decisions.md D15.
+    #
+    # Guards in place (keep them):
+    #   1. `--preflight --check-das` computes ceil(nfiles/units_per_job) per task
+    #      from the DAS `nfiles` and FAILs above the limit (WARNs above 90%).
+    #      ALWAYS run it before a campaign; it is the only pre-submission check.
+    #   2. site_config.yaml resources.extend.units_per_job defaults to 10, which
+    #      keeps every sample here far below the limit (largest = 1,001 jobs).
+    #   3. datasets.yaml keeps an explicit per-entry units_per_job: 10 on
+    #      TTbar_SemiLep as a floor -- that one cannot run at 1 under any
+    #      circumstances.
+    # Raising units_per_job is always safe for the job-count limit (fewer jobs)
+    # and is physics-neutral: the consumer matches on (run, luminosityBlock,
+    # event) across the whole filelist and never looks at file->job packing.
+    # The only upward constraint is maxJobRuntimeMin (1440 min vs ~11 min/job at
+    # units_per_job=10, i.e. ~130x headroom).
     cfg.Data.unitsPerJob     = int(
         dataset_entry.get("units_per_job", res.get("units_per_job", 1))
     )

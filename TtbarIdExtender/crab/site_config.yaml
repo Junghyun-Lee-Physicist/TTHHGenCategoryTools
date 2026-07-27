@@ -39,11 +39,56 @@ resources:
   # Used by submit_ttbarIdExtend.py (Approach 3).  The extend job is gen-level only
   # and very light: it reads MiniAOD, runs 5 small producers, writes ~32 B/event.
   extend:
-    max_memory_mb:   2000        # gen-level only; 2 GB is ample
+    # 2026-07-27: 2000 -> 2500.  Observed peak at units_per_job:1 was 1731 MB
+    # (2018 TTbb_Hadronic) against a 2000 MB request -- only 13% headroom.  Peak
+    # memory is a property of the heaviest INPUT FILE, not of how many files a
+    # job processes (they are read sequentially), but with 10 files per job the
+    # chance that a given job contains a heavy file goes up ~10x, so more jobs
+    # sit near the ceiling.  A gen-level job asking 2.5 GB still matches
+    # essentially every slot, so the headroom is nearly free.
+    max_memory_mb:   2500
     max_runtime_min: 1440        # 24h ceiling (most files finish in minutes)
-    units_per_job:   1           # FileBased; one MiniAOD file per CRAB job
+    # =======================================================================
+    # !!  DO NOT LOWER THIS VALUE.  njobs = ceil(nfiles / units_per_job) and
+    # !!  CRAB REFUSES ANY TASK WITH MORE THAN 10,000 JOBS.
+    # !!  The refusal is SERVER-SIDE: `crab submit` reports SUCCESS, then the
+    # !!  task sits at SUBMITREFUSED forever, --report shows a row of zeros,
+    # !!  and `crab resubmit` cannot rescue it.  A whole sample silently
+    # !!  produces nothing.  (2026-07-27: 2018 TTbar_SemiLep, 10,010 files at
+    # !!  units_per_job:1 -> 10,010 jobs -> lost a day.  docs/08 T-19, D15.)
+    # !!  Largest sample here needs >= 2; 10 is the chosen default and leaves
+    # !!  the biggest task at 1,001 jobs.  RAISING is always safe for this
+    # !!  limit; LOWERING must be checked with:
+    # !!      python3 crab/submit_ttbarIdExtend.py --era <E> --preflight --check-das
+    # !!  which prints per-task job counts and FAILs above the limit.
+    # =======================================================================
+    # 2026-07-27: 1 -> 10.  File->job packing is PHYSICS-NEUTRAL here: each job
+    # writes (run, luminosityBlock, event, ...) rows and the consumer
+    # (matchTtbarId / matchTtbarIdSorted) builds one 3-key map over the whole
+    # filelist -- it never looks at which file a row came from.  So this is a
+    # pure operations knob, and 1 was a bad setting:
+    #   upj  jobs (2018 SemiLep)  ~runtime/job   startup share
+    #    1        10,010            2.4 min        ~63%   <- also OVER the
+    #                                                        10,000 jobs/task
+    #                                                        CRAB limit (T-19)
+    #   10         1,001           10.7 min        ~14%   <- this
+    # Measured 2026-07-27: ~55 s of real work per ~47.6k-event MiniAOD file,
+    # ~90 s CMSSW/stage-in startup.  At upj:1 CRAB warned on every single task
+    # that "the average jobs CPU efficiency is less than 50%" (measured 20-45%,
+    # waste 50-58%); that warning WAS this setting.  Fewer, larger output files
+    # also make the later sortSplitExtend / matchTtbarIdSorted pass cheaper
+    # (2018 SemiLep: 1,001 files instead of 10,010).
+    # HISTORICAL NOTE: the completed 2017 campaign ran at units_per_job: 1.
+    # That is fine and does not need redoing -- the outputs are identical
+    # regardless of packing; only wall-clock efficiency differed.
+    units_per_job:   10
 
-  # Retained for the enriched approach (submit.py).
+  # Retained for the enriched approach (submit.py).  DEPRECATED path -- the
+  # enriched NanoAOD approach was abandoned (docs/04_decisions.md D1,
+  # docs/10_enriched_nanoaod_archive.md).  If it is ever revived, the same
+  # 10,000-jobs-per-task CRAB limit applies: units_per_job: 1 on a dataset with
+  # >10,000 files gives a task that is SUBMITREFUSED server-side while the
+  # client reports success (docs/08 T-19).  Do not copy the 1 below blindly.
   enriched:
     max_memory_mb:   2500
     max_runtime_min: 1440

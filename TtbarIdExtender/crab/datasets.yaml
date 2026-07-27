@@ -136,8 +136,12 @@ eras:
   #        will match the ntuple population by construction.
   # [2026-07-27] RESOLVED AND SUBMITTED. All 7 entries below carry the exact
   #        MiniAODv2 parent returned by `bash crab/resolve_parents.sh 2018`
-  #        and are enabled:true / verified:true. The 7-task CRAB campaign
-  #        (20,953 jobs) was submitted on 2026-07-27.
+  #        and are enabled:true / verified:true. The 7-task CRAB campaign covers
+  #        20,953 MiniAOD FILES. Job count depends on units_per_job: the first
+  #        2026-07-27 submission ran at 1 (= 20,953 jobs) and TTbar_SemiLep was
+  #        SUBMITREFUSED for exceeding CRAB's 10,000 jobs/task limit (T-19); the
+  #        campaign was then re-submitted in full at units_per_job 10
+  #        (= 2,097 jobs). See docs/04_decisions.md D15.
   #        Asymmetric -vN suffixes are real and must NOT be "corrected":
   #          2018 TTbar_SemiLep : MiniAOD -v2 vs Nano -v1
   #          2017 TTbar_Hadronic: MiniAOD -v2 vs Nano -v1
@@ -204,6 +208,13 @@ eras:
         # For scale: across these 7 samples MiniAOD/NanoAOD file ratio is ~22.5
         # (10,010/391 = 25.6 here), so 10 MiniAOD files is still well under one
         # NanoAOD file's worth of events.
+        #
+        # This now MATCHES the campaign default (site_config.yaml
+        # resources.extend.units_per_job: 10), so it is technically redundant.
+        # It is kept ON PURPOSE as a floor: this is the one dataset that
+        # provably CANNOT run at 1, so if anyone ever lowers the global default
+        # this entry still survives. (`--preflight --check-das` would also FAIL
+        # on it, but a config that cannot break beats a check that catches it.)
         units_per_job: 10
         notes: >
           Inclusive ttbar SL, 2018UL.  LARGEST sample: nano child has

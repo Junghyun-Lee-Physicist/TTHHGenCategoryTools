@@ -155,9 +155,10 @@ python3 crab/submit_ttbarIdExtend.py --era 2018 \
 #   실측(2026-07-27): client 는 7 tasks / 20,953 jobs 제출 성공을 보고했으나
 #   TTbar_SemiLep 은 서버가 SUBMITREFUSED 로 거부했다 (10,010 jobs > CRAB 상한 10,000).
 #   -> 실제로 돈 것은 6 tasks / 10,943 jobs. 원인·복구는 docs/08_troubleshooting.md T-19.
-#   그래서 datasets.yaml 의 2018 TTbar_SemiLep 에 units_per_job: 10 (=1,001 jobs) 을 박았고
-#   (근거는 아래 units_per_job 절), --preflight --check-das 가 이제 task 당 job 수를 미리
-#   계산해 상한 초과면 FAIL 시킨다. 재제출 후 2018 총 job 수 = 11,944.
+#   조치: site_config 의 units_per_job 을 1 -> 10, max_memory_mb 2000 -> 2500 으로 올리고
+#   2018 전량을 처음부터 재제출했다 (절차 = 아래 2.2c, 근거 = units_per_job 절).
+#   --preflight --check-das 가 이제 task 당 job 수를 미리 계산해 상한 초과면 FAIL 시킨다.
+#   재제출 후: 7 tasks / 2,097 jobs (20,953 -> 10배 감소).
 #         outLFN <out_lfn_base>/2018
 
 # ── (5) 상태 — 정렬된 표 한 장 (컬럼 설명은 §2.3)
@@ -170,7 +171,35 @@ python3 crab/submit_ttbarIdExtend.py --era 2018 --report
 > 판단한다. 섞으면 job 이 누락된 것처럼 보인다. `matchTtbarId` 의 `unmatched 0` 기준은
 > extend ⊇ nano 이므로 그대로 유효하다.
 
-#### `units_per_job` — 물리에 무관한 순수 운영 knob
+#### `units_per_job` — 물리에 무관한 순수 운영 knob (단, **내릴 때만 위험**)
+
+> ### 🚫 절대 규칙: task 당 job 10,000 개를 넘기지 마라
+>
+> `njobs = ceil(nfiles / units_per_job)` 이고 **CRAB 은 task 당 job 10,000 개를 초과하면
+> 거부한다.** 그런데 그 거부가 **제출 시점이 아니라 서버 측에서** 일어나서 **조용하다**:
+>
+> - `crab submit` 은 **성공을 반환**하고 submitter 는 `submitted : N` 을 찍는다
+> - 서버가 나중에 `SUBMITREFUSED` + `The splitting on your task generated N jobs.
+>   The maximum number of jobs in each task is 10000` 로 세워 둔다
+> - `jobsPerStatus` 가 비어 `--report` 행이 **전부 0** → "아직 안 시작"과 구분 불가
+> - **`--resubmit` 으로 못 고친다** (scheduler 에 도달한 task 의 FAILED job 만 재큐)
+>
+> → **샘플 하나가 아무것도 만들지 않는데 며칠 모를 수 있다.** 2026-07-27 에 2018
+> `TTbar_SemiLep`(MiniAOD 10,010 파일, 당시 upj=1 → 10,010 jobs)로 실제로 하루를 잃었다.
+> **총합은 정상으로 보인다 — 상한은 per-task 다.**
+>
+> **그래서:**
+> - **올리는 건 항상 안전**하다(job 수가 줄고, 물리에 무관하며, 위쪽 제약은 walltime 1440분뿐 —
+>   upj=10 이 ~11분/job 이라 ~130배 여유).
+> - **내리기 전에는 반드시** 아래를 돌려 per-task job 수를 확인한다. 상한 초과면 **FAIL** 하고
+>   필요한 값을 알려 준다:
+>   ```bash
+>   python3 crab/submit_ttbarIdExtend.py --era <ERA> --preflight --check-das
+>   ```
+> - 이 규칙의 정본은 [`../docs/04_decisions.md`](../docs/04_decisions.md) **D15**,
+>   사고 기록은 [`../docs/08_troubleshooting.md`](../docs/08_troubleshooting.md) **T-19**.
+>   경고는 `crab/site_config.yaml`·`crab/datasets.yaml`·`crab/submit_ttbarIdExtend.py`
+>   (`cfg.Data.unitsPerJob` 대입 지점) 세 곳에 박혀 있다 — 지우지 마라.
 
 **파일을 job 에 어떻게 묶든 결과는 같다.** 각 job 은
 `(run, luminosityBlock, event, ...)` 행을 쓰고, 소비자(`matchTtbarId` /
@@ -195,14 +224,95 @@ waste 50~58%).
 이므로, MiniAOD 10개는 여전히 NanoAOD 파일 1개분 event 보다 적다. 덤으로 출력 파일이
 10,010 → 1,001 개로 줄어 뒤의 `sortSplitExtend`/`matchTtbarIdSorted` 가 눈에 띄게 싸진다.
 
-> ⚠️ **이미 끝난 task 를 위해 이 값을 바꾸지 마라.** 2026-07-27 현재 나머지 6 task 는
-> 완료(4개) 또는 99% 진행(2개, failed 0) 이다. `units_per_job` 을 바꾸려면 kill →
-> project dir 삭제 → **EOS 산출물 삭제** → 전량 재생산이 필요하다(같은 LFN 에 timestamp 가
-> 둘 생기면 3-key 중복 → `matchTtbarId` exit 7). **끝난 일을 버리는 짓이다.**
-> 값 조정은 **어차피 재제출해야 하는 task 에만** 한다 — 지금은 `TTbar_SemiLep` 뿐이고,
-> 그건 SUBMITREFUSED 라 산출물이 아예 없어서 공짜로 바꿀 수 있었다.
-> 그래서 현재 2018 은 **혼합 설정**이다: `TTbar_SemiLep` 만 10, 나머지 6개는 1.
-> 섞여 있어도 무해하다(위 "물리에 무관" 문단).
+**2026-07-27 결정: `site_config.yaml` 의 캠페인 기본값을 `1` → `10` 으로 올리고, 2018 전량을
+처음부터 재제출한다.** `TTbar_SemiLep` 하나만 고치고 나머지 6개를 upj=1 로 남기면 캠페인이
+혼합 설정이 되고 비효율도 그대로 남는데, 마침 재제출 결정이 났으므로 전체를 통일했다.
+`max_memory_mb` 도 2000 → **2500** (관측 피크 1731 MB 대비 헤드룸 13% → 44%).
+
+| | 이전 | 이후 |
+|---|---|---|
+| `units_per_job` | 1 | **10** |
+| 2018 총 job 수 | 20,953 (SemiLep 이 상한 초과) | **2,097** (10배 감소) |
+| `max_memory_mb` | 2000 | **2500** |
+
+> ⚠️ **이 값을 바꾸려면 반드시 전량 재생산이다.** kill → **EOS 산출물 삭제** → project dir 삭제
+> → 재제출. EOS 를 안 지우면 같은 LFN 아래 CRAB timestamp 디렉토리가 둘 생겨 3-key 중복 →
+> `matchTtbarId` **exit 7** 이 된다. 그리고 **kill 이 완전히 끝난 뒤에** EOS 를 지워야 한다 —
+> 늦게 stage-out 되는 job 하나가 지운 디렉토리를 되살리면 정확히 그 사고가 난다.
+> 절차는 §2.2c.
+>
+> **끝난 캠페인을 효율 때문에 다시 돌리지는 마라.** 산출물은 packing 과 무관하게 동일하다.
+> 2017 캠페인은 upj=1 로 완료됐고 **그대로 유효하다** — 재생산 대상이 아니다.
+
+---
+
+### 2.2c 한 연도를 처음부터 다시 제출 (전량 재생산) — 순서가 중요하다
+
+`units_per_job`·`max_memory_mb` 같은 splitting/자원 설정을 바꿨을 때의 절차다. 2026-07-27 에
+2018 전량에 대해 실제로 이 순서로 수행했다.
+
+**순서를 지켜야 하는 이유**: kill 이 완전히 끝나기 **전에** EOS 를 지우면, 뒤늦게 stage-out 하는
+job 이 지운 디렉토리를 되살린다. 그러면 새 제출의 timestamp 디렉토리와 **둘이 공존**하고,
+`make_filelists_miniAOD.py` 가 둘 다 주워 3-key 중복 → `matchTtbarId` **exit 7** 이다.
+
+```bash
+# ── 0) 세션 준비 ─────────────────────────────────────────────────────────────
+cmssw-el7
+cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src && cmsenv
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+voms-proxy-init -voms cms -valid 192:00
+cd TTHHGenCategoryTools/TtbarIdExtender
+git pull                     # 새 site_config(upj 10 / mem 2500) + preflight job-count 체크
+
+export EXT=/eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+
+# ── 1) 죽인다 (era 2018 전체) ────────────────────────────────────────────────
+python3 crab/submit_ttbarIdExtend.py --era 2018 --kill --yes \
+    2>&1 | tee crab/kill_2018_$(date +%Y%m%d_%H%M).log
+#   이미 COMPLETED 인 task 는 "no jobs to kill" 류로 실패해도 정상이다.
+
+# ── 2) 진짜로 다 죽었는지 확인 — run/idle/transf 가 전부 0 이 될 때까지 반복 ──
+python3 crab/submit_ttbarIdExtend.py --era 2018 --report
+#   ↑ run·idle·transf 열이 하나라도 0 이 아니면 2~3분 뒤 다시. 여기서 서두르면 안 된다.
+
+# ── 3) EOS 산출물 삭제 (2)가 깨끗해진 뒤에만!) ───────────────────────────────
+ls "$EXT"                                  # 지울 대상 눈으로 확인
+du -sh "$EXT"
+rm -rf "$EXT"                              # 2018 만 지운다 — 상위 ttbarIdExtend_v2 는 건드리지 않음
+ls /eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/   # 2018 이 없어야 한다
+
+# ── 4) CRAB project dir 삭제 (안 지우면 submit 이 skip 한다) ─────────────────
+rm -rf crab_projects/crab_*_2018_extend
+ls crab_projects/ | grep 2018 || echo "clean"
+
+# ── 5) preflight — 새 job 수가 상한 아래인지 여기서 확인된다 ────────────────
+python3 crab/submit_ttbarIdExtend.py --era 2018 --preflight --check-das \
+    2>&1 | tee crab/preflight_2018_redo_$(date +%Y%m%d_%H%M).log
+#   기대: 7샘플 모두 job count PASS, 최대가 TTbar_SemiLep 의 1,001 jobs.
+#         "existing CRAB project" 항목도 전부 없음(=4단계가 됐다는 뜻).
+
+# ── 6) 재제출 ───────────────────────────────────────────────────────────────
+python3 crab/submit_ttbarIdExtend.py --era 2018 \
+    2>&1 | tee crab/submit_2018_redo_$(date +%Y%m%d_%H%M).log
+#   기대: submitted : 7
+
+# ── 7) 몇 분 뒤 — SUBMITREFUSED 가 없는지 반드시 확인 ───────────────────────
+python3 crab/submit_ttbarIdExtend.py --era 2018 --report
+#   DEAD TASK 블록이 안 나와야 한다. 나오면 T-19 로.
+```
+
+**재제출 후 기대 job 수** (`units_per_job: 10`, MiniAOD 파일 수 ÷ 10):
+
+| sample | MiniAOD files | jobs |
+|---|---|---|
+| TTbar_SemiLep | 10,010 | 1,001 |
+| TTbar_Hadronic | 7,195 | 720 |
+| TTbar_DiLep | 3,069 | 307 |
+| TTbb_SemiLep | 219 | 22 |
+| TT4b | 188 | 19 |
+| TTbb_Hadronic | 169 | 17 |
+| TTbb_DiLep | 103 | 11 |
+| **합계** | **20,953** | **2,097** |
 
 ### 2.3 진행 확인 / 재제출 / kill
 

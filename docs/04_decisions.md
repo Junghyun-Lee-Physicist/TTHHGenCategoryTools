@@ -2,7 +2,7 @@
 
 > **목적**: "왜 이 선택인가? 다른 후보는? 아직 유효한가?"의 단일 출처.
 > **대상 독자**: 설계를 바꾸려는 사람; DECIDED를 다시 열기 전 반드시 여기 확인.
-> **상태**: 살아있는 문서 — 마지막 갱신 **2026-07-05**.
+> **상태**: 살아있는 문서 — 마지막 갱신 **2026-07-27** (D15 신설: CRAB task 당 job 10,000 상한).
 > **관련**: 시간순 이력은 [03_changelog.md](03_changelog.md), 실패 사례는 [08_troubleshooting.md](08_troubleshooting.md).
 
 각 항목: 선택 / 근거 / 검토·기각된 대안 / 상태.
@@ -84,6 +84,61 @@
 - **선택**: tar 루트 `TTHHGenCategoryTools/` = CMSSW subsystem 디렉토리이자 저장소 루트. `Validation/`은 BuildFile.xml 없는 standalone(Makefile)으로 병치.
 - **근거**: 사용자의 기존 배포 관행(subsystem tar를 `src/`에서 풀기)과 호환; 생산·검증이 한 이력·한 문서 세트를 공유; scram은 BuildFile 없는 디렉토리를 빌드하지 않으므로 간섭 없음.
 - **실측·해결 (v12, 2026-07-05)**: 첫 `scram b`에서 예상대로 문제가 터졌다 — scram이 `Validation/src/*.cc`를 BuildFile 없이 자동 컴파일하려다 ROOT 헤더를 못 찾고 전량 실패([08](08_troubleshooting.md) T-15). `Validation/`을 subsystem 밖으로 빼는 대신 **더 가벼운 fallback**을 적용: 소스 디렉토리를 `Validation/src/` → `Validation/tools/`로 rename(Makefile `SRCDIR := tools`). scram은 `src/`만 자동 컴파일 대상으로 보므로 `tools/`는 완전히 무시하고, standalone `make`만 이를 빌드한다. plugin 패키지는 이 빌드에서 정상 컴파일 → subsystem/패키지/plugin-lib 이름은 문제없음이 확인됨.
+
+## D15 — CRAB splitting: **task 당 job 10,000 상한**을 절대 넘기지 않는다 (`units_per_job >= 2`, 기본 10) · DECIDED 2026-07-27
+
+- **규칙 (한 줄)**: `njobs = ceil(nfiles / units_per_job)` 이고 **CRAB 은 task 당 job 10,000 개를
+  초과하면 거부한다.** 따라서 `units_per_job` 을 **내리기 전에 반드시 job 수를 확인**한다.
+  올리는 방향은 이 상한에 대해 항상 안전하다.
+- **왜 위험한가 (이게 핵심)**: 거부가 **제출 시점이 아니라 서버 측에서** 일어난다.
+  - `crab submit` 은 **성공을 반환**하고 submitter 는 `submitted : N` 을 찍는다
+  - 서버가 나중에 task 를 `SUBMITREFUSED` 로 세워 두고 경고를 남긴다:
+    `The splitting on your task generated N jobs. The maximum number of jobs in each task is 10000`
+  - `jobsPerStatus` 가 비어 있어 `--report` 행이 **전부 0** → "제출됐지만 아직 안 시작"과
+    구분이 안 된다
+  - **`crab resubmit` 으로 못 고친다** — resubmit 은 scheduler 에 도달한 task 의 FAILED job 만
+    재큐한다. task 를 **다시 제출**해야 한다
+  → 즉 **샘플 하나가 조용히 아무것도 만들지 않고, 며칠 동안 모를 수 있다.**
+- **실제 사고 (2026-07-27)**: 2018 `TTbar_SemiLep` = MiniAOD **10,010 파일**, 당시
+  `units_per_job: 1` → 10,010 jobs → 10 개 초과로 거부. 하루 동안 job 0개.
+  총합(20,953)만 보면 정상으로 보였다 — **상한은 per-task 이므로 per-task 로 봐야 한다.**
+  증상·복구는 [08](08_troubleshooting.md) **T-19**.
+- **결정 값**: `site_config.yaml` `resources.extend.units_per_job` = **10**
+  (이 7샘플 최대 task = 1,001 jobs). 최소 허용치는 2 지만 10 을 택한 이유는 CPU 효율 —
+  job 2.4분 중 ~90초가 startup 이라 upj=1 은 CRAB 의
+  `average jobs CPU efficiency is less than 50%` 경고(실측 20~45%, waste 50~58%)의 원인이었다.
+  upj=10 이면 오버헤드 비중 63% → 14%.
+- **왜 마음대로 올려도 되는가 (물리 무관성)**: 각 job 은
+  `(run, luminosityBlock, event, ...)` 행을 쓰고, 소비자 `matchTtbarId`/`matchTtbarIdSorted` 는
+  **filelist 전체에 3-key map 하나**를 만든다 — 행이 어느 파일에서 왔는지 보지 않는다(D7).
+  file→job packing 은 **순수 운영 knob** 이다. 위쪽 제약은 `maxJobRuntimeMin`(1440분)뿐이고
+  upj=10 이 ~11분/job 이므로 ~130배 여유다.
+- **강제 수단 (3중, 모두 유지할 것)**:
+  1. **`--preflight --check-das`** 가 DAS `nfiles` 로 per-task `ceil(nfiles/upj)` 를 계산해
+     상한 초과 시 **FAIL**, 90% 초과 시 WARN, 그리고 필요한 `units_per_job` 값을 알려 준다.
+     캠페인 전 **항상** 돌린다 — 유일한 사전 검사다.
+  2. **코드·설정 주석**: `crab/submit_ttbarIdExtend.py` 의 `cfg.Data.unitsPerJob` 대입 지점,
+     `crab/site_config.yaml` 의 `units_per_job`(extend·enriched 양쪽),
+     `crab/datasets.yaml` 의 per-entry override에 경고 블록.
+  3. **`datasets.yaml` per-entry floor**: `TTbar_SemiLep` 에 `units_per_job: 10` 을 명시 —
+     기본값과 중복이지만 **의도적**이다. 이 dataset 은 1 이 불가능한 유일한 항목이므로 전역
+     기본값이 되돌려져도 살아남는다. (*깨질 수 없는 설정* > *깨진 걸 잡는 검사*.)
+- **검토·기각된 대안**:
+  - `units_per_job: 2` (최소 수정) — 상한은 피하지만 CPU 비효율이 그대로 남아 기각.
+  - `splitting: "Automatic"` — CRAB 이 runtime 기준으로 알아서 쪼개므로 상한 문제가 사라진다.
+    그러나 job↔파일 대응이 불투명해져 부분 실패 추적과 완결성 대조가 어려워지고, 2017 캠페인이
+    FileBased 로 검증됐으므로 **보류**(PROPOSED, 재검토 가치 있음).
+  - 큰 샘플만 별도 task 로 쪼개기 — LFN 아래 timestamp 가 둘 생겨 3-key 중복(exit 7) 위험.
+    같은 이유로 `--max-files` 스모크도 금지다(v13.4).
+- **다른 저장소에도 같은 함정이 있다**: `NtupleForge/crab/submit_crab.py` 도 FileBased 이고
+  **job-count preflight 가 아직 없다**(gap 기록됨). 지금은 NanoAOD 기반이라 최대 task 가 391 jobs
+  로 안전하지만(최대 task = `WJetsToLNu_HT200To400_ext1` **780 files → 780 jobs**;
+  `TTbar_SemiLep` 은 event 수 1위지만 파일 수는 4위 391 — **job 수는 event 가 아니라 파일이
+  정한다**), MiniAOD 로 방향을 돌리거나 10,000 파일 초과 dataset 을 추가하면 즉시 이 함정에
+  빠진다. 그 저장소의 `submit_crab.py`·`crabConfig/*.yaml`·`script/build_ul18_from_log.py` 에
+  같은 경고를 박아 뒀다.
+- **상태**: DECIDED. 값을 바꾸려면 이 항목을 먼저 갱신하고, `--preflight --check-das` 로 검증한
+  job 수를 근거로 남긴다.
 
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 

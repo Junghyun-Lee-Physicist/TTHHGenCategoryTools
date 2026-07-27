@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.11).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.13).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -478,3 +478,88 @@ SUBMITREFUSED 라 산출물이 아예 없어 공짜로 바꿀 수 있었다.
 
 `TtbarIdExtender/README.md` §2.2b 에 `units_per_job` 전용 절(표 + "끝난 task 는 건드리지 말라"
 경고)을 추가했고, T-19 의 ② 항목도 10 기준으로 갱신했다.
+
+---
+
+## 2026-07-27 — v13.12: 사용자 결정 — 2018 전량 재제출, 캠페인 기본값 upj 10 / mem 2500
+
+v13.11 은 `TTbar_SemiLep` 항목만 10 으로 올리고 나머지 6 task 는 "끝난 일을 버리지 말자"는
+이유로 upj=1 그대로 뒀다. 사용자가 **전량 재제출**을 선택했으므로 그 제약이 사라졌고, 캠페인
+설정을 통일했다.
+
+**`crab/site_config.yaml` `resources.extend`**:
+
+| | 이전 | 이후 | 근거 |
+|---|---|---|---|
+| `units_per_job` | 1 | **10** | v13.11 의 효율 분석 (job 2.4분 중 90초가 startup → 오버헤드 63%→14%) |
+| `max_memory_mb` | 2000 | **2500** | 관측 피크 **1731 MB**(2018 TTbb_Hadronic) 대비 헤드룸 13% → 44% |
+| `max_runtime_min` | 1440 | 1440 (무변경) | 예상 job 시간 ~10.7분이라 상한과 무관 |
+
+**메모리를 올린 이유**(사용자 지시): 피크 메모리는 job 이 처리하는 파일 **수**의 함수가 아니라
+(순차 처리라 누적되지 않는다) **가장 무거운 입력 파일**의 성질이다. 다만 job 당 10 파일이면
+"무거운 파일을 포함한 job"의 비율이 ~10배가 되므로 상한에 닿는 job 이 늘어난다. gen-only job 이
+2.5 GB 를 요청해도 거의 모든 slot 에 매칭되므로 헤드룸이 사실상 공짜다.
+
+**2018 전량 재제출 효과**: 7 tasks / **20,953 → 2,097 jobs** (정확히 10배).
+샘플별: SemiLep 1,001 / Hadronic 720 / DiLep 307 / TTbb_SemiLep 22 / TT4b 19 /
+TTbb_Hadronic 17 / TTbb_DiLep 11.
+
+**`datasets.yaml` 의 per-entry `units_per_job: 10`(SemiLep)은 남겨 뒀다** — 이제 기본값과 같아
+중복이지만 **의도적 floor** 다: 이 dataset 은 upj=1 이 물리적으로 불가능한 유일한 항목이므로,
+누가 전역 기본값을 되돌려도 이 항목은 살아남는다. (preflight 도 FAIL 시키지만, *깨질 수 없는
+설정* > *깨진 걸 잡는 검사*.) 그 이유를 항목 주석에 명시했다.
+
+**신설 — `TtbarIdExtender/README.md` §2.2c "한 연도를 처음부터 다시 제출"**: 순서가 중요한
+7단계 절차(kill → **run/idle/transf 가 0 이 될 때까지 대기** → EOS 삭제 → project dir 삭제 →
+preflight → 제출 → SUBMITREFUSED 확인) + 재제출 후 기대 job 수 표.
+**왜 순서인가**: kill 완료 전에 EOS 를 지우면 뒤늦게 stage-out 하는 job 이 지운 디렉토리를
+되살리고, 그게 새 제출의 timestamp 와 공존해 3-key 중복 → `matchTtbarId` **exit 7** 이 된다.
+(v13.5 의 timestamp 가드가 filelist 단계에서 잡지만, 애초에 안 만드는 게 맞다.)
+
+**2017 은 재생산하지 않는다.** upj=1 로 완료된 산출물은 packing 과 무관하게 동일하며 그대로
+유효하다 — 효율은 이미 지난 일이다. 이 문장을 README 와 site_config 주석 양쪽에 박았다.
+
+---
+
+## 2026-07-27 — v13.13: job 10,000 상한을 **규칙으로 승격** — D15 신설 + 값 결정 지점 전부에 경고
+
+사용자 지시: *"number of job 개수 정하는 위치에 주석으로 job 개수가 10000개가 넘으면 에러 뜨니까
+units_per_job 개수 조정말라는 얘기를 기입해 두고 docs에도 기입해서 추후 이 값에서 문제가 발생
+안하도록 만들라."* T-19 는 **사고 기록**이라 "다음에 이 값을 만지는 사람"이 읽을 위치가 아니었다.
+그래서 규칙을 **DECIDED 항목**으로 올리고, **값을 정하는 모든 지점**에 경고를 박았다.
+
+**신설 — [04](04_decisions.md) D15** (이 규칙의 정본):
+`njobs = ceil(nfiles/units_per_job)`, 상한 10,000/task, 거부가 서버 측이라 조용함,
+`resubmit` 으로 복구 불가, 물리 무관성(D7 3-key 매칭이 file→job packing 을 안 봄) 근거,
+3중 강제 수단, 기각 대안(`units_per_job: 2` / `splitting: Automatic` / 큰 샘플 분할).
+[01](01_status.md) DECIDED 표에도 한 줄 등재.
+
+**경고를 박은 지점 — 이 저장소**:
+
+| 위치 | 무엇 |
+|---|---|
+| `crab/submit_ttbarIdExtend.py` `cfg.Data.unitsPerJob` 대입부 | **실제 코드 지점.** 여기엔 경고가 전혀 없었다 — 가장 중요한 누락이었다. 증상 4단계 + 3중 가드 + "올리는 건 안전" 명시 |
+| `crab/site_config.yaml` `resources.extend.units_per_job` | `!!` 박스로 "DO NOT LOWER" + preflight 명령어 |
+| `crab/site_config.yaml` `resources.enriched.units_per_job` | 폐기 경로지만 `1` 이 남아 있어 복사될 위험 → 같은 경고 |
+| `crab/datasets.yaml` per-entry override | 기존 주석에 floor 의도 명시 (v13.12) |
+| `TtbarIdExtender/README.md` §2.2b | 절 맨 앞에 🚫 규칙 박스 (올리기=안전 / 내리기=검증 필수) |
+
+**경고를 박은 지점 — NtupleForge (같은 함정이 있는데 가드가 없었다)**:
+
+`submit_crab.py` 도 FileBased 이고 **job-count preflight 가 없다**. 지금은 NanoAOD 기반이라
+최대 task 가 **780 jobs**(2018UL `WJetsToLNu_HT200To400_ext1`, 780 files)로 안전하다 —
+`TTbar_SemiLep` 은 event 수 1위지만 파일 수는 4위(391)이고 **job 수는 파일이 정한다**(초기
+서술을 이렇게 정정). MiniAOD 로 돌리거나 10,000 파일 초과
+dataset 을 추가하면 즉시 같은 사고가 난다. 그래서:
+`crab/submit_crab.py`(`conf.Data.unitsPerJob` 대입부),
+`crabConfig/config_ttHH2017UL.yaml`,
+`script/build_ul18_from_log.py`(→ **생성되는 2018 config 2개에 자동으로 각인**되므로 재생성에도
+살아남는다. 재생성 후 config 2개 + `samples_2018UL.json` 무변경 확인),
+그리고 문서 `docs/03_DECISIONS.md` **D-2026-07-27-crab-job-limit** +
+`docs/05_troubleshooting.md` **A16**(예방 항목, 아직 발생 안 함을 명시).
+NtupleForge 쪽 **preflight job-count 체크 부재는 OPEN gap 으로 명시**했다.
+
+**핵심 표현 하나**: "`units_per_job` 을 조정하지 말라"가 아니라
+**"내릴 때만 위험하다"** 로 적었다. 올리는 방향은 job 수를 줄이고 물리에 무관하며 walltime
+여유가 130배라 항상 안전하다 — 무조건 금지로 적으면 v13.11 의 효율 개선(1→10) 자체가 금지되는
+모순이 된다.
