@@ -9,8 +9,34 @@ import os
 #   이 SAMPLE_DIR 을 실제 데이터 위치(구 경로)로 둡니다. 앞으로 TtbarIdExtender 로 새로
 #   제출하는 CRAB job 의 출력은 site_config.yaml 의 새 LFN(.../TTHHGenCategoryTools/ttbarIdExtend)
 #   으로 저장되므로, 그때는 이 값을 새 경로로 바꾸세요.
-SAMPLE_DIR = "/pnfs/knu.ac.kr/data/cms/store/user/junghyun/ExtendedTtbarId/sidecar/2017"
-OUTPUT_DIR = "sidecar"   # filelists/sidecar/ (데이터-위치 라벨; 디렉토리명은 유지)
+# 2026-07-26: era(연도) 인자 추가. 이전에는 OUTPUT_DIR="sidecar" 고정이어서 다른
+# 연도로 실행하면 커밋된 2017 filelist 를 덮어썼다.
+#   python make_filelists_miniAOD.py            # 2017 (기존 동작: sidecar/)
+#   python make_filelists_miniAOD.py 2018       # sidecar2018/
+#   python make_filelists_miniAOD.py 2018 /pnfs/.../<다른_경로>
+import sys
+
+SAMPLE_DIR_BY_ERA = {
+    # 2017: rename 이전 경로에 실데이터가 그대로 있음 (위 NOTE 참조)
+    "2017": "/pnfs/knu.ac.kr/data/cms/store/user/junghyun/ExtendedTtbarId/sidecar/2017",
+    # 2018: TtbarIdExtender 신규 제출의 출력 = site_config.yaml 의 out_lfn_base + /2018
+    #       (submit_ttbarIdExtend.py 가 outLFNDirBase = <base>/<era> 로 만든다)
+    # ⚠ 아래 기본값은 **KNU T3 마운트 경로**를 가정한다. 현재
+    #   TtbarIdExtender/crab/site_config.yaml 의 storage_site 는 "T3_CH_CERNBOX" 이므로
+    #   실제 stage-out 은 CERN EOS(/eos/user/<i>/<user>/...) 로 간다. 제출 site 를
+    #   바꾸지 않았다면 2번째 인자로 실제 경로를 넘길 것:
+    #     python make_filelists_miniAOD.py 2018 /eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+    "2018": "/pnfs/knu.ac.kr/data/cms/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018",
+}
+
+ERA = sys.argv[1] if len(sys.argv) > 1 else "2017"
+if ERA not in SAMPLE_DIR_BY_ERA:
+    sys.exit("FATAL: unsupported era '%s' (expected one of %s)"
+             % (ERA, sorted(SAMPLE_DIR_BY_ERA)))
+SAMPLE_DIR = sys.argv[2] if len(sys.argv) > 2 else SAMPLE_DIR_BY_ERA[ERA]
+OUTPUT_DIR = "sidecar" if ERA == "2017" else "sidecar%s" % ERA
+print("[make_filelists_miniAOD] era=%s  SAMPLE_DIR=%s  OUTPUT_DIR=%s"
+      % (ERA, SAMPLE_DIR, OUTPUT_DIR))
 
 # ==============================================================================
 # [샘플 매핑] 디렉토리 이름 -> 출력 short name
@@ -35,7 +61,8 @@ sample_mapping = {
 
 
 def find_root_files(start_path):
-    """주어진 경로 아래의 slimmedNtuple*.root 파일의 절대 경로를 리스트로 반환"""
+    """주어진 경로 아래의 ttbarIDExtend*/sidecar*.root 절대 경로 리스트를 반환
+    (이 스크립트는 extend/sidecar 산출물 전용 — ntuple 쪽은 make_filelists.py)"""
     root_files = []
     for root, dirs, files in os.walk(start_path):
         for file in files:

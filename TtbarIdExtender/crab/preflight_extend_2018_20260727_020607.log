@@ -1,0 +1,41 @@
+====================================================================================
+TtbarIdExtender CRAB PREFLIGHT (read-only)
+  datasets    : /sessions/magical-wonderful-fermi/mnt/NtuplizerDev/TTHHGenCategoryTools/TtbarIdExtender/crab/datasets.yaml
+  site config : /sessions/magical-wonderful-fermi/mnt/NtuplizerDev/TTHHGenCategoryTools/TtbarIdExtender/crab/site_config.yaml
+  era filter  : ['2018']
+  proc filter : (none -> all)
+  DAS check   : OFF (add --check-das)
+  time        : 2026-07-27T02:06:07
+====================================================================================
+[FAIL] env CMSSW_BASE                         unset -- run cmsenv inside CMSSW_10_6_32_patch1/src
+[FAIL] CRABClient import                      No module named 'CRABClient' -- source /cvmfs/cms.cern.ch/common/crab-setup.sh
+[FAIL] VOMS proxy                             voms-proxy-info unusable: [Errno 2] No such file or directory: 'voms-proxy-info'
+[PASS] pset present                           /sessions/magical-wonderful-fermi/mnt/NtuplizerDev/TTHHGenCategoryTools/TtbarIdExtender/test/run_ttbarIdExtend_cfg.py
+[PASS] pset compiles                          syntax ok (import-time behaviour not tested)
+[PASS] pset year option                       present -- submitter passes year=<era>
+[PASS] out_lfn_base                           /store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2
+[PASS] storage site                           T3_CH_CERNBOX
+[PASS] work_area                              crab_projects
+[PASS] datasets.yaml eras                     2017, 2018
+------------------------------------------------------------------------------------
+era 2018  (global_tag: 106X_upgrade2018_realistic_v16_L1v1 | era_modifiers: ['Run2_2018', 'run2_nanoAOD_106Xv2'])
+[WARN] 2018/TT4b state                        enabled:false -> will be SKIPPED (verified=False). Open it after resolve_parents.sh 2018
+        requestName=TT4b_2018_extend                   outLFN=/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+[WARN] 2018/TTbar_SemiLep state               enabled:false -> will be SKIPPED (verified=False). Open it after resolve_parents.sh 2018
+        requestName=TTbar_SemiLep_2018_extend          outLFN=/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+[WARN] 2018/TTbar_Hadronic state              enabled:false -> will be SKIPPED (verified=False). Open it after resolve_parents.sh 2018
+        requestName=TTbar_Hadronic_2018_extend         outLFN=/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+[WARN] 2018/TTbar_DiLep state                 enabled:false -> will be SKIPPED (verified=False). Open it after resolve_parents.sh 2018
+        requestName=TTbar_DiLep_2018_extend            outLFN=/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+[WARN] 2018/TTbb_SemiLep state                enabled:false -> will be SKIPPED (verified=False). Open it after resolve_parents.sh 2018
+        requestName=TTbb_SemiLep_2018_extend           outLFN=/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+[WARN] 2018/TTbb_Hadronic state               enabled:false -> will be SKIPPED (verified=False). Open it after resolve_parents.sh 2018
+        requestName=TTbb_Hadronic_2018_extend          outLFN=/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+[WARN] 2018/TTbb_DiLep state                  enabled:false -> will be SKIPPED (verified=False). Open it after resolve_parents.sh 2018
+        requestName=TTbb_DiLep_2018_extend             outLFN=/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+------------------------------------------------------------------------------------
+[PASS] selected datasets                      7 (enabled=0, verified=0)
+[WARN] submittable now                        0 -- every selected entry is enabled:false
+------------------------------------------------------------------------------------
+PREFLIGHT SUMMARY: 8 PASS, 8 WARN, 3 FAIL
+RESULT: NOT READY TO SUBMIT -- fix the FAIL items above.

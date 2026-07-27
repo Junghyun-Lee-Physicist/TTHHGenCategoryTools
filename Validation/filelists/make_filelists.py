@@ -1,10 +1,41 @@
 import os
+import sys
 
 # ==============================================================================
-# [설정] 경로
+# [설정] 경로  —  2026-07-26: era(연도) 인자 추가
 # ==============================================================================
-SAMPLE_DIR = "/pnfs/knu.ac.kr/data/cms/store/user/junghyun/ttHH2017UL_08thApr2026_v18"
-OUTPUT_DIR = "nano"
+# 사용법:
+#   python make_filelists.py            # 2017 (기존 동작과 동일: nano/ 에 출력)
+#   python make_filelists.py 2018       # nano2018/ 에 출력 (2017 파일 보존)
+#   python make_filelists.py 2018 /pnfs/.../<다른_소스_디렉토리>
+#
+# 왜 era 인자가 필요한가: 이전에는 OUTPUT_DIR="nano" 가 고정이어서 다른 연도로
+# 실행하면 커밋된 2017 filelist 를 **덮어썼다**. 연도별 디렉토리로 분리한다.
+#
+# 주의: nano 쪽 입력은 중앙 NanoAOD 가 아니라 사용자 ntuple(forgedNtuple*.root,
+# 구 생산은 slimmedNtuple*.root — 둘 다 매칭한다)
+# 이다. matchTtbarId 는 run/luminosityBlock/event/genTtbarId 만 읽으므로 중앙
+# NanoAODv9 파일 목록을 그대로 써도 동작한다 — 2018 은 아직 자체 ntuple 이 없으면
+# 중앙 NanoAOD 경로를 SAMPLE_DIR 로 주거나 filelist 를 직접 작성할 것.
+# ==============================================================================
+SAMPLE_DIR_BY_ERA = {
+    "2017": "/pnfs/knu.ac.kr/data/cms/store/user/junghyun/ttHH2017UL_08thApr2026_v18",
+    # 2018: NtupleForge campaign_ttHH2018UL_prescanSlim_v1 (또는 본생산) 출력 경로.
+    #       실제 경로 확인 후 수정할 것 — 미확인이므로 기본값은 비워 둔다.
+    "2018": "",
+}
+
+ERA = sys.argv[1] if len(sys.argv) > 1 else "2017"
+if ERA not in SAMPLE_DIR_BY_ERA:
+    sys.exit("FATAL: unsupported era '%s' (expected one of %s)"
+             % (ERA, sorted(SAMPLE_DIR_BY_ERA)))
+
+SAMPLE_DIR = sys.argv[2] if len(sys.argv) > 2 else SAMPLE_DIR_BY_ERA[ERA]
+if not SAMPLE_DIR:
+    sys.exit("FATAL: no SAMPLE_DIR for era %s — pass it as the 2nd argument "
+             "(python make_filelists.py %s /pnfs/.../<dir>)" % (ERA, ERA))
+OUTPUT_DIR = "nano" if ERA == "2017" else "nano%s" % ERA
+print("[make_filelists] era=%s  SAMPLE_DIR=%s  OUTPUT_DIR=%s" % (ERA, SAMPLE_DIR, OUTPUT_DIR))
 
 # ==============================================================================
 # [샘플 매핑] 디렉토리 이름 -> 출력 short name
@@ -28,12 +59,18 @@ sample_mapping = {
 }
 
 
+# NtupleForge 산출 ntuple 파일명 prefix (analyzer 측 make_filelists.py 와 동일 규약):
+#   forgedNtuple  : 2026-07-26 이후 생산 (NtupleForge D-F rename)
+#   slimmedNtuple : 그 이전 생산 — 이미 Tier-3 에 있는 파일들의 실제 이름
+NTUPLE_PREFIXES = ("forgedNtuple", "slimmedNtuple")
+
+
 def find_root_files(start_path):
-    """주어진 경로 아래의 slimmedNtuple*.root 파일의 절대 경로를 리스트로 반환"""
+    """주어진 경로 아래의 forgedNtuple*/slimmedNtuple*.root 절대 경로 리스트를 반환"""
     root_files = []
     for root, dirs, files in os.walk(start_path):
         for file in files:
-            if file.startswith("slimmedNtuple") and file.endswith(".root"):
+            if file.startswith(NTUPLE_PREFIXES) and file.endswith(".root"):
                 absolute_path = os.path.abspath(os.path.join(root, file))
                 root_files.append(absolute_path)
     return root_files

@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-05**.
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-26**.
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -75,3 +75,31 @@ v11 직후 사용자 요청으로 이름 체계를 한 번 더 정리했다. 핵
 ## 2026-07-05 — v12.5: CRAB 파일 ASCII 위반 수정 (em-dash)
 
 `site_config.yaml`과 `submit_ttbarIdExtend.py`에 v12.3/v12.4 편집 때 들어간 em-dash(`—`, U+2014)가 CMSSW의 py2-era ASCII 로더에서 `UnicodeDecodeError: 'ascii' codec can't decode byte 0xe2`를 일으킴 (`crab-setup.sh` 환경의 PyYAML/python3.6이 파일을 ASCII로 읽음). 모두 `--`로 치환. `crab/`·`test/`·`python/` 전 파일 non-ASCII 전수검사 clean 확인. (이 프로젝트의 ASCII-clean 규칙은 [09](09_environment.md) §1 — CRAB/설정 파일도 예외 없이 지켜야 함.)
+
+## 2026-07-26 — v13: 2018UL 대응 (era 파라미터화) — **unverified, lxplus 실행 필요**
+
+사용자 지시: "TTHHGenCategoryTools으로 UL18을 진행 — full 로 잘 돌아가는지 validation 까지". 이번 변경은 **연도 파라미터화 + 2018 블록 등재**까지이며, 실제 생산·검증은 아직 수행되지 않았다.
+
+- **`TtbarIdExtender/crab/datasets.yaml`**: `"2018"` era 블록 신설(7개 stitching 샘플). `nano_child` 는 **DAS 확정값** — NtupleForge `script/das_ul18_scan.sh` 로그(`das_ul18_scan_20260726_1657.log`)에서 가져왔으므로 `config_ttHH2018UL.yaml` 의 모집단과 정의상 일치한다. 반면 MiniAODv2 `dataset:` 의 **`-vN` 접미사는 미검증**(nano child 에서 복사) → 전 항목 `enabled:false` / `verified:false` 로 두어 실수 제출을 차단. 각 항목 notes 에 2018 vs 2017 event 수를 기록(예: TTbar_SemiLep 476,408,000 vs 346,052,000 → sorted 검증 경로 필수).
+- **`TtbarIdExtender/test/run_ttbarIdExtend_cfg.py`**: `year` VarParsing 옵션 추가(기본 `2017` → 기존 동작 불변). era modifier 를 `Run2_2017` 하드코딩에서 year→era 매핑으로 교체. **매핑은 `getattr` 지연 해석** — dict 리터럴로 `eras.*` 를 즉시 평가하면 해당 릴리스에 없는 era 이름 하나가 2017 포함 전 연도를 깨뜨리기 때문. **물리량 불변**: gen-level 전용이고 `matchGenBHadron`/`categorizeGenTtbar`/`extendedTtbarId` 는 era-modified 가 아니므로 값이 바뀌지 않는다 — provenance(라벨) 정정이다.
+- **`TtbarIdExtender/crab/submit_ttbarIdExtend.py`**: `JobType.pyCfgParams` 에 `year=<era>` 추가 → datasets.yaml 의 era 키가 실제로 pset 에 전달된다(기존 "cfg 에 year 파라미터 없음" 주석 폐기).
+- **`TtbarIdExtender/crab/resolve_parents.sh`**: era 인자화(`bash resolve_parents.sh 2018`). 2018 nano child 7개 + 캠페인/`sed` 문자열을 era 별로 분기. 2018 MiniAOD 부모 확정에 이 스크립트를 쓴다.
+- **`Validation/filelists/make_filelists.py`, `make_filelists_miniAOD.py`**: era 인자화(`python make_filelists.py 2018 [SAMPLE_DIR]`). 출력 디렉토리가 `nano`/`sidecar` 로 **고정**되어 있어 다른 연도로 실행하면 커밋된 2017 filelist 를 덮어쓰던 문제를 제거 → 2018 은 `nano2018/`, `sidecar2018/`. 기본값(인자 없음)은 2017 이며 기존 동작과 동일.
+- 검증(로컬에서 가능한 범위): 두 filelist 스크립트 parse OK + era 인자 동작(미지원 era/경로 누락 시 FATAL) 확인, `datasets.yaml` PyYAML 파싱 후 2017=7 enabled·verified / 2018=7 모두 disabled 확인, cfg·submitter ASCII+구문 확인. **CMSSW 빌드·cmsRun·CRAB 제출은 미수행.**
+
+## 2026-07-26 — v13.1: submit_ttbarIdExtend.py `--preflight` + DAS 기반 nano filelist 생성기
+
+- **`crab/submit_ttbarIdExtend.py --preflight` (신규, 읽기 전용).** `--dry-run` 보다 강한 사전 점검:
+  환경(cmsenv/CRABClient/proxy), pset 존재·compile·**`year` 옵션 유무**, site_config(out_lfn_base
+  placeholder/ 형식), 그리고 era 별 dataset 상태 — 경로 문법(MINIAODSIM/NANOAODSIM), **campaign
+  문자열에 era 키가 들어있는지**, MiniAOD/Nano의 primary dataset 일치, `enabled`/`verified` 조합
+  (enabled=true·verified=false 는 FAIL), 기존 CRAB 프로젝트 존재. `--check-das` 를 붙이면 모든
+  MiniAOD/Nano 경로를 DAS 로 조회해 **잘못된 `-vN` 접미사를 제출 전에 잡는다**.
+  로그 `crab/preflight_extend_<eras>_<timestamp>.log`, FAIL 있으면 exit 1.
+- **`Validation/filelists/make_nano_filelists_das.sh` (신규).** nano 측 filelist 를 로컬 디렉토리
+  탐색 대신 **DAS 에서 직접** 만든다(7 샘플 일괄, master + per-job split + summary 로그).
+  `matchTtbarId` 가 run/lumi/event/genTtbarId 만 읽으므로 중앙 NanoAODv9 로 검증이 가능하고,
+  따라서 2018 은 자체 ntuple 생산을 기다리지 않고 바로 검증할 수 있다.
+  사용: `./make_nano_filelists_das.sh 2018` → `nano2018/`.
+- 문서 정합성 수정(2026-07-26 감사): `datasets.yaml` 헤더의 "미확인 항목은 `verified: true` 로
+  표시" 문구를 `verified: false`(+ `enabled: false`)로 정정 — 2018 블록의 실제 상태와 일치.

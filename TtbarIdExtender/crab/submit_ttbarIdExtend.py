@@ -22,7 +22,10 @@
 # =============================================================================
 
 import argparse
+import datetime
 import os
+import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -56,6 +59,16 @@ def parse_args():
                    help="Cap Data.totalUnits per task (smoke-tests).")
     p.add_argument("--dry-run",  action="store_true",
                    help="Print plan but do not submit.")
+    p.add_argument("--preflight", action="store_true",
+                   help="READ-ONLY pre-submission check (stronger than --dry-run): "
+                        "environment (cmsenv/CRABClient/proxy), pset presence + "
+                        "compile + `year` option, site config, and per-era dataset "
+                        "state (path syntax, campaign-vs-era coherence, primary "
+                        "match, enabled/verified, existing CRAB project). Writes "
+                        "preflight_extend_<eras>_<timestamp>.log; exits non-zero on FAIL.")
+    p.add_argument("--check-das", action="store_true",
+                   help="With --preflight: also query DAS for every MiniAOD/Nano path "
+                        "(catches a wrong -vN suffix before submission).")
     p.add_argument("--force",    action="store_true",
                    help="Submit even datasets with enabled:false.")
     p.add_argument("--resubmit", action="store_true",
@@ -96,13 +109,16 @@ def build_config(*, process_name, era, dataset_entry, site_cfg, era_block,
     # JobType
     cfg.JobType.pluginName     = "Analysis"
     cfg.JobType.psetName       = EXTEND_PSET
-    cfg.JobType.pyCfgParams    = ["outputFile=ttbarIDExtend.root"]
-    # NB: run_ttbarIdExtend_cfg.py has no `year` parameter (that was an
-    # enriched-cfg option).  CRAB injects inputFiles for FileBased
-    # splitting; we only fix the output filename here.  VarParsing
-    # may append a _numEventN suffix -- confirm in the smoke test
-    # that CRAB still collects the produced file (adjust
-    # JobType.outputFiles below if needed).
+    # `year` is passed per task so the pset picks the matching era modifier.
+    # (2026-07-26: run_ttbarIdExtend_cfg.py gained a `year` VarParsing option
+    # for the 2018UL run; it defaults to 2017, so old behaviour is unchanged if
+    # this argument is ever dropped.)  The era key of datasets.yaml IS the year.
+    cfg.JobType.pyCfgParams    = ["outputFile=ttbarIDExtend.root",
+                                  f"year={era}"]
+    # CRAB injects inputFiles for FileBased splitting; we only fix the output
+    # filename and the year here.  VarParsing may append a _numEventN suffix --
+    # confirm in the smoke test that CRAB still collects the produced file
+    # (adjust JobType.outputFiles below if needed).
     res = (site_cfg.get("resources") or {}).get("extend", {})
     cfg.JobType.maxMemoryMB        = int(res.get("max_memory_mb", 2000))
     cfg.JobType.maxJobRuntimeMin   = int(res.get("max_runtime_min", 1440))
@@ -192,11 +208,235 @@ def crab_action_one(cfg, *, action):
     return True
 
 
+# =============================================================================
+# PREFLIGHT (--preflight) — read-only, era-aware pre-submission check
+# =============================================================================
+# Complements crab/preflight.py (environment + build + pset compile) by checking
+# the things that actually differ per era: the datasets.yaml era block, the
+# enabled/verified state, the DAS resolvability of every path, and the pset's
+# `year` handling. Nothing is submitted; a log file is written.
+_DS_RE = re.compile(r"^/[^/]+/[^/]+/(MINIAODSIM|NANOAODSIM)$")
+
+
+def run_preflight(args, cat, site):
+    rows, lines = [], []
+
+    def emit(level, check, detail=""):
+        rows.append((level, check, detail))
+        line = "[%-4s] %-38s %s" % (level, check, detail)
+        print(line)
+        lines.append(line)
+
+    def note(text=""):
+        print(text)
+        lines.append(text)
+
+    ok   = lambda c, d="": emit("PASS", c, d)
+    warn = lambda c, d="": emit("WARN", c, d)
+    bad  = lambda c, d="": emit("FAIL", c, d)
+
+    era_filter = ({s.strip() for s in args.era.split(",")} if args.era else None)
+    proc_filter = ({s.strip() for s in args.process.split(",")} if args.process else None)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = str(THIS_DIR / ("preflight_extend_%s_%s.log"
+                               % ("-".join(sorted(era_filter)) if era_filter else "allEras", ts)))
+
+    note("=" * 84)
+    note("TtbarIdExtender CRAB PREFLIGHT (read-only)")
+    note("  datasets    : %s" % args.datasets)
+    note("  site config : %s" % args.site_config)
+    note("  era filter  : %s" % (sorted(era_filter) if era_filter else "(none -> all)"))
+    note("  proc filter : %s" % (sorted(proc_filter) if proc_filter else "(none -> all)"))
+    note("  DAS check   : %s" % ("ON (--check-das)" if args.check_das else "OFF (add --check-das)"))
+    note("  time        : %s" % datetime.datetime.now().isoformat(timespec="seconds"))
+    note("=" * 84)
+
+    # ---- 1. environment ------------------------------------------------------
+    cmssw = os.environ.get("CMSSW_BASE", "")
+    if not cmssw:
+        bad("env CMSSW_BASE", "unset -- run cmsenv inside CMSSW_10_6_32_patch1/src")
+    elif "CMSSW_10_6_" not in os.environ.get("CMSSW_VERSION", ""):
+        warn("env CMSSW_VERSION", "%s (this package is pinned to CMSSW_10_6_32_patch1)"
+             % os.environ.get("CMSSW_VERSION", "?"))
+    else:
+        ok("env CMSSW", "%s" % os.environ.get("CMSSW_VERSION"))
+    try:
+        import CRABClient  # noqa: F401
+        ok("CRABClient import", "ok")
+    except Exception as e:
+        bad("CRABClient import", "%s -- source /cvmfs/cms.cern.ch/common/crab-setup.sh" % e)
+    try:
+        out = subprocess.run(["voms-proxy-info", "-timeleft"], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True)
+        left = int((out.stdout or "0").strip() or 0)
+        if left <= 0:
+            bad("VOMS proxy", "expired/absent -- voms-proxy-init -voms cms -rfc --valid 192:00")
+        elif left < 24 * 3600:
+            warn("VOMS proxy", "only %.1f h left" % (left / 3600.0))
+        else:
+            ok("VOMS proxy", "%.1f h left" % (left / 3600.0))
+    except (OSError, ValueError) as e:
+        bad("VOMS proxy", "voms-proxy-info unusable: %s" % e)
+
+    # ---- 2. pset + year handling --------------------------------------------
+    if os.path.isfile(EXTEND_PSET):
+        ok("pset present", EXTEND_PSET)
+        src = open(EXTEND_PSET).read()
+        try:
+            compile(src, EXTEND_PSET, "exec")
+            ok("pset compiles", "syntax ok (import-time behaviour not tested)")
+        except SyntaxError as e:
+            bad("pset compiles", str(e)[:140])
+        if 'opts.register("year"' in src or "opts.register('year'" in src:
+            ok("pset year option", "present -- submitter passes year=<era>")
+        else:
+            bad("pset year option",
+                "MISSING: the pset has no `year` VarParsing option, so the era "
+                "modifier stays hardcoded regardless of the era being submitted")
+    else:
+        bad("pset present", "not found: %s" % EXTEND_PSET)
+
+    # ---- 3. site config -----------------------------------------------------
+    lfn = str(site.get("out_lfn_base") or "")
+    if "__YOUR_CERN_USERNAME__" in lfn:
+        bad("out_lfn_base", "still contains the placeholder username")
+    elif not lfn.startswith("/store/"):
+        bad("out_lfn_base", "should start with /store/ : %r" % lfn)
+    else:
+        ok("out_lfn_base", lfn)
+    ok("storage site", str(site.get("storage_site")))
+    work_area = str(site.get("work_area", "crab_projects"))
+    ok("work_area", work_area)
+
+    # ---- 4. era blocks / datasets ------------------------------------------
+    eras = (cat.get("eras") or {})
+    if not eras:
+        bad("datasets.yaml eras", "no eras defined")
+        return _preflight_finish(rows, lines, log_path)
+    ok("datasets.yaml eras", ", ".join(sorted(eras.keys())))
+    if era_filter:
+        unknown = era_filter - set(eras.keys())
+        if unknown:
+            bad("--era value", "not in datasets.yaml: %s" % sorted(unknown))
+
+    total_sel = n_enabled = n_verified = 0
+    for era, block in sorted(eras.items()):
+        if era_filter and era not in era_filter:
+            continue
+        note("-" * 84)
+        note("era %s  (global_tag: %s | era_modifiers: %s)"
+             % (era, block.get("global_tag"), block.get("era_modifiers")))
+        ds_list = block.get("datasets") or []
+        if not ds_list:
+            bad("era %s datasets" % era, "empty")
+            continue
+        for d in ds_list:
+            name = d.get("name", "?")
+            if proc_filter and name not in proc_filter:
+                continue
+            total_sel += 1
+            mini, nano = d.get("dataset", ""), d.get("nano_child", "")
+            en, ver = bool(d.get("enabled")), bool(d.get("verified"))
+            n_enabled += en
+            n_verified += ver
+            tags = []
+            if not _DS_RE.match(str(mini)) or not str(mini).endswith("MINIAODSIM"):
+                bad("%s/%s dataset syntax" % (era, name), "not a MINIAODSIM path: %r" % mini)
+            if not _DS_RE.match(str(nano)) or not str(nano).endswith("NANOAODSIM"):
+                bad("%s/%s nano_child syntax" % (era, name), "not a NANOAODSIM path: %r" % nano)
+            # campaign/era coherence: the era key must appear in both campaign strings
+            camp_mini = str(mini).split("/")[2] if str(mini).count("/") >= 3 else ""
+            camp_nano = str(nano).split("/")[2] if str(nano).count("/") >= 3 else ""
+            if era not in camp_mini or era not in camp_nano:
+                bad("%s/%s campaign vs era" % (era, name),
+                    "era key not found in campaign strings (mini=%s, nano=%s)" % (camp_mini, camp_nano))
+            else:
+                tags.append("campaign-era ok")
+            # primary dataset must be identical on both sides
+            if str(mini).split("/")[1:2] != str(nano).split("/")[1:2]:
+                bad("%s/%s primary match" % (era, name),
+                    "MiniAOD and Nano primary datasets differ")
+            else:
+                tags.append("primary match")
+            if en and not ver:
+                bad("%s/%s state" % (era, name),
+                    "enabled:true but verified:false -- resolve the MiniAOD parent first "
+                    "(bash crab/resolve_parents.sh %s)" % era)
+            elif not en:
+                warn("%s/%s state" % (era, name),
+                     "enabled:false -> will be SKIPPED (verified=%s). Open it after "
+                     "resolve_parents.sh %s" % (ver, era))
+            else:
+                ok("%s/%s state" % (era, name), "enabled+verified; " + ", ".join(tags))
+            req = "%s_%s_extend" % (name, era)
+            tag = (site.get("request_name_tag") or "").strip()
+            if tag:
+                req += "_%s" % tag
+            proj = os.path.join(work_area, "crab_%s" % req)
+            if os.path.isdir(proj):
+                warn("%s/%s existing project" % (era, name),
+                     "%s exists -> submit would be SKIPPED (rm -rf to retry)" % proj)
+            note("        requestName=%-34s outLFN=%s/%s" % (req, lfn, era))
+
+    note("-" * 84)
+    ok("selected datasets", "%d (enabled=%d, verified=%d)" % (total_sel, n_enabled, n_verified))
+    if total_sel and n_enabled == 0:
+        warn("submittable now", "0 -- every selected entry is enabled:false")
+
+    # ---- 5. optional DAS check ---------------------------------------------
+    if args.check_das:
+        note("-" * 84)
+        if subprocess.run(["which", "dasgoclient"], stdout=subprocess.PIPE).returncode != 0:
+            bad("dasgoclient", "not found -- cannot verify datasets")
+        else:
+            for era, block in sorted(eras.items()):
+                if era_filter and era not in era_filter:
+                    continue
+                for d in (block.get("datasets") or []):
+                    name = d.get("name", "?")
+                    if proc_filter and name not in proc_filter:
+                        continue
+                    for label, path in (("mini", d.get("dataset", "")),
+                                        ("nano", d.get("nano_child", ""))):
+                        q = subprocess.run(["dasgoclient", "-query", "summary dataset=%s" % path],
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        m = re.search(r"nevents\s*[:=]\s*(\d+)", q.stdout or "")
+                        if m:
+                            ok("DAS %s/%s %s" % (era, name, label), "nevents=%s" % format(int(m.group(1)), ","))
+                        else:
+                            bad("DAS %s/%s %s" % (era, name, label),
+                                "not resolvable -- wrong -vN suffix? %s" % path)
+    return _preflight_finish(rows, lines, log_path)
+
+
+def _preflight_finish(rows, lines, log_path):
+    n_fail = sum(1 for l, _, _ in rows if l == "FAIL")
+    n_warn = sum(1 for l, _, _ in rows if l == "WARN")
+    n_pass = sum(1 for l, _, _ in rows if l == "PASS")
+    tail = ["-" * 84,
+            "PREFLIGHT SUMMARY: %d PASS, %d WARN, %d FAIL" % (n_pass, n_warn, n_fail),
+            ("RESULT: NOT READY TO SUBMIT -- fix the FAIL items above." if n_fail
+             else "RESULT: READY TO SUBMIT" + (" (review the WARNs first)" if n_warn else ""))]
+    for t in tail:
+        print(t)
+    lines.extend(tail)
+    try:
+        with open(log_path, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        print("Log written: %s" % log_path)
+    except OSError as e:
+        print("WARNING: could not write log %s: %s" % (log_path, e))
+    return 1 if n_fail else 0
+
+
 # ----- Main --------------------------------------------------------------
 def main():
     args = parse_args()
     cat  = load_yaml(args.datasets)
     site = load_yaml(args.site_config)
+
+    if args.preflight:
+        sys.exit(run_preflight(args, cat, site))
 
     if "__YOUR_CERN_USERNAME__" in (site.get("out_lfn_base") or ""):
         sys.exit("ERROR: site_config.yaml still has the placeholder username "

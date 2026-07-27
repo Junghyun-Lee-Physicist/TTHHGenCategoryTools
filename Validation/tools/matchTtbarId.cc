@@ -3,7 +3,7 @@
 // matchTtbarId
 // =============================================================================
 // Per-event 1:1 comparison of genTtbarId between a extend file source (MiniAOD-
-// derived, this analysis) and a nano source (central NanoAOD / slimmedNtuple),
+// derived, this analysis) and a nano source (central NanoAOD / forgedNtuple),
 // matched on the (run, lumi, event) key.  This is the strict check: for every
 // nano event, look up the same (run, lumi, event) in the extend file and verify the
 // genTtbarId is identical.  Events present in the extend file but absent from nano

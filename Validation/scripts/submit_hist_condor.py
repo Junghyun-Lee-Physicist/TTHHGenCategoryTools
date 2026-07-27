@@ -3,7 +3,7 @@
 # submit_hist_condor.py
 # =============================================================================
 # Submit one HTCondor job per ROOT file to run `makeTtbarHist` over a set of
-# processes, for either nano (slimmedNtuple / central NanoAOD) or extend
+# processes, for either nano (forgedNtuple / central NanoAOD) or extend
 # inputs.  Histograms come back as one ROOT file per job; merge them per
 # process afterwards with scripts/merge_hists.sh.
 #

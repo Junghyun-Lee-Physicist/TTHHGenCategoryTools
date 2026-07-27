@@ -52,6 +52,12 @@ opts = VarParsing("analysis")
 opts.register("verbose", False,
               VarParsing.multiplicity.singleton, VarParsing.varType.bool,
               "Per-event LogVerbatim from the ttbarId-extend analyzer (default False)")
+# Data-taking year -> selects the era modifiers below.  Added 2026-07-26 for the
+# 2018UL run (was hardcoded Run2_2017).  The submitter passes it per task via
+# JobType.pyCfgParams, taking the value from the datasets.yaml era key.
+opts.register("year", "2017",
+              VarParsing.multiplicity.singleton, VarParsing.varType.string,
+              "Data-taking year: 2016 | 2016APV | 2017 | 2018 (default 2017)")
 opts.outputFile = "ttbarIDExtend.root"
 opts.maxEvents  = -1
 # Default input: leave empty.  Two ways input gets set:
@@ -74,6 +80,7 @@ print("[run_ttbarIdExtend_cfg]   inputFiles = %s" % (list(opts.inputFiles) or "(
 print("[run_ttbarIdExtend_cfg]   outputFile = %s" % opts.outputFile)
 print("[run_ttbarIdExtend_cfg]   maxEvents  = %d" % opts.maxEvents)
 print("[run_ttbarIdExtend_cfg]   verbose    = %s" % opts.verbose)
+print("[run_ttbarIdExtend_cfg]   year       = %s" % opts.year)
 
 
 # ---- Process ----------------------------------------------------------------
@@ -81,8 +88,36 @@ print("[run_ttbarIdExtend_cfg]   verbose    = %s" % opts.verbose)
 # consistency with downstream NanoAOD friend-tree workflows (any 2017
 # friend-tree consumer expects Run2_2017 / run2_nanoAOD_106Xv2 to have
 # been applied somewhere upstream).
+#
+# 2026-07-26: made year-aware.  NOTE ON PHYSICS: this run is gen-level only
+# (matchGenBHadron / matchGenCHadron / categorizeGenTtbar / extendedTtbarId),
+# and none of those modules is era-modified, so the choice does NOT change the
+# numbers.  It is a provenance/consistency fix: submitting UL18 MiniAOD under
+# eras.Run2_2017 would have produced correct-but-mislabelled output.
 from Configuration.StandardSequences.Eras import eras
-process = cms.Process("TTBARIDEXTEND", eras.Run2_2017, eras.run2_nanoAOD_106Xv2)
+
+# Resolved LAZILY via getattr: only the requested year's era object is touched.
+# (A dict literal would evaluate every eras.* attribute at import time, so one
+# era name absent from this CMSSW release would break ALL years, 2017 included.)
+_ERA_NAME_BY_YEAR = {
+    "2016":    "Run2_2016",
+    "2016APV": "Run2_2016_HIPM",
+    "2017":    "Run2_2017",
+    "2018":    "Run2_2018",
+}
+if opts.year not in _ERA_NAME_BY_YEAR:
+    raise ValueError(
+        "[run_ttbarIdExtend_cfg] FATAL: unsupported year=%r (expected one of %s)"
+        % (opts.year, sorted(_ERA_NAME_BY_YEAR.keys())))
+_era_name = _ERA_NAME_BY_YEAR[opts.year]
+if not hasattr(eras, _era_name):
+    raise ValueError(
+        "[run_ttbarIdExtend_cfg] FATAL: era %r not available in this CMSSW release "
+        "(year=%s)" % (_era_name, opts.year))
+_era = getattr(eras, _era_name)
+print("[run_ttbarIdExtend_cfg]   era modifier = %s + run2_nanoAOD_106Xv2" % _era_name)
+
+process = cms.Process("TTBARIDEXTEND", _era, eras.run2_nanoAOD_106Xv2)
 
 
 # ---- Services ---------------------------------------------------------------

@@ -6,7 +6,7 @@
 // files (a "filelist": one file path per line, '#' comments allowed).
 //
 // Two input flavours, selected by --mode:
-//   --mode nano     : reads only 'genTtbarId'      (central NanoAOD / slimmedNtuple)
+//   --mode nano     : reads only 'genTtbarId'      (central NanoAOD / forgedNtuple)
 //   --mode extend file  : reads 'genTtbarId' AND 'Expanded_genTtbarId' AND 'nAddBJets' AND
 //                     'nAddBJetsMulti'              (the ttbar-Id extend file output)
 //

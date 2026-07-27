@@ -8,7 +8,14 @@
 # Run on cms01 (or any machine with dasgoclient + a valid grid proxy):
 #
 #   voms-proxy-init -voms cms
-#   bash resolve_parents.sh
+#   bash resolve_parents.sh [ERA]        # ERA = 2017 (default) | 2018
+#
+# 2026-07-26: made era-aware (was 2017-hardcoded). The 2018 NanoAODv9 children
+# below are the exact datasets found by NtupleForge/script/das_ul18_scan.sh
+# (log: NtupleForge/script/das_ul18_scan_20260726_1657.log) — standard campaign
+# RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-vN, i.e. the
+# same 7 stitching samples that config_ttHH2018UL.yaml uses. Their MiniAODv2
+# parents (and the -vN suffixes) are what this script resolves; do NOT guess them.
 #
 # For each ttbar stitching sample it:
 #   1. prints the NanoAODv9 child (from this script's list),
@@ -31,15 +38,41 @@ NAMES=(
   "TTbb_Hadronic"
   "TTbb_DiLep"
 )
-NANO=(
-  "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v2/NANOAODSIM"
-  "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
-  "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
-  "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
-  "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
-  "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
-  "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
-)
+ERA="${1:-2017}"
+
+case "$ERA" in
+  2017)
+    NANO_CAMPAIGN="RunIISummer20UL17NanoAODv9"
+    MINI_CAMPAIGN="RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9"
+    NANO=(
+      "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v2/NANOAODSIM"
+      "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+      "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+      "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+      "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+      "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+      "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
+    )
+    ;;
+  2018)
+    NANO_CAMPAIGN="RunIISummer20UL18NanoAODv9"
+    MINI_CAMPAIGN="RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1"
+    NANO=(
+      "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v2/NANOAODSIM"
+      "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
+      "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
+      "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
+      "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
+      "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
+      "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
+    )
+    ;;
+  *)
+    echo "ERROR: unsupported ERA '$ERA' (expected 2017 or 2018)" >&2
+    exit 2
+    ;;
+esac
+echo "### resolve_parents.sh — ERA=$ERA (nano campaign: $NANO_CAMPAIGN)"
 
 if ! command -v dasgoclient >/dev/null 2>&1; then
   echo "ERROR: dasgoclient not found. Source a CMSSW environment (cmsenv) first." >&2
@@ -67,8 +100,8 @@ for ((i=0; i<n; i++)); do
   else
     echo "  PARENT (from DAS) : <none returned> -- trying direct MiniAODv2 search"
     # 2) fallback: search the MiniAODv2 dataset by the base name + campaign
-    base="$(echo "$nano" | sed 's#/RunIISummer20UL17NanoAODv9.*##')"
-    hits="$(dasgoclient -query="dataset=${base}/RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9-*/MINIAODSIM" 2>/dev/null)"
+    base="$(echo "$nano" | sed "s#/${NANO_CAMPAIGN}.*##")"
+    hits="$(dasgoclient -query="dataset=${base}/${MINI_CAMPAIGN}-*/MINIAODSIM" 2>/dev/null)"
     if [[ -n "$hits" ]]; then
       echo "  MiniAODv2 candidates:"
       echo "$hits" | sed 's/^/    /'

@@ -2,7 +2,7 @@
 
 > **목적**: 임의의 에이전트가 "현재 상태"를 확인하는 단일 지점.
 > **대상 독자**: 모든 기여자 (사람·AI).
-> **상태**: 살아있는 문서 — 마지막 의미있는 갱신 **2026-07-05** (v11 병합·rename).
+> **상태**: 살아있는 문서 — 마지막 의미있는 갱신 **2026-07-26** (v13 2018UL era 파라미터화; O6 신설).
 > **관련**: 숫자 전체는 [06_validation_results.md](06_validation_results.md), 결정 근거는 [04_decisions.md](04_decisions.md), 변경 이력은 [03_changelog.md](03_changelog.md).
 
 ## 결론 먼저 (BLUF)
@@ -31,6 +31,7 @@
 | O3 | `das_lineage.py` 실사용 검증 여부 불명 | `Validation/scripts/`로 이동 보관. docstring상 file-level MiniAOD↔NanoAOD lineage 도구이나, 과거 실행 기록이 문서에 없음 — 사용 전 1회 동작 확인 필요 |
 | O4 | 이전에 제출된 CRAB 프로젝트의 resubmit | 기존 `crab_*` 디렉토리는 구 경로(`.../NanoExtension/...`) pset을 기억함. 구 태스크 resubmit은 구 체크아웃에서 할 것 ([08](08_troubleshooting.md) T-13) |
 | O5 | Run3 / CMSSW 14_X migration | 미착수. 체크리스트는 [09_environment.md](09_environment.md) §3 |
+| **O6** | **2018UL 생산 + validation (신규 2026-07-26, 진행 중)** | 코드는 era 파라미터화 완료([03](03_changelog.md) v13): `datasets.yaml` `"2018"` 블록(7샘플, `enabled:false`), cfg `year=` 옵션, submitter 전달, `resolve_parents.sh 2018`, filelist 스크립트 era 인자. **다음 순서**: ① `bash crab/resolve_parents.sh 2018` → MiniAODv2 부모 확정 후 `dataset:` 붙여넣고 `verified/enabled: true` ② `python crab/preflight.py` ③ `--dry-run` ④ `TTbb_DiLep`(최소, 4,792,850 evt) `--max-files 5` 스모크 ⑤ 7샘플 본제출 ⑥ `make_filelists*.py 2018` → `nano2018/`·`sidecar2018/` ⑦ 소형 4샘플 `matchTtbarId`, 대형 3샘플(TTbar_*: 476M/334M/145M — 2017 대비 최대 +38%) `sortSplitExtend`→`matchTtbarIdSorted` ⑧ `extractTtbarIdPatch` 로 patch 7편 ⑨ 결과 수치는 [06](06_validation_results.md)에 **append**. **주의**: 2017 의 tt+nb 기대 수치(1,882,170 = 61/62 1,585,810 + 71/72 296,360)는 2018 의 합격 기준이 **아니다**(event 수 자체가 다름). nano 측 입력은 중앙 NanoAODv9 파일 목록으로도 가능(`matchTtbarId` 는 run/lumi/event/genTtbarId 만 읽음) |
 
 ## 지금 이 저장소로 할 수 있는 것 (요약)
 
