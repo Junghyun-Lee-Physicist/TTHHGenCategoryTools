@@ -19,8 +19,18 @@
 | C++ 경고 | unused variable 금지 (`-Werror`) | 빌드 실패 |
 | Scheduling | Task 결합은 `Task.associate()` (Sequence `+=` 금지) | "Unrunnable schedule" (T-6) |
 | 실행 환경 | lxplus(EL9)에서는 `cmssw-el7` 컨테이너 진입 후 `cmsenv` | scram arch 불일치 |
+| **`python3` = 3.6.4** | 3.7+ API 금지: `subprocess.run(..., text=)`·`capture_output=` → `universal_newlines=True` / `stdout=PIPE`. `dict \|=`(3.9), `str.removeprefix`(3.9), `match`(3.10)도 불가 | **런타임** TypeError (import 시점엔 안 잡힌다). 2026-07-27 `submit_ttbarIdExtend.py --preflight` 가 `text=True` 로 즉사 (v13.3) |
+| **`LANG=C`** | 파일을 읽을 때 **항상 `encoding=` 명시**. `open()` 기본 인코딩이 ASCII 다 | 파일 어딘가의 non-ASCII 1바이트가 전체를 죽인다: `UnicodeDecodeError: 'ascii' codec can't decode byte 0xe2`. 2026-07-27 `datasets.yaml` 주석의 em-dash 하나로 submitter 즉사 (v13.2) |
+| **YAML·설정 파일도 ASCII-only** | `crab/*.yaml` 포함. 위 두 항목이 겹치면 진단이 어렵다 | 상동 (v12.5 에서 이미 한 번, v13.2 에서 재발) |
+| **PyROOT 사용 불가** | 이 릴리스의 ROOT 6.14 는 **python2 빌드**다. python3 검증 스크립트를 쓰지 말고 **ROOT 매크로**(`Validation/scripts/*.C`)로 작성 | `ImportError: dynamic module does not define module export function (PyInit_libPyROOT)`. 2026-07-27 확인 → `check_extend_invariants.C` 신설 |
 
-`crab/*.py`와 `Validation/scripts/*.py`는 이 제약 밖 (Python 3 실행 전제; README 명령이 `python3` 명시). `Validation/tools/*.cc`는 CMSSW 무관 — `root-config` 기반 Makefile로 어느 ROOT 6.x에서든 빌드.
+`crab/*.py`와 `Validation/scripts/*.py`는 **Python 2 제약(f-string 금지 등)에서는 자유롭지만
+Python 3.6 제약은 그대로 받는다** — 위 표의 `python3 = 3.6.4` 행이 그것이다. "Python 3 니까
+아무거나 써도 된다"는 뜻이 아니다. `Validation/tools/*.cc`는 CMSSW 무관 — `root-config` 기반
+Makefile로 어느 ROOT 6.x에서든 빌드. `Validation/scripts/*.C`(ROOT 매크로)도 환경 무관.
+
+> 이 4개 함정은 `TtbarIdExtender/crab/submit_ttbarIdExtend.py` 헤더에도 요약돼 있다
+> (코드를 고치는 사람이 문서를 안 읽을 수 있으므로 의도적 중복 — 규칙 자체의 정본은 이 표다).
 
 ## 2. 10_6_X ↔ 14_X+ 호환 요약 (실측 기반)
 

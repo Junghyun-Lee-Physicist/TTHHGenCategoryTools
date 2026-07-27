@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.4).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.7).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -195,3 +195,132 @@ VERDICT: ALL INVARIANTS PASS
   (`matchTtbarId` exit 7). **대신 최소 dataset(`TTbb_DiLep`, 103 files)을 통째로** 던져
   스모크로 쓴다. `--max-files` 의 help 를 DISCOURAGED 로 바꾸고 이유를 명시했다.
   (기존에 `--max-files 5` 로 나간 스모크 task 는 kill·정리 후 재제출.)
+
+## 2026-07-27 — v13.5: 2018 extend 7샘플 제출 완료 + 중복 제출 가드
+
+**제출 완료 (실기기)**: `--preflight --check-das` **31 PASS / 1 WARN / 0 FAIL** 후
+7샘플 전부 제출 성공 (`submitted : 7`, task name 7개 유일, timestamp 123350~123411).
+job 수 = MiniAOD 파일 수 합계 **20,953** (`units_per_job: 1`).
+
+**preflight 이 부수적으로 드러낸 사실 — MiniAOD 와 NanoAOD 의 event 수가 다르다:**
+
+| sample | MiniAODv2 | NanoAODv9 | nano/mini |
+|---|---|---|---|
+| TT4b | 9,844,000 | 9,844,000 | 1.0000 |
+| TTbar_SemiLep | 478,982,000 | 476,408,000 | 0.9946 |
+| **TTbar_Hadronic** | 343,248,000 | 334,206,000 | **0.9737** |
+| TTbar_DiLep | 146,010,000 | 145,020,000 | 0.9932 |
+| TTbb_SemiLep / Hadronic | 동일 | 동일 | 1.0000 |
+| TTbb_DiLep | 4,858,850 | 4,792,850 | 0.9864 |
+
+2017 에서 이미 확인된 현상과 같다(중앙 NanoAOD 가 부모 MiniAOD event 의 일부를 떨어뜨림;
+2017 TTToSemiLeptonic 2.68% — [06](06_validation_results.md)). **버그가 아니다.** 다만
+운영상 중요한 함의가 있다: extend(=MiniAOD 기반)는 nano 보다 event 가 **많다**. `matchTtbarId`
+는 nano 를 순회하며 extend map 에서 찾으므로 `unmatched 0` 기준은 그대로 유효하고(extend ⊇ nano),
+남는 extend row 는 조회되지 않을 뿐이다. **반대로 완결성 점검 시 기준 수치를 혼동하면 안 된다** —
+extend 생산 완결성은 **MiniAOD** nevents, ntuple/prescan 완결성은 **NanoAOD** nevents 로 본다.
+
+**신규 가드 — `Validation/filelists/make_filelists_miniAOD.py`:**
+
+- `check_single_crab_submission()` 추가: 샘플별로 CRAB LFN 의 timestamp 디렉토리
+  (`<primary>/<tag>/<YYMMDD_HHMMSS>/0000/`)가 **2개 이상이면 즉시 FATAL(exit 3)** 하고,
+  지울 디렉토리와 각 파일 수를 그대로 출력한다. `ALLOW_MULTI_CRAB_SUBMISSION=1` 로 우회 가능.
+- **왜**: 2026-07-27 에 이 상황이 실제로 만들어질 뻔했다 — `--max-files 5` 부분 task 의 5 job 이
+  이미 끝나 EOS 에 파일 5개가 남은 상태였고, 그대로 전체 재제출했다면 같은 LFN 아래 timestamp 가
+  2개(103022=5 files, 123411=103 files) 공존했을 것이다. **실제로는 사용자가 kill → project dir
+  삭제 → EOS `2018/` 전체 삭제까지 수행해 clean 하게 재제출했으므로 사고는 없었다.** 가드는 예방용. `os.walk` 는 둘 다 주워 event 가 중복되고, 그 결과는
+  한참 뒤 `matchTtbarId` **exit 7 (3-key duplicate)** 로만 드러난다 — 원인 추적이 비싸다.
+  이제 filelist 생성 시점에 잡힌다. 정상 제출 1개면 `[crab] <sample>: submission timestamp ...`
+  로 어느 제출을 썼는지 로그에 남는다.
+- 합성 경로로 동작 검증(단일 → 통과, 이중 → FATAL 대상 검출). 실제 EOS 실행은 미검증.
+
+---
+
+## 2026-07-27 — v13.6: 재현성 감사 — README 정리, 깨진 명령 수정, 상태 문서 정정 (코드 로직 무변경)
+
+Phase 3(analyzer 2018 대응) 착수 전에 "지금까지의 진행 사항이 문서에 제대로 남아 있는가"를
+점검한 결과다. **C++/CMSSW 로직 변경 없음.**
+
+**README 4편에 연도 재현 절차 추가** (감사 전 4편 모두 "2018" 언급이 **0회**였다):
+
+- `README.md` — 30초 빠른 시작에 `year=2018`, 불변조건 매크로, preflight 체인 추가.
+  헤더 상태줄에 v13.x(2018 제출 완료, 검증 대기) 반영.
+- `TtbarIdExtender/README.md` — §2.2 preflight 순서(`--max-files` 금지 명시),
+  §2.2b 2018 재현(`resolve_parents.sh 2018` + MiniAOD⊋NanoAOD 주의).
+- `Validation/README.md` — §0.1 era 인자·중복 제출 가드, §0.2 불변조건 매크로,
+  §4.1 2018 복붙 블록(short-name → project-key 매핑 포함).
+- 워크스페이스 `RUNBOOK_UL18_to_controlplots.md` 가 저장소 간 실행 순서의 정본이라는
+  포인터를 `README.md` 에 명시(중복 서술 방지).
+
+**깨져 있던 명령 수정 (복붙하면 실패했다):**
+
+- `Validation/README.md` §6 의 `bin/scanOrder --filelist <fl> --report-every 5000000` —
+  `scanOrder.cc` 는 `--filelist/--tree/--max-files/--csv/-h` 만 받고 나머지는
+  `ERROR: unknown arg` + exit 2 다. 실제 플래그 4개로 교체.
+- `Validation/README.md` §0 이 "스크립트 상단 `SAMPLE_DIR` 를 고친 뒤 **인자 없이** 실행"
+  이라고 해 §0.1(era 인자 필수)과 정면으로 모순했다 → `era [SAMPLE_DIR]` 규약으로 통일.
+  `make_filelists.py 2018` 은 `SAMPLE_DIR_BY_ERA["2018"]` 가 빈 문자열이라 **2번째 인자가
+  필수**(없으면 FATAL)라는 점도 명기.
+- `TtbarIdExtender/README.md` §2.4 의 "`make_filelists_miniAOD.py` 의 `SAMPLE_DIR` 로 지정" —
+  지금은 `SAMPLE_DIR_BY_ERA` + CLI 2번째 인자다 → 실제 명령으로 교체.
+- `Validation/README.md` 에 `## 0.` 이 **두 개** 있어 §0.1/§0.2 가 어디에 걸리는지 모호했다
+  → 앞의 워크플로 절을 번호 없는 절로 변경.
+
+**상태 문서 정정 (완료된 것을 "미완"이라 하고 있었다):**
+
+- `docs/01_status.md` **O1 CLOSED** — "⏳ 아직 안 함: `cmsRun` 으로 실제 생산 1회" 는 O6 에
+  기록된 로컬 2000-event 생산으로 이미 충족돼 있었다(같은 표 안에서 자기모순).
+- `docs/01_status.md` **O6** — 제출 완료를 선언한 뒤에도 `datasets.yaml … enabled:false`,
+  "다음 순서 ① resolve_parents → ⑤ 본제출", 그리고 v13.4/v13.5 에서 **금지로 전환된**
+  `--max-files 5` 스모크를 여전히 권하고 있었다 → 끝난 단계(①~⑤)와 남은 단계(⑥~⑨)로 분리,
+  `--max-files` 금지 이유 명시, 2017 tt+nb 수치의 정본이 `06_validation_results.md` 임을 표시.
+- `crab/datasets.yaml` 헤더의 "Every entry is enabled:false on purpose" / "-vN suffix is
+  UNVERIFIED" → **해석·제출 완료** 서술로 교체하고, 그 규칙은 **새 era 를 추가할 때의 절차**로
+  재배치. 비대칭 `-vN`(2018 TTbar_SemiLep, 2017 TTbar_Hadronic)은 "정상, 고치지 말 것"으로 명시.
+  파일은 ASCII-only 유지 확인(v13.2 재발 방지).
+
+**`.gitignore`**: v13.5 에서 Write 도구로 재생성한 파일이 아직 **untracked(`??`)** 라 아무것도
+보호하지 못하고 있다 — 커밋 필요. 또한 `Validation/lookup/ttnb_*.root` 7개(12 MB)는
+**추적 중**인데 새 규칙이 `ttnb_*.root` 를 무시하도록 되어 있어 규칙이 무력하다(추적 중 파일에는
+gitignore 가 적용되지 않는다). `Validation/README.md` 는 이 파일들을 의도적 보존물로 설명하므로
+**규칙에 예외를 두든 git 에서 내리든 한쪽으로 정리**할 것 (미결).
+
+**정리(삭제)**: `Validation/filelists/__pycache__`, 추적 중이던 `.DS_Store`(working tree 에서
+삭제 — `git rm --cached` 로 index 에서도 내려야 한다), v13.5 에서 지운 preflight 로그 2개는
+아직 index 에 남아 있어 `git rm` 필요.
+
+---
+
+## 2026-07-27 — v13.7: 진행 중 CRAB 부분 산출물로 하는 로컬 검증 워크북 (코드 무변경)
+
+extend 캠페인(7 task / 20,953 job)이 **아직 돌고 있는 상태**에서, 이미 EOS 에 stage-out 된
+파일만으로 이 저장소의 도구를 검증하는 절차를 워크스페이스 루트
+`WORKBOOK_local_test_partial_CRAB.md` 에 정리했다. **C++/스크립트 변경 없음.**
+
+**왜 부분 산출물로도 유효한가 (이 워크북의 근거)**:
+`matchTtbarId` 는 nano 를 순회하며 extend map 을 조회하고, **`unmatched > 0` 이어도 exit 0** 을
+낸다(`tools/matchTtbarId.cc:476-481`). 실패로 판정하는 것은 5(matched 0) · 6(genTtbarId 불일치) ·
+7(3-key 중복) · 8(확장 불변식 위반) · 9(`run != 1`) 뿐이다. 따라서 **정확성**(byte-identity +
+확장 불변식)은 지금 전부 검증 가능하고, 검증 못 하는 것은 **완결성**(nevents 대조)뿐이다.
+이 사실을 문서 맨 앞(BLUF)에 표로 박아 두었다 — 예전에는 "부분 산출물이면 매칭을 못 돌린다"고
+오해할 여지가 있었다.
+
+**수록 테스트**:
+
+- **A** `scripts/check_extend_invariants.C` 를 나온 파일마다 — filelist 도 nano 도 불필요하고
+  파일 단위로 독립이라 부분 산출물에 가장 잘 맞는다. `VERDICT: ALL INVARIANTS PASS` 를 grep.
+- **B** `make_filelists_miniAOD.py 2018 <EOS>` — **v13.5 중복 제출 가드의 첫 실제 EOS 실행**
+  (그때까지 합성 경로로만 검증됐다). FATAL exit 3 이 나면 그건 가드가 제대로 작동한 것.
+- **C** `matchTtbarId` 를 **가장 작은 `ttbb_2L2Nu`(nano 6 파일 / 4,792,850 event)** 부터.
+  nano 를 앞 몇 파일로 자르면 부분 extend 와 겹침이 0 이 되어 exit 5 가 날 수 있으므로
+  **nano 는 자르지 않는다**. 작은 4샘플(≤15 파일)만 하고, 큰 3샘플(`TTTo*`, 최대 391 파일 /
+  476 M)은 external-sort 경로가 필요해 **완료 후 §2-5 에서 한 번만** 한다.
+- **E** `extractTtbarIdPatch` 는 **스키마 확인용으로만**. 부분 patch 를
+  `tempTTHH/DerivedCorr/expandedTtbarId/2018` 에 복사하면 빠진 event 가 조용히 "확장 안 됨"으로
+  처리되어 **틀린 물리 결과**가 나온다 → `/tmp` + `PARTIAL_DO_NOT_USE_` 접두사로 강제.
+
+**작성 중 하위 에이전트 검증으로 잡은 결함**(워크북에 반영):
+`$?` 가 `| tee` 때문에 **tee 의 상태**라 exit 5/6/7/8/9 가 전부 0 으로 보이던 문제
+(→ `${PIPESTATUS[0]}`), `ls bin/` 기대 목록에 이 저장소 `Validation/bin/` 에 없는
+`compareExtendToCentral`(그건 `TtbarIdExtender/bin/` 쪽)이 들어 있던 것, `matchTtbarId` 의
+**exit 3**(filelist 비었거나 못 엶)이 문서화되지 않아 물리 실패와 섞일 수 있던 것.

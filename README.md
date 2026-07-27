@@ -1,7 +1,8 @@
 # TTHHGenCategoryTools
 
 > **한 줄 목적**: 표준 NanoAODv9 `genTtbarId`가 구분하지 못하는 **tt+bbb(추가 b-jet 정확히 3개) / tt+4b(4개 이상)** 를 MiniAODv2 gen 정보로부터 복원(`Expanded_genTtbarId`)하여, ttHH(4b) 분석의 ttbar stitching에 공급한다.
-> **대상 독자**: 이 코드를 이어받는 모든 사람/AI. **상태**: 2017 UL 7개 샘플 전량 검증 완료 (2026-06), 병합·rename v12 (2026-07-05).
+> **대상 독자**: 이 코드를 이어받는 모든 사람/AI.
+> **상태**: 2017 UL 7개 샘플 전량 검증 완료 (2026-06) · 병합·rename v12 (2026-07-05) · **era 파라미터화 + 2018UL 7샘플 CRAB 제출 완료 v13.x (2026-07-27, 검증 대기)** — 세부는 [`docs/01_status.md`](docs/01_status.md) O6.
 > **정본 규칙**: 저장소의 문서화 계약은 `DOCUMENTATION_GUIDELINE`(프로젝트 무관 계약)을 따르며, AI 작업 계약은 [`00_PROMPT.md`](00_PROMPT.md)에 있다.
 
 이 저장소(`TTHHGenCategoryTools`)는 세 부분으로 구성된다:
@@ -34,6 +35,12 @@
 
 하위 디렉토리 `TtbarIdExtender/`와 `Validation/`은 각자 **지역 README**(사용법 중심)를 가진다. `docs/legacy/`에는 병합 이전의 원본 문서 4편이 **동결(frozen) 상태로** 보존되어 있다 — 갱신 금지, 역사적 세부 참조용.
 
+> **여러 저장소를 함께 쓰는 순서**는 이 저장소 밖에 있다: 워크스페이스 루트의
+> **`RUNBOOK_UL18_to_controlplots.md`** 가 ntuple 생산(NtupleForge) · ttbarId-extend(이 저장소) ·
+> analyzer(tempTTHH)를 아우르는 실행 순서의 정본이다. 이 저장소 안에서 재현할 명령은
+> `TtbarIdExtender/README.md` §2.2b(연도 추가 제출)와 `Validation/README.md` §0.1·§4.1(연도별
+> 검증·patch 추출)에 있다.
+
 ## 30초 빠른 시작
 
 ```bash
@@ -43,10 +50,14 @@ cmsrel CMSSW_10_6_32_patch1
 cd CMSSW_10_6_32_patch1/src && cmsenv
 git clone https://github.com/Junghyun-Lee-Physicist/TTHHGenCategoryTools.git
 
-# (1) ttbarId-extend 생산
+# (1) ttbarId-extend 생산  (year= 는 era modifier 선택; 기본 2017)
 scram b -j8
 cmsRun TTHHGenCategoryTools/TtbarIdExtender/test/run_ttbarIdExtend_cfg.py \
-    inputFiles=<miniaodv2.root> outputFile=ttbarIDExtend.root maxEvents=1000
+    year=2018 inputFiles=<miniaodv2.root> outputFile=ttbarIDExtend.root maxEvents=1000
+#   NB: maxEvents 를 주면 VarParsing 이 파일명에 _numEventN 을 붙인다.
+
+# (1.5) 산출물 인코딩 계약 7개 점검 (ROOT 매크로 — 10_6_X 에서 PyROOT 는 못 쓴다)
+root -l -b -q 'TTHHGenCategoryTools/Validation/scripts/check_extend_invariants.C("ttbarIDExtend_numEvent1000.root")'
 
 # (2) 검증 + patch 추출 — ROOT만 있으면 어디서든 (CMSSW 불필요)
 cd TTHHGenCategoryTools/Validation && make
@@ -55,9 +66,11 @@ bin/extractTtbarIdPatch --filelist <S> --out ttbarIdPatch_X.root
 
 # (3) 대량 생산은 CRAB 로 — 7샘플 전량 (설정·제출 순서는 TtbarIdExtender/README.md §2)
 cd ../TtbarIdExtender
-python3 crab/preflight.py
-python3 crab/submit_ttbarIdExtend.py --process TT4b --max-files 5   # 스모크
-python3 crab/submit_ttbarIdExtend.py                                # 본제출
+python3 crab/preflight.py                                            # 환경
+python3 crab/submit_ttbarIdExtend.py --era 2018 --preflight --check-das   # era/dataset
+python3 crab/submit_ttbarIdExtend.py --era 2018 --dry-run            # 계획
+python3 crab/submit_ttbarIdExtend.py --era 2018 --process TTbb_DiLep # 스모크 = 최소 샘플 '통째로'
+python3 crab/submit_ttbarIdExtend.py --era 2018                      # 본제출
 ```
 
 - **로컬 1파일 생산 → 스팟체크 → CRAB 대량 생산**: [`TtbarIdExtender/README.md`](TtbarIdExtender/README.md) (CRAB 설정·제출·재제출은 §2)

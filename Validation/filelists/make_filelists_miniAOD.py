@@ -1,4 +1,5 @@
 import os
+import re
 
 # ==============================================================================
 # [설정] 경로
@@ -70,6 +71,45 @@ def find_root_files(start_path):
                 absolute_path = os.path.abspath(os.path.join(root, file))
                 root_files.append(absolute_path)
     return root_files
+
+
+CRAB_TS_RE = re.compile(r"/(\d{6}_\d{6})/")
+
+
+def check_single_crab_submission(short_name, paths):
+    """CRAB timestamp 디렉토리가 샘플당 1개인지 확인하고, 여러 개면 FATAL.
+
+    왜 필요한가 (2026-07-27 실사고):
+      CRAB LFN 은 <primary>/<outputDatasetTag>/<TIMESTAMP>/0000/ 이다. 같은 dataset 을
+      두 번 제출하면(예: --max-files 로 부분 task 를 돌린 뒤 다시 전체 제출, 또는 task 를
+      kill 하지 않고 project dir 만 지운 뒤 재제출) timestamp 디렉토리가 2개가 되고,
+      os.walk 는 **둘 다** 주워온다. 그러면 겹치는 event 가 filelist 에 두 번 들어가
+      한참 뒤에야 `matchTtbarId` 가 exit 7 (3-key 중복) 로 죽는다 — 원인 추적이 매우 번거롭다.
+      여기서 즉시 잡는 편이 훨씬 싸다.
+
+    의도적으로 여러 제출을 합치려면 환경변수로 우회:
+      ALLOW_MULTI_CRAB_SUBMISSION=1 python make_filelists_miniAOD.py 2018 ...
+    """
+    stamps = sorted({m.group(1) for p in paths for m in [CRAB_TS_RE.search(p)] if m})
+    if len(stamps) <= 1:
+        return stamps
+    print("")
+    print("=" * 78)
+    print(f"[FATAL] {short_name}: CRAB timestamp 디렉토리가 {len(stamps)}개 발견됐다 -> {stamps}")
+    print("        같은 dataset 을 두 번 제출한 상태다. 이 목록을 그대로 쓰면 event 가")
+    print("        중복되어 matchTtbarId 가 exit 7 (3-key duplicate) 로 죽는다.")
+    print("        조치: 필요 없는 timestamp 디렉토리를 지운 뒤 다시 실행할 것. 예)")
+    for st in stamps:
+        ex = next(p for p in paths if f"/{st}/" in p)
+        root = ex.split(f"/{st}/")[0]
+        n = sum(1 for p in paths if f"/{st}/" in p)
+        print(f"          rm -rf {root}/{st}     # files={n}")
+    print("        의도적이라면: ALLOW_MULTI_CRAB_SUBMISSION=1 을 붙여 재실행")
+    print("=" * 78)
+    if os.environ.get("ALLOW_MULTI_CRAB_SUBMISSION") != "1":
+        sys.exit(3)
+    print("[WARN] ALLOW_MULTI_CRAB_SUBMISSION=1 -> 중복 위험을 감수하고 계속한다")
+    return stamps
 
 
 def create_split_files(filename, paths):
@@ -166,6 +206,10 @@ def main():
         else:
             output_filename = f"filelist_{short_name}.txt"
             paths = find_root_files(full_dir_path)
+            if paths:
+                stamps = check_single_crab_submission(short_name, paths)
+                if stamps:
+                    print(f"    [crab] {short_name}: submission timestamp {stamps[0]}")
             write_and_split(output_filename, paths)
 
     print("\n" + "=" * 60)

@@ -5,7 +5,7 @@
 > **상태**: 워크플로 DECIDED (2026-06 캠페인에서 그대로 사용). 2026-07-05: 도구 rename `extractTtNb` → `extractTtbarIdPatch` (로직 무변경, D12) — 이 문서의 명령은 신규약 기준, 구규약 재생산법 병기.
 > **환경**: CMSSW 불필요. `root-config`가 PATH에 있는 아무 ROOT 6.x 환경 (KNU Tier3, lxplus 등). 소스는 `Validation/tools/`에 있고 BuildFile.xml이 없어 **scram이 건드리지 않는다**(standalone `make`). 소스를 `src/`가 아니라 `tools/`에 둔 이유는 [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-15.
 
-## 0. 한눈에 보는 워크플로
+## 한눈에 보는 워크플로 (번호 없음 — 아래 §0부터가 실행 순서)
 
 ```
 filelists/{nano,sidecar}/filelist_<S>.txt        (검증 캠페인 실사용본 동봉)
@@ -22,19 +22,68 @@ filelists/{nano,sidecar}/filelist_<S>.txt        (검증 캠페인 실사용본 
 
 ## 0. filelist 생성 (검증 캠페인 filelist가 이미 동봉돼 있으면 건너뛴다)
 
-두 개의 생성기가 있다. 각자 스크립트 상단의 `SAMPLE_DIR`를 **본인의 실제 데이터 위치로** 고친 뒤 인자 없이 실행한다(현재 값은 KNU Tier3 기준):
+두 개의 생성기가 있다. 둘 다 **`era [SAMPLE_DIR]`** 를 인자로 받는다 (스크립트 상단의
+`SAMPLE_DIR_BY_ERA` 가 era별 기본값이며, 2번째 인자로 덮어쓴다). era 를 생략하면 2017 이고
+출력은 `nano/`·`sidecar/` 다 — 자세한 규칙은 §0.1. 아래는 2017 기본값(KNU Tier3) 재생성:
 
 ```bash
 cd filelists
-# 중앙 NanoAOD 쪽 (SAMPLE_DIR = ttHH2017UL 중앙 NanoAOD) -> filelists/nano/
-python3 make_filelists.py
-# ttbarId-extend 쪽 (SAMPLE_DIR = production 출력 위치) -> filelists/sidecar/
-python3 make_filelists_miniAOD.py
+# 중앙 NanoAOD 쪽 (2017 기본 SAMPLE_DIR = ttHH2017UL 중앙 NanoAOD) -> filelists/nano/
+python3 make_filelists.py 2017
+# ttbarId-extend 쪽 (2017 기본 SAMPLE_DIR = production 출력 위치) -> filelists/sidecar/
+python3 make_filelists_miniAOD.py 2017
 cd ..
 # 결과: filelists/nano/filelist_<S>.txt, filelists/sidecar/filelist_<S>.txt (S = 7샘플)
 ```
 
 `make_filelists_miniAOD.py`는 출력 파일명이 신규(`ttbarIDExtend*.root`)든 구 production(`sidecar*.root`)이든 **둘 다 매칭**한다([03](../docs/03_changelog.md) v12).
+
+### 0.1 연도 인자 (2026-07-26 신설) — 2017 목록을 덮어쓰지 않는다
+
+두 생성기 모두 **era 를 첫 인자로** 받는다. 인자를 생략하면 2017 이고 출력 디렉토리도
+기존과 같다(`nano/`, `sidecar/`). **다른 연도로 돌릴 때 era 를 빼먹으면 커밋된 2017
+filelist 를 덮어쓴다** — 그래서 인자를 도입했다.
+
+```bash
+cd filelists
+# (a) extend 쪽: CRAB 출력 위치를 2번째 인자로 준다 -> sidecar2018/
+#     site_config 의 storage_site 가 T3_CH_CERNBOX 이면 실제 위치는 CERN EOS 다.
+python3 make_filelists_miniAOD.py 2018 /eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+
+# (b) nano 쪽: 로컬 사본이 없으면 **DAS 에서 직접** 만든다 (7샘플 일괄) -> nano2018/
+./make_nano_filelists_das.sh 2018
+cd ..
+```
+
+`make_nano_filelists_das.sh`(신설)는 master filelist + per-job split +
+`nano2018/summary_2018.log` 를 만들고 디렉토리도 스스로 만든다. `matchTtbarId` 는 nano 쪽에서
+`run/luminosityBlock/event/genTtbarId` 만 읽으므로 **중앙 NanoAODv9 를 그대로 써도 된다** —
+즉 자체 ntuple 생산을 기다리지 않고 새 연도를 검증할 수 있다.
+
+> **`make_filelists.py 2018` 은 2번째 인자가 필수다**: `SAMPLE_DIR_BY_ERA["2018"]` 는 의도적으로
+> 빈 문자열이라(로컬 2018 NanoAOD 사본이 없다) 경로 없이 부르면 FATAL 로 멈춘다. 2018 nano
+> filelist 는 위 (b) 의 `make_nano_filelists_das.sh 2018` 로 만든다. 로컬 사본이 생기면
+> `python3 make_filelists.py 2018 /path/to/local/nanoaod` 로 쓸 수 있다.
+
+> **중복 제출 가드**: `make_filelists_miniAOD.py` 는 샘플별로 CRAB timestamp 디렉토리
+> (`<primary>/<tag>/<YYMMDD_HHMMSS>/0000/`)가 **2개 이상이면 즉시 FATAL(exit 3)** 하고 지울
+> 경로와 각 파일 수를 출력한다. 같은 dataset 을 두 번 제출하면(부분 task 후 재제출 등) event 가
+> 중복돼 한참 뒤 `matchTtbarId` **exit 7** 로만 드러나기 때문이다. 의도적이면
+> `ALLOW_MULTI_CRAB_SUBMISSION=1` 로 우회한다.
+
+### 0.2 로컬 산출물 빠른 점검 (grid 전/후 공통)
+
+`scripts/check_extend_invariants.C` (신설)는 ttbarId-extend 파일 하나에 대해 인코딩 계약
+7개를 검사한다 — `nAddBJets<=2` 불변 / `==3`→61,62 / `>=4`→71,72 / **sub-code 56 부재** /
+prefix 보존 / 원 sub-code∈{53,54,55} / `run==1`, 그리고 61·62·71·72 카운트.
+
+```bash
+root -l -b -q 'scripts/check_extend_invariants.C("<ttbarIDExtend 파일>.root")'
+```
+
+**PyROOT 를 쓰지 않는 이유**: CMSSW_10_6_32_patch1 의 ROOT 6.14 는 python2 빌드라 python3 에서
+`import ROOT` 가 `ImportError: ... (PyInit_libPyROOT)` 로 죽는다(2026-07-27 확인). 매크로는
+어느 환경에서든 돈다.
 
 ## 1. 빌드 (한 번)
 
@@ -157,6 +206,74 @@ done
 
 출력 로그의 `selected tt+nb rows`와 `tt+bbb(61+62) / tt+4b(71+72)` 개수는 같은 샘플의 match 검증 로그와 **정확히 일치**해야 한다 (일치 = 추출 정확). 2026-06에 산출된 7편(구 규약)은 [`lookup/`](lookup/README.txt)에 보존 — 두 규약을 한 디렉토리에 섞지 말 것.
 
+### 4.1 다른 연도(2018 UL) 복붙용 — 검증 + patch 추출 한 번에
+
+§0.1 로 `filelists/sidecar2018/`·`filelists/nano2018/` 를 만든 뒤 실행한다.
+`ALLOW_MULTI_CRAB_SUBMISSION` 가드가 통과했다는 것은 샘플마다 CRAB 제출이 하나뿐임을
+확인했다는 뜻이다.
+
+```bash
+mkdir -p sorted2018 lookup2018 logs2018
+
+# ---- 소샘플 4종 (in-memory) ----
+for S in tt4b ttbb_Hadronic ttbb_SemiLeptonic ttbb_2L2Nu; do
+  bin/matchTtbarId \
+      --extend-filelist filelists/sidecar2018/filelist_${S}.txt \
+      --nano-filelist   filelists/nano2018/filelist_${S}.txt \
+      --out logs2018/match_${S}_2018.root --label ${S}_2018 \
+      2>&1 | tee logs2018/match_${S}_2018.log
+  echo "[$S] exit=${PIPESTATUS[0]}" | tee -a logs2018/match_summary_2018.log
+done
+
+# ---- 대샘플 3종 (external sort) — 2018 은 2017 대비 최대 +38% ----
+#      SemiLep 476M / Hadronic 334M / DiLep 145M (nano 기준)
+for S in TTToSemiLeptonic TTToHadronic TTTo2L2Nu; do
+  bin/sortSplitExtend --filelist filelists/sidecar2018/filelist_${S}.txt \
+      --out-dir sorted2018/${S} 2>&1 | tee logs2018/sort_${S}_2018.log
+  bin/matchTtbarIdSorted --sorted-dir sorted2018/${S} \
+      --nano-filelist filelists/nano2018/filelist_${S}.txt \
+      --out logs2018/match_${S}_2018.root --label ${S}_2018 \
+      2>&1 | tee logs2018/match_${S}_2018.log
+  echo "[$S] exit=${PIPESTATUS[0]}" | tee -a logs2018/match_summary_2018.log
+done
+
+cat logs2018/match_summary_2018.log      # 전부 exit=0 이어야 한다
+
+# ---- patch 추출: analyzer 가 읽는 **구규약 이름**으로 ----
+#      loader 는 ttnb_<프로젝트키>.root / tree TtNb 를 찾는다 (src/ExpandedTtbarId.cc).
+#      <프로젝트키> 는 짧은 이름이 아니라 NtupleForge sample key 다 → 매핑 필요.
+for PAIR in tt4b:TT4b \
+            ttbb_Hadronic:TTbb_Hadronic \
+            ttbb_SemiLeptonic:TTbb_SemiLep \
+            ttbb_2L2Nu:TTbb_DiLep \
+            TTToHadronic:TTbar_Hadronic \
+            TTToSemiLeptonic:TTbar_SemiLep \
+            TTTo2L2Nu:TTbar_DiLep ; do
+  S="${PAIR%%:*}"; KEY="${PAIR#*:}"
+  bin/extractTtbarIdPatch \
+      --filelist filelists/sidecar2018/filelist_${S}.txt \
+      --out lookup2018/ttnb_${KEY}.root --out-tree TtNb --label ${KEY}_2018 \
+      2>&1 | tee logs2018/patch_${KEY}_2018.log
+done
+ls -lh lookup2018/
+
+# analyzer 가 보는 위치로 복사 (tempTTHH 는 다른 CMSSW 릴리스이므로 절대경로로)
+TEMPTTHH=/afs/cern.ch/user/j/junghyun/CMSSW_14_2_1/src/tempTTHH   # ← 실제 경로로
+mkdir -p "$TEMPTTHH/DerivedCorr/expandedTtbarId/2018"
+cp lookup2018/ttnb_*.root "$TEMPTTHH/DerivedCorr/expandedTtbarId/2018/"
+```
+
+**합격 기준**: 모든 샘플 `exit=0` (= disagree 0 / unmatched 0 / 확장 무결성 위반 0).
+**2017 의 tt+nb 기대 수치(1,882,170 = 61/62 1,585,810 + 71/72 296,360)는 2018 의 기준이
+아니다** — event 수 자체가 다르다. 결과 수치는 [`../docs/06_validation_results.md`](../docs/06_validation_results.md)
+에 **append** 한다.
+
+> **MiniAOD ⊃ NanoAOD**: 중앙 NanoAOD 는 부모 MiniAOD event 의 일부를 떨어뜨린다
+> (실측 2018: TTbar_Hadronic 343,248,000 → 334,206,000, 2.6%). extend 는 MiniAOD 기반이라
+> nano 보다 row 가 많고, `matchTtbarId` 는 nano 를 순회하므로 `unmatched 0` 기준은 그대로
+> 유효하다(남는 extend row 는 조회되지 않음). 다만 **완결성 점검 기준 수치**는 extend=MiniAOD,
+> ntuple/prescan=NanoAOD 로 구분해야 한다.
+
 ## 5. 분포 비교 (선택) — 로컬 또는 HTCondor
 
 ```bash
@@ -190,5 +307,7 @@ done
 ## 6. 부속
 
 - `scripts/das_lineage.py` — DAS file-level parent/child lineage 조회 (grid proxy + dasgoclient 필요). **사용 이력 미확인**([../docs/01_status.md](../docs/01_status.md) O3) — 신뢰 전 1회 동작 확인.
-- `scanOrder` — 새 샘플에서 "정렬돼 있으니 map 없이 되겠지" 같은 가정을 하기 전에 실측: `bin/scanOrder --filelist <fl> --report-every 5000000`.
+- `scanOrder` — 새 샘플에서 "정렬돼 있으니 map 없이 되겠지" 같은 가정을 하기 전에 실측:
+  `bin/scanOrder --filelist <fl> [--tree Events] [--max-files N] [--csv out.csv]`.
+  (인식하는 플래그는 이 4개 + `-h` 뿐이다. 모르는 플래그를 주면 `ERROR: unknown arg` 로 exit 2.)
 - 문제 발생 시: [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) (특히 T-8 타입, T-12 2-key 중복).

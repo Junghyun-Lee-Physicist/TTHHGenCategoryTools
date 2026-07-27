@@ -84,17 +84,92 @@ cd TTHHGenCategoryTools/TtbarIdExtender
 # (1) 환경 점검: cmsenv/proxy/pset/plugin lib 존재 확인
 python3 crab/preflight.py
 
-# (2) 계획 미리보기: 무엇이 몇 job 제출될지 (실제 제출 안 함)
-python3 crab/submit_ttbarIdExtend.py --dry-run
+# (2) era/dataset 점검 (읽기 전용, --dry-run 보다 강함) — 2026-07-26 신설
+python3 crab/submit_ttbarIdExtend.py --era 2017 --preflight --check-das
 
-# (3) 스모크 테스트: tt4b 한 샘플, 파일 5개만 먼저 (grid 왕복 확인)
-python3 crab/submit_ttbarIdExtend.py --process TT4b --max-files 5
+# (3) 계획 미리보기: 무엇이 제출될지 (실제 제출 안 함)
+python3 crab/submit_ttbarIdExtend.py --era 2017 --dry-run
 
-# (4) 본제출: enabled=true 인 전 샘플
-python3 crab/submit_ttbarIdExtend.py
+# (4) 스모크 테스트: **가장 작은 샘플을 통째로** (아래 경고 참조)
+python3 crab/submit_ttbarIdExtend.py --era 2017 --process TTbb_DiLep
+
+# (5) 본제출: enabled=true 인 전 샘플
+python3 crab/submit_ttbarIdExtend.py --era 2017
 ```
 
 특정 샘플/era만 제출하려면 `--process TT4b,TTbb_Hadronic` 또는 `--era 2017` 필터를 붙인다.
+
+> **⚠️ `--max-files N` 로 스모크하지 말 것** (DECIDED 2026-07-27). 그 옵션은
+> `Data.totalUnits=N` 을 걸어 **완결될 수 없는 부분 task** 를 만든다: 103 files 중
+> 5개만 도는 task 가 `--status` 에 `done 5/5 = 100%` 로 보이지만 실제 커버리지는 5% 이고,
+> 나머지를 처리하려면 같은 dataset 을 **또** 제출해야 해서 같은 LFN 아래 CRAB timestamp
+> 디렉토리가 둘로 갈린다 → `make_filelists_miniAOD.py` 가 둘 다 주워 3-key 중복이 되고
+> `matchTtbarId` 가 **exit 7** 로 죽는다. **가장 작은 dataset(`TTbb_DiLep`)을 그대로**
+> 던지는 것이 올바른 스모크다.
+> 이미 부분 task 를 던졌다면: `--kill --yes` → project dir 삭제 → **EOS 의 해당 timestamp
+> 디렉토리 삭제**까지 한 뒤 재제출한다. (`Validation/filelists/make_filelists_miniAOD.py`
+> 에 timestamp 중복 FATAL 가드가 있어 놓쳐도 filelist 단계에서 잡힌다.)
+
+#### `--preflight` 가 보는 것
+
+환경(cmsenv / CRABClient / proxy 잔여시간) · pset 존재·compile·**`year` 옵션 유무** ·
+site_config(`out_lfn_base` placeholder, `/store/` 접두) · era 별 dataset 상태
+(MINIAODSIM/NANOAODSIM 경로 문법, **campaign 문자열에 era 키 포함 여부**,
+MiniAOD↔Nano primary 일치, `enabled`/`verified` 조합, 기존 CRAB project dir).
+`--check-das` 를 붙이면 모든 MiniAOD/Nano 경로를 DAS 로 조회해 **잘못된 `-vN` 접미사를
+제출 전에** 잡는다. 로그: `crab/preflight_extend_<eras>_<timestamp>.log`, FAIL 시 exit 1.
+
+---
+
+### 2.2b 다른 연도(예: 2018 UL) 제출 — 실제 재현 순서 (2026-07-27 실행 기록)
+
+`datasets.yaml` 은 era 별 블록 구조이고 pset 은 `year=` 를 받으므로, 연도 추가는
+**부모 확정 → 잠금 해제 → preflight → 제출** 네 단계다.
+
+```bash
+# ── (0) 로컬 검증부터: 2018 MiniAOD 한 파일로 물리량이 맞는지 먼저 확인
+NANO=/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM
+MINI=$(dasgoclient -query "parent dataset=$NANO" | grep MINIAODSIM | head -1)
+MINIFILE=$(dasgoclient -query "file dataset=$MINI" | head -1)
+cmsRun test/run_ttbarIdExtend_cfg.py year=2018 \
+    inputFiles=root://cms-xrd-global.cern.ch/${MINIFILE} \
+    maxEvents=20000 outputFile=ttbarIDExtend_local2018.root
+#   확인: 'era modifier = Run2_2018 + run2_nanoAOD_106Xv2',
+#         endJob summary 의 missing 전부 0.
+#   불변조건 검증은 ROOT 매크로로 (10_6_X 의 PyROOT 는 python2 빌드라 python3 에서 죽는다):
+root -l -b -q "$CMSSW_BASE/src/TTHHGenCategoryTools/Validation/scripts/check_extend_invariants.C(\"ttbarIDExtend_local2018_numEvent20000.root\")"
+#   -> VERDICT: ALL INVARIANTS PASS  (실측: nAddBJets>=3 이 63 event, 61=34 62=23 71=6 72=0)
+#   NB: VarParsing 이 maxEvents 지정 시 파일명에 _numEventN 을 붙인다.
+
+# ── (1) MiniAODv2 부모를 DAS 로 확정 (추측 금지)
+bash crab/resolve_parents.sh 2018 2>&1 | tee crab/resolve_parents_2018_$(date +%Y%m%d_%H%M).log
+#   출력의 'PARENT (from DAS)' 7개를 datasets.yaml 의 2018 블록 dataset: 에 붙여넣고
+#   해당 항목만 verified: true / enabled: true 로 바꾼다.
+#   실측 주의: TTbar_SemiLep 은 MiniAOD -v2 / Nano -v1 로 **비대칭**이었다.
+
+# ── (2) preflight → (3) dry-run → (4) 본제출 (파일 쪼개기 없이)
+python3 crab/submit_ttbarIdExtend.py --era 2018 --preflight --check-das
+python3 crab/submit_ttbarIdExtend.py --era 2018 --dry-run
+python3 crab/submit_ttbarIdExtend.py --era 2018 \
+    2>&1 | tee crab/submit_2018_full_$(date +%Y%m%d_%H%M).log
+#   실측: 7 tasks / 20,953 jobs (MiniAOD 파일 수 합계, units_per_job=1) / 약 32 GB /
+#         outLFN <out_lfn_base>/2018
+
+# ── (5) 상태
+python3 crab/status.py --filter _2018_extend
+```
+
+> **MiniAOD 와 NanoAOD 의 event 수는 다르다** (실측: TTbar_Hadronic 343,248,000 vs
+> 334,206,000 = 2.6% 차이; 2017 에서도 확인된 현상, 버그 아님). 따라서
+> **extend 생산 완결성은 MiniAOD nevents 로, ntuple/prescan 완결성은 NanoAOD nevents 로**
+> 판단한다. 섞으면 job 이 누락된 것처럼 보인다. `matchTtbarId` 의 `unmatched 0` 기준은
+> extend ⊇ nano 이므로 그대로 유효하다.
+
+> **`units_per_job: 1` 은 2017 과의 동일 조건을 위한 선택이다** (`site_config.yaml`).
+> 실측상 job 하나가 3분(CPU eff 30%, waste 61%)이라 CRAB 이 splitting 개선을 권고한다.
+> 물리 결과와는 무관하니, 완료가 너무 느리면 큰 3샘플만 `units_per_job: 10`(datasets.yaml
+> 의 항목별 override)으로 재제출하는 선택지가 있다 — 그 경우 EOS 의 해당 디렉토리를
+> 먼저 지워야 한다(위 timestamp 중복 경고).
 
 ### 2.3 진행 확인 / 재제출 / kill
 
@@ -113,7 +188,16 @@ python3 crab/submit_ttbarIdExtend.py --kill --process TT4b --yes      # 확인 �
 
 ### 2.4 생산 후 → filelist 만들기 → 검증
 
-CRAB 출력이 `out_lfn_base` 아래에 쌓이면, 그 위치를 `Validation/filelists/make_filelists_miniAOD.py`의 `SAMPLE_DIR`로 지정해 filelist를 생성하고([../Validation/README.md](../Validation/README.md) §0), §1의 검증 워크플로로 넘어간다.
+CRAB 출력이 `out_lfn_base` 아래에 쌓이면 그 위치를 `Validation/filelists/make_filelists_miniAOD.py`에
+**2번째 인자로** 넘겨 filelist를 생성하고([../Validation/README.md](../Validation/README.md) §0·§0.1),
+§1의 검증 워크플로로 넘어간다. 스크립트 상단의 상수는 `SAMPLE_DIR` 하나가 아니라
+**`SAMPLE_DIR_BY_ERA` (era별 기본값)** 이고, 1번째 인자가 era 다:
+
+```bash
+cd ../Validation/filelists
+python3 make_filelists_miniAOD.py 2018 /eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
+#   -> sidecar2018/ (era 를 생략하면 2017 + sidecar/ — 2017 목록을 덮어쓰니 주의)
+```
 
 **주의사항**
 - **`crab-setup.sh`를 먼저 source**해야 한다(세션당 1회) — 안 하면 `ModuleNotFoundError: No module named 'CRABClient'`.

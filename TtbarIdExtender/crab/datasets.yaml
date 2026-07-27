@@ -134,17 +134,18 @@ eras:
   #        NtupleForge/script/das_ul18_scan_20260726_1657.log) and used by
   #        NtupleForge/crabConfig/config_ttHH2018UL.yaml, so the extend output
   #        will match the ntuple population by construction.
-  #        The MiniAODv2 `dataset:` paths below are CAMPAIGN-CORRECT BUT THE
-  #        -vN PROCESSING SUFFIX IS UNVERIFIED (copied from the nano child).
-  #        UL17 already shows an asymmetric case (TTbar_Hadronic: MiniAOD -v2 vs
-  #        Nano -v1), so the suffix must NOT be assumed.
-  # ACTION BEFORE SUBMITTING (docs/05_architecture.md sec.5):
-  #        bash crab/resolve_parents.sh 2018
-  #        -> paste each "PARENT (from DAS)" string into `dataset:` below,
-  #           then set verified: true and enabled: true per entry.
-  #        Every entry is enabled:false on purpose so an accidental
-  #        `submit_ttbarIdExtend.py --era 2018` cannot ship a wrong path
-  #        (use --force only after verification).
+  # [2026-07-27] RESOLVED AND SUBMITTED. All 7 entries below carry the exact
+  #        MiniAODv2 parent returned by `bash crab/resolve_parents.sh 2018`
+  #        and are enabled:true / verified:true. The 7-task CRAB campaign
+  #        (20,953 jobs) was submitted on 2026-07-27.
+  #        Asymmetric -vN suffixes are real and must NOT be "corrected":
+  #          2018 TTbar_SemiLep : MiniAOD -v2 vs Nano -v1
+  #          2017 TTbar_Hadronic: MiniAOD -v2 vs Nano -v1
+  # ACTION WHEN ADDING A NEW ERA (docs/05_architecture.md sec.5):
+  #        keep every new entry enabled:false, run
+  #        `bash crab/resolve_parents.sh <ERA>`, paste each "PARENT (from DAS)"
+  #        string into `dataset:`, then flip verified:true and enabled:true
+  #        per entry. Never assume the -vN suffix from the nano child.
   # NOTE:  era key "2018" alone gives non-colliding CRAB requestNames
   #        (<name>_2018_extend) and a separate outLFNDirBase (.../2018/),
   #        so the completed 2017 production is untouched.
