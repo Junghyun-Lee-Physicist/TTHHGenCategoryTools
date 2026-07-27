@@ -152,7 +152,12 @@ python3 crab/submit_ttbarIdExtend.py --era 2018 --preflight --check-das
 python3 crab/submit_ttbarIdExtend.py --era 2018 --dry-run
 python3 crab/submit_ttbarIdExtend.py --era 2018 \
     2>&1 | tee crab/submit_2018_full_$(date +%Y%m%d_%H%M).log
-#   실측: 7 tasks / 20,953 jobs (MiniAOD 파일 수 합계, units_per_job=1) / 약 32 GB /
+#   실측(2026-07-27): client 는 7 tasks / 20,953 jobs 제출 성공을 보고했으나
+#   TTbar_SemiLep 은 서버가 SUBMITREFUSED 로 거부했다 (10,010 jobs > CRAB 상한 10,000).
+#   -> 실제로 돈 것은 6 tasks / 10,943 jobs. 원인·복구는 docs/08_troubleshooting.md T-19.
+#   그래서 datasets.yaml 의 2018 TTbar_SemiLep 에 units_per_job: 10 (=1,001 jobs) 을 박았고
+#   (근거는 아래 units_per_job 절), --preflight --check-das 가 이제 task 당 job 수를 미리
+#   계산해 상한 초과면 FAIL 시킨다. 재제출 후 2018 총 job 수 = 11,944.
 #         outLFN <out_lfn_base>/2018
 
 # ── (5) 상태 — 정렬된 표 한 장 (컬럼 설명은 §2.3)
@@ -165,11 +170,39 @@ python3 crab/submit_ttbarIdExtend.py --era 2018 --report
 > 판단한다. 섞으면 job 이 누락된 것처럼 보인다. `matchTtbarId` 의 `unmatched 0` 기준은
 > extend ⊇ nano 이므로 그대로 유효하다.
 
-> **`units_per_job: 1` 은 2017 과의 동일 조건을 위한 선택이다** (`site_config.yaml`).
-> 실측상 job 하나가 3분(CPU eff 30%, waste 61%)이라 CRAB 이 splitting 개선을 권고한다.
-> 물리 결과와는 무관하니, 완료가 너무 느리면 큰 3샘플만 `units_per_job: 10`(datasets.yaml
-> 의 항목별 override)으로 재제출하는 선택지가 있다 — 그 경우 EOS 의 해당 디렉토리를
-> 먼저 지워야 한다(위 timestamp 중복 경고).
+#### `units_per_job` — 물리에 무관한 순수 운영 knob
+
+**파일을 job 에 어떻게 묶든 결과는 같다.** 각 job 은
+`(run, luminosityBlock, event, ...)` 행을 쓰고, 소비자(`matchTtbarId` /
+`matchTtbarIdSorted`)는 **filelist 전체에 대해 3-key map 하나**를 만든다 — 어느 행이 어느
+파일에서 왔는지는 보지 않는다. 그래서 `units_per_job` 은 **오직 운영 효율의 문제**다.
+
+`site_config.yaml` 의 기본값 `1` 은 원래 "2017 과 동일 조건"을 위한 선택이었지만, 실측상
+나쁜 설정이다 — job 하나가 2~3분인데 그중 ~90초가 CMSSW 시작/stage-in 이라 CRAB 이 매 task 마다
+`average jobs CPU efficiency is less than 50%` 를 경고한다(2026-07-27 실측 CPU eff 20~45%,
+waste 50~58%).
+
+2018 `TTbar_SemiLep` 실측 기준 (파일당 ~47.6k event ≈ 55초 작업 + ~90초 시작):
+
+| `units_per_job` | jobs | job 당 시간 | 시작 오버헤드 비중 | |
+|---|---|---|---|---|
+| 1 | 10,010 | ~2.4분 | ~63% | ❌ **CRAB 상한 10,000 초과 → SUBMITREFUSED** |
+| 2 | 5,005 | ~3.3분 | ~45% | 최소 수정 |
+| **10** | **1,001** | **~10.7분** | **~14%** | ✅ **채택** |
+| 20 | 501 | ~19.8분 | ~7% | 가능 (walltime 상한 1440분과 무관하게 여유) |
+
+참고로 이 7샘플의 **MiniAOD/NanoAOD 파일 수 비는 ~22.5** (`TTbar_SemiLep` 은 10,010/391 = 25.6)
+이므로, MiniAOD 10개는 여전히 NanoAOD 파일 1개분 event 보다 적다. 덤으로 출력 파일이
+10,010 → 1,001 개로 줄어 뒤의 `sortSplitExtend`/`matchTtbarIdSorted` 가 눈에 띄게 싸진다.
+
+> ⚠️ **이미 끝난 task 를 위해 이 값을 바꾸지 마라.** 2026-07-27 현재 나머지 6 task 는
+> 완료(4개) 또는 99% 진행(2개, failed 0) 이다. `units_per_job` 을 바꾸려면 kill →
+> project dir 삭제 → **EOS 산출물 삭제** → 전량 재생산이 필요하다(같은 LFN 에 timestamp 가
+> 둘 생기면 3-key 중복 → `matchTtbarId` exit 7). **끝난 일을 버리는 짓이다.**
+> 값 조정은 **어차피 재제출해야 하는 task 에만** 한다 — 지금은 `TTbar_SemiLep` 뿐이고,
+> 그건 SUBMITREFUSED 라 산출물이 아예 없어서 공짜로 바꿀 수 있었다.
+> 그래서 현재 2018 은 **혼합 설정**이다: `TTbar_SemiLep` 만 10, 나머지 6개는 1.
+> 섞여 있어도 무해하다(위 "물리에 무관" 문단).
 
 ### 2.3 진행 확인 / 재제출 / kill
 

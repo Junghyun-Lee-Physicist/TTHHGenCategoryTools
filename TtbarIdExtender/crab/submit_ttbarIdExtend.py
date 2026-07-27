@@ -52,6 +52,11 @@ PKG_ROOT  = THIS_DIR.parent
 # work from any directory (e.g. from inside TtbarIdExtender/ itself).
 EXTEND_PSET = str(PKG_ROOT / "test" / "run_ttbarIdExtend_cfg.py")
 
+# CRAB refuses any task whose splitting generates more than this many jobs.
+# The refusal happens SERVER-SIDE, after the client has already reported a
+# successful submit -- see the T-19 note in the --check-das block below.
+CRAB_MAX_JOBS_PER_TASK = 10000
+
 # =============================================================================
 # Job-state buckets for --report
 # =============================================================================
@@ -122,12 +127,23 @@ def print_report(rows):
     print(bar)
 
 
-def report_one(cfg, *, short_name, rows, unknown_acc):
+# Task-level states meaning "nothing will ever run in this task". These are NOT
+# job states: jobsPerStatus is empty, so the --report row is all zeros and looks
+# indistinguishable from "just submitted, not started yet". They must be called
+# out or a dead task hides in plain sight (2026-07-27: 2018 TTbar_SemiLep sat
+# SUBMITREFUSED for a day because 10,010 > the 10,000 jobs/task CRAB limit --
+# docs/08_troubleshooting.md T-19).
+DEAD_TASK_STATES = ("SUBMITREFUSED", "SUBMITFAILED", "FAILED", "UNKNOWN")
+
+
+def report_one(cfg, *, short_name, rows, unknown_acc, dead_acc=None):
     """Query one task quietly and append its bucketed row to ``rows``.
 
     Unlike --status (which lets `crab status` print its full dump), this
     swallows CRAB's stdout and keeps only the jobsPerStatus dict, so the table
-    at the end is not buried under 7 screens of per-task output.
+    at the end is not buried under 7 screens of per-task output. The exception
+    is a dead task: then the captured text is echoed, because that text carries
+    the reason (job-count limit, stage-out permission, ...).
     """
     proj = Path(cfg.General.workArea) / ("crab_%s" % cfg.General.requestName)
     if not proj.exists():
@@ -139,8 +155,9 @@ def report_one(cfg, *, short_name, rows, unknown_acc):
     except ImportError as exc:
         sys.exit("ERROR: CRAB client missing (%s).\n"
                  "       source /cvmfs/cms.cern.ch/common/crab-setup.sh" % exc)
+    buf = io.StringIO()
     try:
-        with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             res = crabCommand("status", dir=str(proj))
     except Exception as exc:  # noqa: BLE001
         print("  [status FAILED] %s" % exc)
@@ -149,7 +166,22 @@ def report_one(cfg, *, short_name, rows, unknown_acc):
     row, unk = summarize_status(res.get("jobsPerStatus", {}))
     rows.append((short_name, row))
     unknown_acc |= unk
-    print("  [ok] task status = %s" % res.get("status", "?"))
+    tstat = str(res.get("status", "?"))
+    if tstat.upper() in DEAD_TASK_STATES:
+        if dead_acc is not None:
+            dead_acc.append((short_name, tstat))
+        print("  [!! %s !!] this task will NEVER run. --resubmit CANNOT fix it "
+              "(resubmit only requeues FAILED jobs of a task that reached the "
+              "scheduler); the task has to be re-submitted after fixing the "
+              "cause. CRAB said:" % tstat)
+        for line in buf.getvalue().splitlines():
+            s = line.strip()
+            if any(k in s for k in ("Warning:", "Error", "maximum number",
+                                    "Status on the CRAB server", "refused",
+                                    "Permission")):
+                print("    | " + s)
+    else:
+        print("  [ok] task status = %s" % tstat)
     return True
 
 
@@ -653,15 +685,65 @@ def run_preflight(args, cat, site):
                                     break
                         except (ValueError, TypeError, KeyError):
                             nev = None
+                        nfl = None
+                        try:
+                            for rec in json.loads(q.stdout or "[]"):
+                                for smry in (rec.get("summary") or []):
+                                    if smry.get("nfiles") is not None:
+                                        nfl = int(smry["nfiles"])
+                                        break
+                                if nfl is not None:
+                                    break
+                        except (ValueError, TypeError, KeyError):
+                            nfl = None
                         if nev is None:      # plain-text fallback, just in case
                             m = re.search(r"nevents\s*[:=]\s*(\d+)", q.stdout or "")
                             nev = int(m.group(1)) if m else None
                         if nev is not None:
                             ok("DAS %s/%s %s" % (era, name, label),
-                               "nevents=%s" % format(nev, ","))
+                               "nevents=%s%s" % (format(nev, ","),
+                                                 "" if nfl is None
+                                                 else "  nfiles=%s" % format(nfl, ",")))
                         else:
                             bad("DAS %s/%s %s" % (era, name, label),
                                 "not resolvable -- wrong -vN suffix? %s" % path)
+
+                        # ---- CRAB hard limit: 10,000 jobs per task ------------
+                        # FileBased splitting -> njobs = ceil(nfiles/unitsPerJob).
+                        # Exceeding it does NOT fail at submit time: the client
+                        # accepts the request and the SERVER later marks the task
+                        # SUBMITREFUSED with "The splitting on your task generated
+                        # N jobs. The maximum number of jobs in each task is
+                        # 10000". So `submit` prints success, nothing ever runs,
+                        # and --resubmit cannot help (resubmit only requeues
+                        # FAILED jobs of a task that reached the scheduler).
+                        # This bit us on 2026-07-27: 2018 TTbar_SemiLep has
+                        # 10,010 MiniAOD files -> 10,010 jobs -> refused, silently.
+                        # Fix = per-entry `units_per_job:` override in
+                        # datasets.yaml. See docs/08_troubleshooting.md T-19.
+                        if label == "mini" and nfl:
+                            # Same precedence as build_config(): per-entry
+                            # override wins over resources.extend.units_per_job.
+                            _res = (site.get("resources") or {}).get("extend", {})
+                            upj = int(d.get("units_per_job",
+                                            _res.get("units_per_job", 1)) or 1)
+                            njobs = -(-nfl // upj)          # ceil division
+                            det = ("nfiles=%s / units_per_job=%d -> %s jobs"
+                                   % (format(nfl, ","), upj, format(njobs, ",")))
+                            if njobs > CRAB_MAX_JOBS_PER_TASK:
+                                need = -(-nfl // CRAB_MAX_JOBS_PER_TASK)
+                                bad("job count %s/%s" % (era, name),
+                                    "%s > CRAB limit %s. Task WILL be "
+                                    "SUBMITREFUSED. Set 'units_per_job: %d' on "
+                                    "this datasets.yaml entry (-> %s jobs)."
+                                    % (det, format(CRAB_MAX_JOBS_PER_TASK, ","),
+                                       need, format(-(-nfl // need), ",")))
+                            elif njobs > 0.9 * CRAB_MAX_JOBS_PER_TASK:
+                                warn("job count %s/%s" % (era, name),
+                                     "%s -- within 10%% of the CRAB limit %s"
+                                     % (det, format(CRAB_MAX_JOBS_PER_TASK, ",")))
+                            else:
+                                ok("job count %s/%s" % (era, name), det)
     return _preflight_finish(rows, lines, log_path)
 
 
@@ -714,6 +796,7 @@ def main():
     # --report accumulators (printed once after the loop so the columns align)
     report_rows = []
     report_unknown = set()
+    report_dead = []
 
     # kill is destructive: confirm which samples first, unless --yes.
     if bulk_action == "kill" and not args.yes:
@@ -753,7 +836,8 @@ def main():
             n_attempted += 1
             if bulk_action == "report":
                 if report_one(cfg, short_name=name, rows=report_rows,
-                              unknown_acc=report_unknown):
+                              unknown_acc=report_unknown,
+                              dead_acc=report_dead):
                     n_submitted += 1
             elif bulk_action is not None:
                 oc = crab_action_one(cfg, action=bulk_action)
@@ -769,6 +853,17 @@ def main():
     if bulk_action == "report":
         if report_rows:
             print_report(report_rows)
+        if report_dead:
+            print("\n[!! DEAD TASK(S) -- a row of all zeros here is NOT "
+                  "'not started yet' !!]")
+            for nm, st in report_dead:
+                print("    %-24s %s" % (nm, st))
+            print("    These will never produce output. Fix the cause and "
+                  "RE-SUBMIT (kill + delete the project dir + delete the EOS "
+                  "timestamp dir first). --resubmit does nothing for them.")
+            print("    Most common cause here: >%s jobs in one task "
+                  "(run --preflight --check-das, which now checks this)."
+                  % format(CRAB_MAX_JOBS_PER_TASK, ","))
         if report_unknown:
             print("\n[WARN] Unknown CRAB job state(s) counted under 'others': %s"
                   % sorted(report_unknown))

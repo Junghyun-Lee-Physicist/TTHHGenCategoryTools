@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.9).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.11).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -398,3 +398,83 @@ task 는 2개**였다. 원인은 `crabCommand("resubmit", ...)` 의 통보 방�
   그 로그를 다시 넣으면 요약이 `resubmitted : 2` (sent 2 / nothing 4 / refused 1 / noproj 7) 로 나온다.
 
 `TtbarIdExtender/README.md` §2.3 에 출력 읽는 법 표를 추가했다.
+
+---
+
+## 2026-07-27 — v13.10: **CRAB task 당 job 10,000 상한** — 2018 TTbar_SemiLep 이 조용히 죽어 있었다
+
+v13.9 로 `--resubmit` 출력이 정직해진 직후, 사용자가 `--status` 원문을 공유해 **진짜 원인**이
+드러났다: `TTbar_SemiLep_2018_extend` 의 서버 상태가 `SUBMITREFUSED` 이고 경고가
+`The splitting on your task generated 10010 jobs. The maximum number of jobs in each task is 10000`.
+즉 **하루 동안 이 task 는 job 을 한 개도 돌리지 않았다.** 전문: [08](08_troubleshooting.md) **T-19**.
+
+**왜 못 잡았나** — 세 겹으로 숨었다:
+
+1. **제출 시점에 거부되지 않는다.** client 는 `submitted : 7` 로 성공을 보고하고 서버가
+   *나중에* task 를 세워 둔다. 그래서 제출 로그·문서에 "7 tasks / 20,953 jobs"가 남았다.
+   실제로 돈 것은 **6 tasks / 10,943 jobs**.
+2. **총합만 보면 정상이다.** 20,953 = 188 + **10,010** + 7,195 + 3,069 + 219 + 169 + 103.
+   per-task 값을 상한과 비교해야 보이는데 preflight 가 그걸 안 했다.
+3. **`--report` 행이 전부 0 이다.** `jobsPerStatus` 가 비어 있으니 "아직 안 시작"과 구분이 안 된다.
+   게다가 `crab resubmit` 은 **scheduler 에 도달한 task 의 FAILED job 만** 재큐하므로 원리적으로
+   손을 못 쓴다 — v13.9 가 `refused` 로 정직하게 보고한 게 이 상황이었다.
+
+**수정 (세 겹 모두)**:
+
+- **예방** — `--preflight --check-das` 가 DAS `summary` 의 `nfiles` 도 읽어
+  `ceil(nfiles / units_per_job)` 을 계산한다. `CRAB_MAX_JOBS_PER_TASK = 10000` 초과면 **FAIL**
+  (+ 필요한 `units_per_job` 값을 계산해 알려 준다), 90% 초과면 WARN, 그 외 PASS 로 job 수를 찍는다.
+  `units_per_job` 우선순위는 `build_config()` 와 동일(항목별 override > `resources.extend`).
+- **수정** — `datasets.yaml` 2018 `TTbar_SemiLep` 에 **`units_per_job: 2`**(→ 5,005 jobs)를 박고,
+  "1 로 되돌리지 말 것"과 이유를 항목 주석에 남겼다. 항목별 override 는 원래 지원되던 기능이다.
+- **가시성** — `--report`/`--status` 가 task-level `SUBMITREFUSED`/`SUBMITFAILED`/`FAILED`/
+  `UNKNOWN`(=`DEAD_TASK_STATES`)을 `[!! ... !!] this task will NEVER run` 로 찍고 CRAB 의 해당
+  경고 줄을 인용하며, `--report` 요약 끝에 **DEAD TASK 목록**과 복구 지침을 낸다
+  ("all-zero 행은 '아직 안 시작'이 아니다").
+
+**T-17 과의 구별**: 둘 다 `SUBMITREFUSED` 지만 T-17 은 stage-out 권한(HTTP 403), 이건 job 수
+초과다. `--status` 의 CRAB 원문 경고 줄로 갈린다. 그리고 **이 경우는 산출물이 없으므로 EOS 청소가
+불필요**하다 — project dir 만 지우고 재제출한다.
+
+문서 정정: "7 tasks / 20,953 jobs 제출 완료" 라고 적었던 3곳
+(`TtbarIdExtender/README.md` §2.2b, `docs/01_status.md` O6, 워크스페이스 RUNBOOK 헤더)을
+**6 tasks / 10,943 jobs 실행 + TTbar_SemiLep 재제출 필요**로 고쳤다.
+
+---
+
+## 2026-07-27 — v13.11: `units_per_job` 을 2 → **10** (사용자 지적; CPU 효율까지 회수)
+
+v13.10 은 상한(10,000)만 넘기려고 최소값 **2** 를 넣었다. 사용자가 더 나은 지적을 했다 —
+*"expanded ttbar id 는 run/lumi/event 로 각각 이벤트를 다 읽어들이니 file 개수를 몇 개로 하든
+상관없다"*. 맞다. 그래서 10 으로 올렸다.
+
+**왜 맞는가 (계약으로 확인)**: 각 job 은 `(run, luminosityBlock, event, ...)` 행을 쓰고,
+소비자 `matchTtbarId`/`matchTtbarIdSorted` 는 **filelist 전체에 3-key map 하나**를 만든다 —
+행이 어느 파일에서 왔는지 보지 않는다(`tools/matchTtbarId.cc` 의 map 적재 루프).
+따라서 file→job 묶음은 **물리에 완전히 무관**하고, 순수 운영 knob 이다.
+
+**그러면 1 은 왜 나빴나** (2018 `TTbar_SemiLep` 실측, 파일당 ~47.6k event ≈ 55초 + 시작 ~90초):
+
+| `units_per_job` | jobs | job 당 | 시작 오버헤드 비중 | |
+|---|---|---|---|---|
+| 1 | 10,010 | ~2.4분 | ~63% | CRAB 상한 초과 → SUBMITREFUSED |
+| 2 | 5,005 | ~3.3분 | ~45% | v13.10 의 최소 수정 |
+| **10** | **1,001** | **~10.7분** | **~14%** | **채택** |
+| 20 | 501 | ~19.8분 | ~7% | 가능(walltime 상한 1440분과 무관) |
+
+즉 upj=1 은 CRAB 이 매 task 마다 내던 `average jobs CPU efficiency is less than 50%` 경고의
+원인 그 자체였다(2026-07-27 실측 CPU eff 20~45%, waste 50~58%). 부수 효과로 출력 파일이
+10,010 → **1,001** 개가 되어 뒤의 `sortSplitExtend`/`matchTtbarIdSorted` 도 싸진다.
+참고 스케일: 이 7샘플의 MiniAOD/NanoAOD 파일 수 비는 **~22.5**(SemiLep 은 25.6)이므로
+MiniAOD 10개는 아직 NanoAOD 파일 1개분 event 보다 적다.
+
+**의도적으로 하지 않은 것 — 나머지 6 task 는 그대로 뒀다.** 완료 4개 + 99% 진행 2개(failed 0)의
+`units_per_job` 을 바꾸려면 kill → project dir 삭제 → **EOS 산출물 삭제** → 전량 재생산이 필요하고
+(같은 LFN 에 timestamp 두 개가 생기면 3-key 중복 → `matchTtbarId` exit 7), 그건 끝난 일을
+버리는 짓이다. 값 조정은 **어차피 재제출해야 하는 task 에만** 한다 — `TTbar_SemiLep` 은
+SUBMITREFUSED 라 산출물이 아예 없어 공짜로 바꿀 수 있었다.
+결과적으로 2018 은 **혼합 설정**(SemiLep 만 10, 나머지 6개는 1)이고, 위 "물리에 무관" 때문에
+무해하다. 재제출 후 2018 총 job 수 = **11,944**.
+
+`TtbarIdExtender/README.md` §2.2b 에 `units_per_job` 전용 절(표 + "끝난 task 는 건드리지 말라"
+경고)을 추가했고, T-19 의 ② 항목도 10 기준으로 갱신했다.

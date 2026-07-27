@@ -174,13 +174,46 @@ eras:
         nano_child: "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
         enabled: true
         verified: true
+        # MANDATORY OVERRIDE -- do not set this back to 1.
+        #
+        # WHY 1 IS IMPOSSIBLE: this MiniAOD has 10,010 files, so units_per_job:1
+        # splits into 10,010 jobs -- over CRAB's hard ceiling of 10,000 jobs per
+        # task. CRAB does not reject that at submit time: the client reports a
+        # successful submit and the SERVER then parks the task as SUBMITREFUSED
+        # with "The splitting on your task generated 10010 jobs. The maximum
+        # number of jobs in each task is 10000". Nothing ever runs and
+        # `crab resubmit` cannot rescue it (2026-07-27; docs/08 T-19).
+        #
+        # WHY 10 AND NOT THE MINIMAL 2: grouping is physics-neutral here. Each
+        # job writes (run, luminosityBlock, event, ...) rows and the consumer
+        # (matchTtbarId / matchTtbarIdSorted) builds one 3-key map over the whole
+        # filelist -- it never looks at which file a row came from. So file->job
+        # packing is purely an operations knob, and 1 was a bad setting:
+        #   upj  jobs     ~runtime/job   startup share of walltime
+        #    1   10,010    2.4 min       ~63%   <- refused anyway
+        #    2    5,005    3.3 min       ~45%
+        #   10    1,001   10.7 min       ~14%   <- chosen
+        # (measured: ~55 s of real work per ~47.6k-event MiniAOD file, ~90 s
+        # CMSSW/stage-in startup; walltime cap is 1440 min, so 10 is nowhere
+        # near it.) This is exactly the fix CRAB itself keeps asking for in its
+        # "average jobs CPU efficiency is less than 50%" warning -- at upj:1 the
+        # 2026-07-27 tasks ran at 20-45% CPU eff with 50-58% waste.
+        # Bonus: 1,001 output files instead of 10,010 makes the later
+        # sortSplitExtend / matchTtbarIdSorted pass materially cheaper.
+        #
+        # For scale: across these 7 samples MiniAOD/NanoAOD file ratio is ~22.5
+        # (10,010/391 = 25.6 here), so 10 MiniAOD files is still well under one
+        # NanoAOD file's worth of events.
+        units_per_job: 10
         notes: >
           Inclusive ttbar SL, 2018UL.  LARGEST sample: nano child has
           476,408,000 events (2017: 346,052,000), i.e. ~38% more than the 2017
           case that already required the external-sort validation path.  Plan
           sortSplitExtend + matchTtbarIdSorted for this one (the in-memory
           matchTtbarId map would need well over 11 GB).
-          MiniAOD suffix unverified -> run resolve_parents.sh 2018.
+          MiniAOD has 10,010 files -> units_per_job: 10 (1,001 jobs). 1 is
+          impossible (exceeds the 10,000 jobs/task CRAB limit) and 2 would work
+          but keeps the poor CPU efficiency; see the comment above.
 
       - name: "TTbar_Hadronic"
         dataset:    "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v1/MINIAODSIM"
