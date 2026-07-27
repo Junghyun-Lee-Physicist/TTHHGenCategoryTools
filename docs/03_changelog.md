@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.3).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.4).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -167,3 +167,31 @@ VERDICT: ALL INVARIANTS PASS
   AST 로 `subprocess.run` 의 3.7+ 키워드 잔존 여부를 재검사(0건).
 - 참고: `tempTTHH`·`NtupleForge` 는 CMSSW_14_2_1(py3.9)이라 `text=True` 가 정상이며 실제로
   lxplus 에서 동작 확인됨 — 이 제약은 **10_6_X 패키지에만** 적용된다.
+
+## 2026-07-27 — v13.4: `--check-das` -json 수정, `--max-files` 비권장화, 제출 정책 확정
+
+**수정 2건 (둘 다 실행 중 발견, 둘 다 내가 넣은 버그):**
+
+1. **`--check-das` 가 14/14 FAIL (거짓)**. `dasgoclient -query "summary dataset=..."` 의
+   **plain-text** 출력은 컬럼 레이아웃이라 `nevents=N` 정규식이 절대 안 맞는다. 데이터셋은
+   멀쩡했다 — 같은 셸에서 `file dataset=` 쿼리가 10,010개 파일을 세었고 CRAB 이 스모크를
+   정상 접수했다. `-json` + `summary[0].nevents` 로 교체(plain-text fallback 유지).
+   **같은 버그를 NtupleForge `submit_crab.py` 에서 먼저 고쳤는데 이 파일로 전파하지 않은 것**이
+   원인 — 두 저장소가 같은 DAS 헬퍼 패턴을 복제하고 있다는 신호다.
+2. **argparse `--help` 가 `ValueError: unsupported format character` 로 깨짐**. help 문자열의
+   `100%` 를 이스케이프하지 않아서. argparse 는 help 를 `%`-포맷하므로 리터럴 `%` 는 `%%`.
+   전 옵션(11개) help 를 실제로 `format_help()` 로 통과시키는 검사를 추가로 수행.
+
+**제출 정책 [DECIDED 2026-07-27, 사용자]:**
+
+- **`units_per_job` 은 1 유지** (2017 생산과 동일 조건). MiniAOD 파일이 NanoAOD 보다 훨씬 많아
+  7샘플 = **20,953 jobs** (TTbar_SemiLep 만 10,010) 이고 job 하나는 47k event ≈ 55 s 로
+  오버헤드 비중이 크지만, "2017 과 동일" 을 우선한다. 참고 수치: `units_per_job=10` 이면
+  2,097 jobs / job 당 ~9분.
+- **`--max-files` 로 스모크하지 않는다.** `Data.totalUnits=N` 은 **완결 불가능한 부분 task** 를
+  만든다: 103 files 중 5개만 도는 task 가 `--report` 에 `done 5/5 = 100%` 로 뜨지만 실제
+  커버리지는 5% 이고, 나머지를 처리하려면 같은 dataset 을 **또** 제출해야 해서 같은 LFN 아래
+  timestamp 디렉토리가 둘로 갈린다 → `make_filelists_miniAOD.py` 가 둘 다 주워 3-key 중복
+  (`matchTtbarId` exit 7). **대신 최소 dataset(`TTbb_DiLep`, 103 files)을 통째로** 던져
+  스모크로 쓴다. `--max-files` 의 help 를 DISCOURAGED 로 바꾸고 이유를 명시했다.
+  (기존에 `--max-files 5` 로 나간 스모크 task 는 kill·정리 후 재제출.)

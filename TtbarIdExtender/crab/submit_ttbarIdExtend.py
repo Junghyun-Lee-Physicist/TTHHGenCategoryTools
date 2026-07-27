@@ -35,6 +35,7 @@
 
 import argparse
 import datetime
+import json
 import os
 import re
 import subprocess
@@ -79,7 +80,16 @@ def parse_args():
     p.add_argument("--process", help="Comma-separated logical names to submit.")
     p.add_argument("--era",     help="Comma-separated era keys to submit.")
     p.add_argument("--max-files", type=int, default=None,
-                   help="Cap Data.totalUnits per task (smoke-tests).")
+                   help="Cap Data.totalUnits per task. DISCOURAGED (DECIDED "
+                        "2026-07-27): it creates a task that can NEVER reach full "
+                        "coverage -- 5 of 103 files shows as 'done 5/5 = 100%%' in "
+                        "--report while only 5%% of the dataset is processed, and "
+                        "finishing the rest needs a SECOND task, which splits the "
+                        "output across two timestamp dirs under the same LFN and "
+                        "makes make_filelists_miniAOD.py pick up both (duplicate "
+                        "3-key rows -> matchTtbarId exit 7). For a smoke test, "
+                        "submit the SMALLEST DATASET IN FULL instead "
+                        "(--process TTbb_DiLep, 103 files).")
     p.add_argument("--dry-run",  action="store_true",
                    help="Print plan but do not submit.")
     p.add_argument("--preflight", action="store_true",
@@ -421,11 +431,38 @@ def run_preflight(args, cat, site):
                         continue
                     for label, path in (("mini", d.get("dataset", "")),
                                         ("nano", d.get("nano_child", ""))):
-                        q = subprocess.run(["dasgoclient", "-query", "summary dataset=%s" % path],
-                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-                        m = re.search(r"nevents\s*[:=]\s*(\d+)", q.stdout or "")
-                        if m:
-                            ok("DAS %s/%s %s" % (era, name, label), "nevents=%s" % format(int(m.group(1)), ","))
+                        # Must use -json: the PLAIN-TEXT output of
+                        # `dasgoclient -query "summary dataset=..."` is a column
+                        # layout, NOT `nevents=N`, so a regex over it never
+                        # matches and every dataset is falsely reported
+                        # unresolvable (all 14 FAILed on 2026-07-27 while the
+                        # datasets were demonstrably fine -- CRAB accepted them
+                        # and `dasgoclient -query "file dataset=..."` listed
+                        # 10,010 files). Same bug was fixed earlier in
+                        # NtupleForge/crab/submit_crab.py; it had not been
+                        # propagated here. Structure follows the proven path in
+                        # NtupleForge/script/das_ul18_scan.sh.
+                        q = subprocess.run(["dasgoclient", "-query",
+                                            "summary dataset=%s" % path, "-json"],
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           universal_newlines=True)
+                        nev = None
+                        try:
+                            for rec in json.loads(q.stdout or "[]"):
+                                for smry in (rec.get("summary") or []):
+                                    if smry.get("nevents") is not None:
+                                        nev = int(smry["nevents"])
+                                        break
+                                if nev is not None:
+                                    break
+                        except (ValueError, TypeError, KeyError):
+                            nev = None
+                        if nev is None:      # plain-text fallback, just in case
+                            m = re.search(r"nevents\s*[:=]\s*(\d+)", q.stdout or "")
+                            nev = int(m.group(1)) if m else None
+                        if nev is not None:
+                            ok("DAS %s/%s %s" % (era, name, label),
+                               "nevents=%s" % format(nev, ","))
                         else:
                             bad("DAS %s/%s %s" % (era, name, label),
                                 "not resolvable -- wrong -vN suffix? %s" % path)
