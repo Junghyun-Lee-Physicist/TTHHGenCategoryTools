@@ -34,7 +34,9 @@
 # =============================================================================
 
 import argparse
+import contextlib
 import datetime
+import io
 import json
 import os
 import re
@@ -49,6 +51,106 @@ PKG_ROOT  = THIS_DIR.parent
 # .../src/. Deriving it from PKG_ROOT (= .../TtbarIdExtender) makes submission
 # work from any directory (e.g. from inside TtbarIdExtender/ itself).
 EXTEND_PSET = str(PKG_ROOT / "test" / "run_ttbarIdExtend_cfg.py")
+
+# =============================================================================
+# Job-state buckets for --report
+# =============================================================================
+# DELIBERATELY IDENTICAL to NtupleForge/crab/submit_crab.py (same column names,
+# same bucket rules, same "others"/unknown handling) so that a report from the
+# two campaigns can be read side by side without re-learning the columns.
+# If you change one, change the other -- that duplication is intentional and
+# is noted in both files.
+#
+# Why "transferring" gets its own column: with units_per_job=1 the extend
+# campaign has ~21k jobs, and a large fraction sits in `transferring` for a long
+# time (stage-out to T3_CH_CERNBOX). crab/status.py used to omit it, so
+# done+run+idle+fail did not add up to the total and those jobs were invisible.
+REPORT_COLUMNS = ["finished", "running", "idle", "transferring", "failed"]
+# Known-but-minor states folded into "others" WITHOUT raising an unknown warning.
+KNOWN_OTHER_STATES = {
+    "unsubmitted", "cooloff", "held", "killed", "killing",
+    "toRetry", "on hold", "resubmitting",
+}
+
+
+def summarize_status(jobs_per_status):
+    """Bucket a CRAB ``jobsPerStatus`` dict into REPORT_COLUMNS + others/total.
+
+    Returns ``(row, unknown)``. ``unknown`` is the set of state names that are
+    neither a column nor a known-other state, so the caller can warn: an
+    unrecognised state silently hiding in "others" is exactly how you lose track
+    of jobs.
+    """
+    row = {c: 0 for c in REPORT_COLUMNS}
+    row["others"] = 0
+    unknown = set()
+    for state, n in (jobs_per_status or {}).items():
+        if state in REPORT_COLUMNS:
+            row[state] += n
+        else:
+            row["others"] += n
+            if state not in KNOWN_OTHER_STATES:
+                unknown.add(state)
+    row["total"] = sum(row[c] for c in REPORT_COLUMNS) + row["others"]
+    return row, unknown
+
+
+def print_report(rows):
+    """Print a compact per-sample job-state table. ``rows``: list of (name, row)."""
+    cols = REPORT_COLUMNS + ["others", "total"]
+    head = {"finished": "done", "running": "run", "idle": "idle",
+            "transferring": "transf", "failed": "fail", "others": "other",
+            "total": "total"}
+    name_w = max([len("sample")] + [len(n) for n, _ in rows])
+    header = "%-*s  " % (name_w, "sample") + "  ".join(
+        "%6s" % head[c] for c in cols)
+    bar = "=" * len(header)
+    print("\n" + bar)
+    print("CRAB job report (per sample)  [done=finished, transf=transferring]")
+    print(bar)
+    print(header)
+    print("-" * len(header))
+    agg = {c: 0 for c in cols}
+    for name, row in rows:
+        print("%-*s  " % (name_w, name) + "  ".join(
+            "%6d" % row[c] for c in cols))
+        for c in cols:
+            agg[c] += row[c]
+    print("-" * len(header))
+    print("%-*s  " % (name_w, "TOTAL") + "  ".join(
+        "%6d" % agg[c] for c in cols))
+    print(bar)
+
+
+def report_one(cfg, *, short_name, rows, unknown_acc):
+    """Query one task quietly and append its bucketed row to ``rows``.
+
+    Unlike --status (which lets `crab status` print its full dump), this
+    swallows CRAB's stdout and keeps only the jobsPerStatus dict, so the table
+    at the end is not buried under 7 screens of per-task output.
+    """
+    proj = Path(cfg.General.workArea) / ("crab_%s" % cfg.General.requestName)
+    if not proj.exists():
+        print("  [skip] no project dir: %s" % proj)
+        rows.append((short_name, summarize_status({})[0]))
+        return False
+    try:
+        from CRABAPI.RawCommand import crabCommand
+    except ImportError as exc:
+        sys.exit("ERROR: CRAB client missing (%s).\n"
+                 "       source /cvmfs/cms.cern.ch/common/crab-setup.sh" % exc)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = crabCommand("status", dir=str(proj))
+    except Exception as exc:  # noqa: BLE001
+        print("  [status FAILED] %s" % exc)
+        rows.append((short_name, summarize_status({})[0]))
+        return False
+    row, unk = summarize_status(res.get("jobsPerStatus", {}))
+    rows.append((short_name, row))
+    unknown_acc |= unk
+    print("  [ok] task status = %s" % res.get("status", "?"))
+    return True
 
 
 # ----- YAML --------------------------------------------------------------
@@ -110,7 +212,14 @@ def parse_args():
                         "--process / --era. Does not submit new tasks.")
     p.add_argument("--status",   action="store_true",
                    help="Bulk 'crab status' on the existing crab_* project of "
-                        "every selected sample. Does not submit new tasks.")
+                        "every selected sample -- FULL CRAB output per task. "
+                        "Use --report instead if you just want the numbers. "
+                        "Does not submit new tasks.")
+    p.add_argument("--report",   action="store_true",
+                   help="Compact per-sample job-state table "
+                        "(done/run/idle/transf/fail/other/total + TOTAL row). "
+                        "Same columns as NtupleForge's submit_crab.py --report. "
+                        "Honors --process / --era. Does not submit new tasks.")
     p.add_argument("--kill",     action="store_true",
                    help="Bulk 'crab kill' on the existing crab_* project of "
                         "every selected sample (kills all running/idle jobs). "
@@ -508,11 +617,16 @@ def main():
                    if args.era else None)
 
     # Which mode are we in? submit (default), or a bulk action on existing tasks.
-    chosen = [a for a in ("resubmit", "status", "kill")
+    chosen = [a for a in ("resubmit", "status", "report", "kill")
               if getattr(args, a)]
     if len(chosen) > 1:
-        sys.exit("ERROR: choose only one of --resubmit / --status / --kill.")
+        sys.exit("ERROR: choose only one of "
+                 "--resubmit / --status / --report / --kill.")
     bulk_action = chosen[0] if chosen else None
+
+    # --report accumulators (printed once after the loop so the columns align)
+    report_rows = []
+    report_unknown = set()
 
     # kill is destructive: confirm which samples first, unless --yes.
     if bulk_action == "kill" and not args.yes:
@@ -547,12 +661,30 @@ def main():
                 max_files=args.max_files,
             )
             n_attempted += 1
-            if bulk_action is not None:
+            if bulk_action == "report":
+                if report_one(cfg, short_name=name, rows=report_rows,
+                              unknown_acc=report_unknown):
+                    n_submitted += 1
+            elif bulk_action is not None:
                 if crab_action_one(cfg, action=bulk_action):
                     n_submitted += 1
             else:
                 if submit_one(cfg, dry_run=args.dry_run):
                     n_submitted += 1
+
+    # -- Post-loop: the compact table (if requested) --
+    if bulk_action == "report":
+        if report_rows:
+            print_report(report_rows)
+        if report_unknown:
+            print("\n[WARN] Unknown CRAB job state(s) counted under 'others': %s"
+                  % sorted(report_unknown))
+            print("       The report code does not recognise these -- add them to "
+                  "REPORT_COLUMNS / KNOWN_OTHER_STATES near the top of this file "
+                  "(see summarize_status()), and read the full "
+                  "`crab status -d <project_dir>` output for what they mean.")
+            print("       Keep the same change in NtupleForge/crab/submit_crab.py "
+                  "so the two reports stay comparable.")
 
     print("=" * 65)
     mode = bulk_action or ("submit" + (" (DRY RUN)" if args.dry_run else ""))
@@ -562,7 +694,7 @@ def main():
         print(f"  skipped   : {n_skipped}  (enabled:false; use --force to override)")
     print(f"  attempted : {n_attempted}")
     label = {"resubmit": "resubmitted", "status": "queried",
-             "kill": "killed"}.get(bulk_action, "submitted")
+             "report": "queried", "kill": "killed"}.get(bulk_action, "submitted")
     print(f"  {label:9s} : {n_submitted}")
 
 

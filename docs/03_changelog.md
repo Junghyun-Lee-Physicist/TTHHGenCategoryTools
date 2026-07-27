@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.7).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.8).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -324,3 +324,44 @@ extend 캠페인(7 task / 20,953 job)이 **아직 돌고 있는 상태**에서, 
 (→ `${PIPESTATUS[0]}`), `ls bin/` 기대 목록에 이 저장소 `Validation/bin/` 에 없는
 `compareExtendToCentral`(그건 `TtbarIdExtender/bin/` 쪽)이 들어 있던 것, `matchTtbarId` 의
 **exit 3**(filelist 비었거나 못 엶)이 문서화되지 않아 물리 실패와 섞일 수 있던 것.
+
+---
+
+## 2026-07-27 — v13.8: `--report` 추가 (NtupleForge 와 대칭) + `crab/status.py` 집계 버그 수정
+
+사용자 지적: "왜 여기엔 `--status` 만 있고 NtupleForge 처럼 `--report` 는 없나?"
+**설계 이유가 없었다 — 그냥 비대칭이었다.** NtupleForge `submit_crab.py` 는 2026-07 에
+`--report`(compact 표)를 얻었는데 이 저장소는 못 받았다.
+
+**신설 — `crab/submit_ttbarIdExtend.py --report`**
+
+- per-sample 정렬 표: `done / run / idle / transf / fail / other / total` + **TOTAL 행**.
+  `--process`/`--era` 필터를 존중하고, 새 task 를 제출하지 않는 **읽기 전용**이다.
+- `--status`(= `crab status` 원본 전량 출력)와의 역할 분리를 help 와 README §2.3 에 명시.
+  `--status`/`--report`/`--resubmit`/`--kill` 은 **넷 중 하나만** 허용(기존 셋 → 넷).
+- `contextlib.redirect_stdout` 으로 CRAB 의 verbose dump 를 삼켜서, 7개 task 출력에 표가
+  묻히지 않게 했다.
+- **버킷 규칙을 NtupleForge 와 의도적으로 중복**(`REPORT_COLUMNS`,
+  `KNOWN_OTHER_STATES`, `summarize_status`, `print_report`). 두 저장소는 CMSSW 릴리스가 달라
+  모듈을 공유할 수 없지만 컬럼이 어긋나면 두 캠페인 리포트를 나란히 못 읽는다 →
+  **양쪽 파일 주석에 "한쪽만 바꾸지 말 것"을 박아 뒀다.**
+  실측 검증: 같은 입력으로 두 저장소의 `print_report` 출력이 **byte-identical**,
+  `REPORT_COLUMNS`·`KNOWN_OTHER_STATES` 도 동일함을 확인.
+
+**버그 수정 — `crab/status.py` 의 job 집계가 맞지 않았다**
+
+- 기존: `done/run/idle/fail` 만 찍고 `tot=sum(jobs.values())` → **`transferring` 이
+  아예 안 보이는데 tot 에는 포함**되어 `done+run+idle+fail ≠ tot`. `units_per_job: 1` 로
+  job 이 ~21k 개이고 상당수가 T3_CH_CERNBOX stage-out 중 `transferring` 에 오래 머물기 때문에
+  **가장 큰 버킷이 투명인간**이었다. `cooloff`/`held`/`unsubmitted` 도 동일하게 사라졌다.
+- 수정: `submit_ttbarIdExtend.py` 의 `summarize_status` 를 **import 해서 재사용**
+  (one-fact-one-place; 두 도구가 "other" 정의를 두고 어긋날 수 없다). 이제
+  `transf`·`other` 컬럼이 찍히고 **모든 job 이 찍히는 컬럼에 들어가 tot 과 일치**한다.
+- 코드가 모르는 상태가 나오면 두 도구 모두 **`[WARN] unknown CRAB job state(s)`** 로 보고한다
+  (조용히 `other` 에 삼키지 않는다).
+- 두 스크립트의 용도 차이를 `status.py` 헤더에 문서화: `status.py` 는 **workArea 스캔**
+  (datasets.yaml 이 바뀌었어도 찾아냄), `--report` 는 **datasets.yaml 기반**(era/process 필터).
+
+**환경 제약 준수**: py3.6 호환(3.7+ API 없음), ASCII-only, argparse `%` 이스케이프 확인,
+`py_compile` 통과. 실행 중인 캠페인에는 영향 없다 — 읽기 전용이고, CRAB sandbox 는 제출
+시점에 동결되므로 submitter 수정이 이미 뜬 job 에 닿지 않는다.

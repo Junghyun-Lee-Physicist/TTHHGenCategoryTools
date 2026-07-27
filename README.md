@@ -71,6 +71,7 @@ python3 crab/submit_ttbarIdExtend.py --era 2018 --preflight --check-das   # era/
 python3 crab/submit_ttbarIdExtend.py --era 2018 --dry-run            # 계획
 python3 crab/submit_ttbarIdExtend.py --era 2018 --process TTbb_DiLep # 스모크 = 최소 샘플 '통째로'
 python3 crab/submit_ttbarIdExtend.py --era 2018                      # 본제출
+python3 crab/submit_ttbarIdExtend.py --era 2018 --report             # 진행률 (정렬된 표)
 ```
 
 - **로컬 1파일 생산 → 스팟체크 → CRAB 대량 생산**: [`TtbarIdExtender/README.md`](TtbarIdExtender/README.md) (CRAB 설정·제출·재제출은 §2)

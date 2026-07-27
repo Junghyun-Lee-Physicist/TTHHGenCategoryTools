@@ -155,8 +155,8 @@ python3 crab/submit_ttbarIdExtend.py --era 2018 \
 #   실측: 7 tasks / 20,953 jobs (MiniAOD 파일 수 합계, units_per_job=1) / 약 32 GB /
 #         outLFN <out_lfn_base>/2018
 
-# ── (5) 상태
-python3 crab/status.py --filter _2018_extend
+# ── (5) 상태 — 정렬된 표 한 장 (컬럼 설명은 §2.3)
+python3 crab/submit_ttbarIdExtend.py --era 2018 --report
 ```
 
 > **MiniAOD 와 NanoAOD 의 event 수는 다르다** (실측: TTbar_Hadronic 343,248,000 vs
@@ -173,8 +173,22 @@ python3 crab/status.py --filter _2018_extend
 
 ### 2.3 진행 확인 / 재제출 / kill
 
+**상태를 보는 세 가지 방법** — 용도가 다르다:
+
 ```bash
-python3 crab/submit_ttbarIdExtend.py --status                          # 전 태스크 상태
+# (a) --report : 한 장으로 보는 정렬된 표 (2026-07-27 신설). 평소엔 이걸 쓴다.
+#     NtupleForge 의 submit_crab.py --report 와 컬럼·집계 규칙이 100% 동일하다.
+python3 crab/submit_ttbarIdExtend.py --report
+python3 crab/submit_ttbarIdExtend.py --era 2018 --report \
+    2>&1 | tee crab/report_2018_$(date +%Y%m%d_%H%M).log
+
+# (b) crab/status.py : datasets.yaml 을 안 보고 workArea 를 '스캔'해서 찾는다.
+#     entry 를 enabled:false 로 바꿨거나 request_name_tag 를 bump 한 뒤에도 찾아낸다.
+python3 crab/status.py --filter _2018_extend
+
+# (c) --status : crab status 원본 출력 전량. 특정 task 를 깊게 파볼 때만.
+python3 crab/submit_ttbarIdExtend.py --status --process TTbar_Hadronic
+
 python3 crab/submit_ttbarIdExtend.py --resubmit                        # 실패 job 일괄 재제출
 python3 crab/submit_ttbarIdExtend.py --resubmit --process TTbar_Hadronic,TTbb_Hadronic
 
@@ -184,7 +198,30 @@ python3 crab/submit_ttbarIdExtend.py --kill --process TT4b            # 한 샘�
 python3 crab/submit_ttbarIdExtend.py --kill --process TT4b --yes      # 확인 없이 (스크립트용)
 ```
 
-`--status`/`--resubmit`/`--kill`은 셋 중 하나만 쓸 수 있다(동시 지정 시 에러). 셋 다 새 task를 제출하지 않고 기존 `crab_projects/crab_*` 프로젝트에 대해서만 동작하며, `--process`/`--era` 필터를 존중한다. `--kill`은 job만 죽일 뿐 프로젝트 디렉토리를 지우지 않는다 — 같은 이름으로 다시 제출하려면 `rm -rf crab_projects/crab_<req>` 후 `request_name_tag`를 bump하거나 프로젝트를 지운다.
+`--report` 출력 예시 (job 상태 버킷):
+
+```
+sample            done     run    idle  transf    fail   other   total
+----------------------------------------------------------------------
+TTbar_SemiLep     3100     420    1800     260      37      12    5629
+...
+TOTAL             7653     808    3605     515      57      16   12654
+```
+
+- `transf`(transferring) 가 **독립 컬럼**인 이유: `units_per_job: 1` 이라 job 이 ~21k 개이고,
+  상당수가 T3_CH_CERNBOX 로 stage-out 하는 동안 이 상태에 오래 머문다.
+  (2026-07-27 전의 `crab/status.py` 는 이걸 안 찍으면서 `tot` 에는 포함시켜서
+  **done+run+idle+fail ≠ tot** 였다 — 이제 두 도구 모두 모든 job 이 찍히는 컬럼에 들어간다.)
+- `other` = `unsubmitted`/`cooloff`/`held`/`killed`/`toRetry` 등. 코드가 모르는 상태가 섞이면
+  **`[WARN] unknown CRAB job state(s)`** 로 알려 준다 — 조용히 삼키지 않는다.
+- ⚠️ `--max-files` 로 만든 부분 task 는 `done 5/5` 처럼 **100% 로 보인다**. 커버리지가 아니라
+  제출한 unit 기준이기 때문 — 그래서 `--max-files` 를 금지했다(§2.2).
+
+`--status`/`--report`/`--resubmit`/`--kill`은 **넷 중 하나만** 쓸 수 있다(동시 지정 시 에러).
+넷 다 새 task를 제출하지 않고 기존 `crab_projects/crab_*` 프로젝트에 대해서만 동작하며,
+`--process`/`--era` 필터를 존중한다. `--kill`은 job만 죽일 뿐 프로젝트 디렉토리를 지우지
+않는다 — 같은 이름으로 다시 제출하려면 `rm -rf crab_projects/crab_<req>` 후
+`request_name_tag`를 bump하거나 프로젝트를 지운다.
 
 ### 2.4 생산 후 → filelist 만들기 → 검증
 
