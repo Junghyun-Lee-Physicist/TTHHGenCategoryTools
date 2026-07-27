@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.2).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.3).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -138,3 +138,32 @@ v11 직후 사용자 요청으로 이름 체계를 한 번 더 정리했다. 핵
    부수 확인: VarParsing 이 `maxEvents` 지정 시 출력 파일명에 `_numEventN` 을 붙인다
    (`ttbarIDExtend_local2018_numEvent2000.root`). CRAB 은 maxEvents 를 쓰지 않으므로
    `JobType.outputFiles` 와의 정합은 유지된다.
+
+## 2026-07-27 — v13.3: py3.6 호환성 수정 + 로컬 불변조건 검증 통과 (2018)
+
+**로컬 검증 통과 (실기기, 2026-07-27)** — 2018 producer 는 물리적으로 정상이다:
+
+```
+scanned 20000 events; nAddBJets>=3 : 63   (61=34 62=23 71=6 72=0)
+  PASS le2_unchanged / eq3_in_61_62 / ge4_in_71_72 / no_subcode_56
+  PASS prefix_preserved / orig_was_53_54_55 / run_is_1
+VERDICT: ALL INVARIANTS PASS
+```
+
+`maxEvents=20000` 으로 키운 덕에 **확장 분기가 실제로 63 event 에서 타졌다** (2000 event 에서는
+0 이었다). 즉 v10 치명 버그(sub-code 56)가 살던 경로가 2018 에서 정상 동작함을 실측으로 확인했다.
+`endJob summary: total rows=20000 missing (전부)=0`.
+
+**수정 — `submit_ttbarIdExtend.py` 가 py3.6 에서 즉사 (v13.1 에서 내가 넣은 버그):**
+
+- `subprocess.run(..., text=True)` 는 **python 3.7+** API 인데 이 패키지는
+  CMSSW_10_6_32_patch1 = **python 3.6.4** 에 pin 되어 있다 → `--preflight` 가
+  `TypeError: __init__() got an unexpected keyword argument 'text'` 로 죽었다.
+  2곳을 `universal_newlines=True` 로 교체 (같은 저장소의 `Validation/scripts/das_lineage.py:121`
+  이 이미 그 규약을 주석까지 달아 쓰고 있었는데 놓쳤다).
+- 재발 방지: 파일 헤더에 **"PYTHON 3.6 ONLY -- DO NOT USE 3.7+ APIs"** 블록을 추가하고
+  이 환경의 함정 4개를 한자리에 명시 — `text=`/`capture_output=`(3.7+), `dict |=`·
+  `removeprefix`(3.9+/3.10+), `LANG=C` 로 인한 `open()` ASCII 기본값, PyROOT 사용 불가.
+  AST 로 `subprocess.run` 의 3.7+ 키워드 잔존 여부를 재검사(0건).
+- 참고: `tempTTHH`·`NtupleForge` 는 CMSSW_14_2_1(py3.9)이라 `text=True` 가 정상이며 실제로
+  lxplus 에서 동작 확인됨 — 이 제약은 **10_6_X 패키지에만** 적용된다.

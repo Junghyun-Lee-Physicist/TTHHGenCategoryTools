@@ -18,6 +18,18 @@
 # request names / output LFNs across 20 templates would be busywork plus a
 # reliable source of typos.
 #
+# !! PYTHON 3.6 ONLY -- DO NOT USE 3.7+ APIs !!
+#   This package is pinned to CMSSW_10_6_32_patch1, whose python is 3.6.4.
+#   Anything newer breaks at run time, not at import, so it is easy to miss:
+#     subprocess.run(..., text=True)        -> 3.7+  ; use universal_newlines=True
+#     subprocess.run(..., capture_output=)  -> 3.7+  ; use stdout=/stderr=PIPE
+#     dict |= / str.removeprefix / match    -> 3.9+ / 3.10+
+#   (Both subprocess traps were actually hit on 2026-07-27.)
+#   Related environment constraints of the same flavour:
+#     * LANG=C  -> open() defaults to ASCII; always pass encoding= (see load_yaml)
+#     * files under this package are kept ASCII-only (convention since v12.5)
+#     * PyROOT is unusable here (ROOT 6.14 is a python2 build) -> use ROOT macros
+#
 # Author: JH (KNU)
 # =============================================================================
 
@@ -278,7 +290,7 @@ def run_preflight(args, cat, site):
         bad("CRABClient import", "%s -- source /cvmfs/cms.cern.ch/common/crab-setup.sh" % e)
     try:
         out = subprocess.run(["voms-proxy-info", "-timeleft"], stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE, text=True)
+                             stderr=subprocess.PIPE, universal_newlines=True)
         left = int((out.stdout or "0").strip() or 0)
         if left <= 0:
             bad("VOMS proxy", "expired/absent -- voms-proxy-init -voms cms -rfc --valid 192:00")
@@ -410,7 +422,7 @@ def run_preflight(args, cat, site):
                     for label, path in (("mini", d.get("dataset", "")),
                                         ("nano", d.get("nano_child", ""))):
                         q = subprocess.run(["dasgoclient", "-query", "summary dataset=%s" % path],
-                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
                         m = re.search(r"nevents\s*[:=]\s*(\d+)", q.stdout or "")
                         if m:
                             ok("DAS %s/%s %s" % (era, name, label), "nevents=%s" % format(int(m.group(1)), ","))
