@@ -324,30 +324,117 @@ def submit_one(cfg, *, dry_run):
     return True
 
 
+# --- Outcome classification for bulk actions ---------------------------------
+# WHY THIS EXISTS (2026-07-27): `crabCommand("resubmit", ...)` is not honest
+# through its return path. Three distinct things used to collapse into two
+# misleading labels:
+#
+#   1. "Found no jobs to resubmit. Only jobs in status failed can be
+#      resubmitted."  -> RAISES, so it printed "[resubmit FAILED]".
+#      But this is the GOOD case: there are no failed jobs. Nothing is wrong.
+#   2. "The task has not been submitted to the Grid scheduler yet ...
+#      will not proceed with the resubmission."  -> does NOT raise; CRAB just
+#      prints the refusal and returns. So it printed "[resubmit ok]" and was
+#      COUNTED AS RESUBMITTED even though nothing happened. That is the
+#      dangerous one -- you walk away thinking failed jobs were requeued.
+#   3. "Resubmit request sent to the server."  -> the only real success.
+#
+# So we capture CRAB's stdout, echo it back, and classify on the text as well
+# as on the exception. Never report a resubmit as done unless CRAB said it sent
+# the request.
+_RESUB_NOTHING = (
+    "found no jobs to resubmit",
+    "no jobs to resubmit",
+)
+_RESUB_REFUSED = (
+    "will not proceed with the resubmission",
+    "status information is unavailable",
+    "has not been submitted to the grid scheduler yet",
+)
+_RESUB_SENT = (
+    "resubmit request sent to the server",
+)
+
+
+def classify_resubmit(text, exc):
+    """Return one of 'sent' / 'nothing' / 'refused' / 'error' for a resubmit.
+
+    ``text`` is CRAB's captured stdout+stderr, ``exc`` the exception it raised
+    (or None). Text wins over the exception, because CRAB reports the benign
+    "no failed jobs" case by raising.
+    """
+    low = (text or "").lower()
+    blob = low + " " + (str(exc) or "").lower()
+    if any(p in blob for p in _RESUB_NOTHING):
+        return "nothing"
+    if any(p in blob for p in _RESUB_REFUSED):
+        return "refused"
+    if any(p in low for p in _RESUB_SENT):
+        return "sent"
+    if exc is not None:
+        return "error"
+    # No recognised marker and no exception: do NOT claim success.
+    return "unclear"
+
+
+_ACTION_OUTCOME_LABEL = {
+    "sent":    "[resubmit SENT]      request accepted by the server",
+    "nothing": "[resubmit -- NOTHING TO DO]  no failed jobs (this is fine)",
+    "refused": "[resubmit REFUSED]   CRAB declined; nothing was requeued",
+    "error":   "[resubmit ERROR]",
+    "unclear": "[resubmit UNCLEAR]   no recognised marker in CRAB output -- "
+               "check by hand with --report",
+}
+
+
 def crab_action_one(cfg, *, action):
     """Run 'crab resubmit' / 'crab status' / 'crab kill' on an existing project dir.
 
-    Returns True if the CRAB command ran (regardless of per-job outcome),
-    False if the project dir is missing or the command raised.
+    Returns an outcome string:
+      'noproj'                                  project dir missing
+      'ok' / 'error'                            for status / kill
+      'sent'/'nothing'/'refused'/'error'/'unclear'   for resubmit (see
+                                                classify_resubmit)
+    Only 'sent' means a resubmit actually took effect.
     """
     proj = Path(cfg.General.workArea) / f"crab_{cfg.General.requestName}"
     print(f"  request    : {cfg.General.requestName}")
     print(f"  project    : {proj}")
     if not proj.exists():
         print(f"  [skip] no project dir (nothing to {action})\n")
-        return False
+        return "noproj"
     try:
         from CRABAPI.RawCommand import crabCommand
     except ImportError as exc:
         sys.exit(f"ERROR: CRAB client missing ({exc}).\n"
                  f"       source /cvmfs/cms.cern.ch/common/crab-setup.sh")
+
+    buf = io.StringIO()
+    exc = None
     try:
-        crabCommand(action, dir=str(proj))
-    except Exception as exc:  # noqa: BLE001
-        print(f"  [{action} FAILED] {exc}\n")
-        return False
-    print(f"  [{action} ok]\n")
-    return True
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            crabCommand(action, dir=str(proj))
+    except Exception as e:  # noqa: BLE001
+        exc = e
+    out = buf.getvalue()
+    # Echo CRAB's own words -- we classify, we do not hide.
+    for line in out.splitlines():
+        if line.strip():
+            print("    | " + line.rstrip())
+
+    if action != "resubmit":
+        if exc is not None:
+            print(f"  [{action} FAILED] {exc}\n")
+            return "error"
+        print(f"  [{action} ok]\n")
+        return "ok"
+
+    outcome = classify_resubmit(out, exc)
+    msg = _ACTION_OUTCOME_LABEL[outcome]
+    if outcome in ("error", "unclear") and exc is not None:
+        msg += f" {exc}"
+    print(f"  {msg}\n")
+    return outcome
 
 
 # =============================================================================
@@ -638,6 +725,9 @@ def main():
             sys.exit("Aborted (no jobs killed).")
 
     n_total = n_skipped = n_attempted = n_submitted = 0
+    # Per-outcome tally for bulk actions (see crab_action_one). Kept separate
+    # from n_submitted because "the command ran" != "something happened".
+    outcomes = {}
     for era, era_block in (cat.get("eras") or {}).items():
         if era_filter and era not in era_filter:
             continue
@@ -666,7 +756,10 @@ def main():
                               unknown_acc=report_unknown):
                     n_submitted += 1
             elif bulk_action is not None:
-                if crab_action_one(cfg, action=bulk_action):
+                oc = crab_action_one(cfg, action=bulk_action)
+                outcomes[oc] = outcomes.get(oc, 0) + 1
+                # Only a real effect counts. For resubmit that is 'sent' alone.
+                if (oc == "sent") or (bulk_action != "resubmit" and oc == "ok"):
                     n_submitted += 1
             else:
                 if submit_one(cfg, dry_run=args.dry_run):
@@ -696,6 +789,34 @@ def main():
     label = {"resubmit": "resubmitted", "status": "queried",
              "report": "queried", "kill": "killed"}.get(bulk_action, "submitted")
     print(f"  {label:9s} : {n_submitted}")
+
+    # Per-outcome breakdown. Without this, "resubmitted : N" is ambiguous:
+    # a task CRAB refused, and a task with no failed jobs, are not the same as
+    # a task whose resubmit request was accepted.
+    if bulk_action == "resubmit":
+        expl = {
+            "sent":    "request accepted by the server -- ACTUALLY RESUBMITTED",
+            "nothing": "no failed jobs -> nothing to do (GOOD, not an error)",
+            "refused": "CRAB declined (task not on the scheduler yet, or status "
+                       "unavailable) -> NOTHING was requeued; run again later",
+            "unclear": "no recognised marker -> verify with --report",
+            "error":   "command raised for another reason",
+            "noproj":  "no crab_* project dir here (e.g. submitted from a "
+                       "different checkout -- see docs/08_troubleshooting T-13)",
+        }
+        print("  " + "-" * 61)
+        print("  resubmit outcome breakdown:")
+        for key in ("sent", "nothing", "refused", "unclear", "error", "noproj"):
+            if outcomes.get(key):
+                print(f"    {key:8s} {outcomes[key]:3d}   {expl[key]}")
+        if outcomes.get("refused"):
+            print("  NOTE: 'refused' tasks were NOT resubmitted. Re-run "
+                  "--resubmit for them in a few minutes.")
+        if not outcomes.get("sent"):
+            print("  => Nothing was actually resubmitted in this pass.")
+    elif bulk_action in ("status", "kill") and outcomes:
+        print(f"  outcomes  : " + ", ".join(
+            f"{k}={v}" for k, v in sorted(outcomes.items())))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.8).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.9).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -365,3 +365,36 @@ extend 캠페인(7 task / 20,953 job)이 **아직 돌고 있는 상태**에서, 
 **환경 제약 준수**: py3.6 호환(3.7+ API 없음), ASCII-only, argparse `%` 이스케이프 확인,
 `py_compile` 통과. 실행 중인 캠페인에는 영향 없다 — 읽기 전용이고, CRAB sandbox 는 제출
 시점에 동결되므로 submitter 수정이 이미 뜬 job 에 닿지 않는다.
+
+---
+
+## 2026-07-27 — v13.9: `--resubmit` 결과 보고 수정 — "resubmitted : 3" 이 거짓이었다
+
+사용자가 2018 `--resubmit` 로그를 공유했고, 요약이 `resubmitted : 3` 인데 **실제로 재제출된
+task 는 2개**였다. 원인은 `crabCommand("resubmit", ...)` 의 통보 방식이 일관되지 않은 것이며,
+세 가지 결과가 두 개의 **오해를 유발하는** 라벨로 뭉개져 있었다 (전문: [08](08_troubleshooting.md) **T-18**).
+
+| CRAB 이 실제로 한 말 | 예외? | 예전 라벨 | 실제 의미 |
+|---|---|---|---|
+| `Resubmit request sent to the server.` | 아니오 | `[resubmit ok]` ✔ | 유일한 진짜 성공 |
+| `Found no jobs to resubmit. Only jobs in status failed...` | **예** | `[resubmit FAILED]` ✘ | **실패 job 이 없다 = 좋은 소식** |
+| `The task has not been submitted to the Grid scheduler yet ... will not proceed with the resubmission.` | **아니오** | `[resubmit ok]` ✘✘ | **거부됨 — 아무것도 재큐되지 않았다** |
+
+세 번째가 위험한 쪽이다: 예외를 던지지 않으므로 성공으로 집계돼 **"실패 job 을 재제출했다"고
+착각**하게 만든다.
+
+**수정**:
+
+- `crab_action_one()` 이 CRAB 의 stdout/stderr 를 캡처해 `    | ` 접두사로 **그대로 되돌려 찍고**
+  (숨기지 않는다), `classify_resubmit(text, exc)` 로 **sent / nothing / refused / unclear /
+  error** 로 분류한다. 텍스트가 예외보다 우선한다 — CRAB 이 benign 케이스를 예외로 알리기 때문.
+- 반환형을 bool → outcome 문자열로 바꾸고, **`sent` 만** 재제출로 집계한다.
+  아는 표식이 하나도 없으면 `unclear` — **성공으로 치지 않는다**(조용한 오보 방지).
+- 요약 끝에 outcome breakdown + `NOTE: 'refused' tasks were NOT resubmitted. Re-run
+  --resubmit for them in a few minutes.` + (sent 가 0이면) `=> Nothing was actually
+  resubmitted in this pass.` 를 찍는다.
+- `--status`/`--kill` 도 같은 캡처·에코 경로를 타지만 판정은 기존대로 ok/error 2분법이다.
+- 사용자 로그의 **5가지 실제 문자열 + 침묵/타 예외 2건**으로 분류기 회귀 테스트 통과.
+  그 로그를 다시 넣으면 요약이 `resubmitted : 2` (sent 2 / nothing 4 / refused 1 / noproj 7) 로 나온다.
+
+`TtbarIdExtender/README.md` §2.3 에 출력 읽는 법 표를 추가했다.

@@ -217,6 +217,33 @@ TOTAL             7653     808    3605     515      57      16   12654
 - ⚠️ `--max-files` 로 만든 부분 task 는 `done 5/5` 처럼 **100% 로 보인다**. 커버리지가 아니라
   제출한 unit 기준이기 때문 — 그래서 `--max-files` 를 금지했다(§2.2).
 
+#### `--resubmit` 출력 읽는 법 (2026-07-27 정정)
+
+CRAB 의 resubmit 은 **세 가지 결과가 두 개의 오해되는 라벨로 뭉개졌었다.** 이제 결과별로
+분류하고, 맨 끝에 breakdown 을 찍는다:
+
+| 출력 | 뜻 | 조치 |
+|---|---|---|
+| `[resubmit SENT]` | 서버가 요청을 받았다 — **실제로 재제출된 유일한 경우** | 몇 분 뒤 `--report` |
+| `[resubmit -- NOTHING TO DO]`<br>(`Found no jobs to resubmit`) | **실패한 job 이 없다 = 좋은 소식.** 에러가 아니다 | 없음 |
+| `[resubmit REFUSED]`<br>(`has not been submitted to the Grid scheduler yet` / `Status information is unavailable`) | CRAB 이 거부 → **아무것도 재큐되지 않았다** | 몇 분 뒤 다시 `--resubmit` |
+| `[resubmit UNCLEAR]` | CRAB 출력에 아는 표식이 없다 | `--report` 로 직접 확인 |
+| `[skip] no project dir` | 여기 `crab_projects/` 에 그 프로젝트가 없다 (다른 체크아웃에서 제출한 2017 등) | 정상. 그 체크아웃에서 실행 ([T-13](../docs/08_troubleshooting.md)) |
+
+**왜 중요한가**: `REFUSED` 는 예전에 `[resubmit ok]` 로 찍히고 `resubmitted : N` 에도
+**포함**됐다. 즉 아무 일도 안 일어났는데 "재제출됨"으로 보였다. 반대로 `NOTHING TO DO` 는
+`[resubmit FAILED]` 로 찍혀서 문제처럼 보였다. 지금은 요약이 이렇게 나온다:
+
+```
+  resubmitted : 2
+  resubmit outcome breakdown:
+    sent       2   request accepted by the server -- ACTUALLY RESUBMITTED
+    nothing    4   no failed jobs -> nothing to do (GOOD, not an error)
+    refused    1   CRAB declined ... -> NOTHING was requeued; run again later
+    noproj     7   no crab_* project dir here ...
+  NOTE: 'refused' tasks were NOT resubmitted. Re-run --resubmit for them in a few minutes.
+```
+
 `--status`/`--report`/`--resubmit`/`--kill`은 **넷 중 하나만** 쓸 수 있다(동시 지정 시 에러).
 넷 다 새 task를 제출하지 않고 기존 `crab_projects/crab_*` 프로젝트에 대해서만 동작하며,
 `--process`/`--era` 필터를 존중한다. `--kill`은 job만 죽일 뿐 프로젝트 디렉토리를 지우지

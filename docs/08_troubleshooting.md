@@ -2,7 +2,7 @@
 
 > **목적**: 개발·운영 중 실제로 발생했던 문제의 전 목록. 같은 문제를 두 번 디버깅하지 않기 위함.
 > **대상 독자**: 빌드/실행/CRAB/검증에서 뭔가 깨진 사람.
-> **상태**: 살아있는 문서 — 항목은 해결 시마다 추가. 마지막 갱신 2026-07-05.
+> **상태**: 살아있는 문서 — 항목은 해결 시마다 추가. 마지막 갱신 2026-07-27 (T-18).
 > **관련**: 환경 기인 항목의 일반화는 [09_environment.md](09_environment.md), 원 기록은 [legacy/](legacy/) 동결 문서들.
 
 형식: **T-n | 증상 | 원인 | 해결** (+ 재발 방지가 코드에 어떻게 박혔는지).
@@ -36,3 +36,7 @@
 - **T-15 부수**: 같은 빌드에서 `-Wcomment`(multi-line comment) 경고가 여러 도구에서 발생 — `//` 주석 줄 끝의 `\`(예시 명령 줄바꿈)를 컴파일러가 comment continuation으로 해석. 무해하나, 주석 예시에서 줄 끝 `\`를 제거해 정리함.
 - **T-16** | 첫 CRAB 제출이 `Cannot find CMSSW configuration file .../run_ttbarIdExtend_cfg.py`로 전량 실패, 이후 재제출은 `[skip] project dir already exists` / `--status`·`--resubmit`은 `Cannot find .requestcache file` | (1) `psetName`이 CWD-상대 경로여서 `src/`가 아닌 데서 실행 시 못 찾음(v12.2에서 절대경로로 수정). (2) 실패한 제출도 `crab_projects/crab_<req>/` 껍데기(`crab.log`·`inputs`·`results`만, `.requestcache` 없음)를 만들고, submit은 이 디렉토리가 있으면 skip, status/resubmit은 `.requestcache`가 없어 실패 | psetName 절대경로 수정본으로 교체 후: **빈 프로젝트 디렉토리 삭제** `rm -rf crab_projects/crab_*_2017_extend` → `source /cvmfs/cms.cern.ch/common/crab-setup.sh`(세션당 1회, `CRABClient` 로드) → `python3 crab/submit_ttbarIdExtend.py --process TT4b --max-files 5`로 스모크. `.requestcache`가 생겨야 제출 성공 = 이후 `--status`/`--resubmit` 동작.
 - **T-17** | CRAB `--status`가 전 태스크 `Status on the CRAB server: SUBMITREFUSED` + `Permission denied ... write check at destination site fails` + `gfal-copy ... davs://eoscms.cern.ch:443/eos/cms/store/user/... HTTP 403 : Permission refused` | `storage_site: T2_CH_CERN` + `out_lfn_base: /store/user/...` 조합이 목적지를 **CMS 실험 EOS** `/eos/cms/store/user/`로 보냈고, 그 영역은 별도 CMS-EOS 쓰기 활성화가 필요해 stageout 사전 write-check가 403으로 거부됨. (task는 CRAB 서버까지 등록됐으나 grid로 안 나감 = SUBMITREFUSED. `--status`가 이 정보를 정상 조회한 것이므로 `[status ok]`는 맞음.) | lxplus **개인 EOS**(`/eos/user/<u>/<user>/`)로 보내려면 `storage_site: T3_CH_CERNBOX` 로 바꾼다(v12.4). 제출 전 `crab checkwrite --site=T3_CH_CERNBOX --lfn=/store/user/<user>`로 권한 확인. SUBMITREFUSED된 task의 프로젝트 디렉토리(`crab_projects/crab_*`)는 재제출 전에 지운다(`rm -rf crab_projects/crab_*_2017_extend`) — 안 지우면 submit이 skip. CMS EOS(`/eos/cms/...`)가 꼭 필요하면 `crab checkwrite`로 확인 후 활성화를 CMS computing에 요청.
+
+## UL18 캠페인 운영 (실측, 2026-07-27)
+
+- **T-18** | `--resubmit` 이 `resubmitted : 3` 이라고 했는데 실제로 재제출된 건 **2개**였다 (2026-07-27, UL18 진행 중) | `crabCommand("resubmit", ...)` 의 결과 통보가 일관되지 않다. 세 가지가 두 라벨로 뭉개졌다: ① `Found no jobs to resubmit. Only jobs in status failed can be resubmitted.` → **예외를 던진다** 그래서 `[resubmit FAILED]` 로 찍혔는데 이건 **실패한 job 이 없다는 좋은 소식**이다. ② `The task has not been submitted to the Grid scheduler yet ... will not proceed with the resubmission.` → **예외를 안 던진다.** CRAB 이 stdout 에 거부 사유만 찍고 정상 반환하므로 코드가 `[resubmit ok]` 를 찍고 **성공으로 집계**했다 — 아무것도 재큐되지 않았는데 "재제출됨"으로 보이는 게 위험한 쪽이다. ③ `Resubmit request sent to the server.` → 유일한 진짜 성공. | `crab_action_one()` 이 CRAB 의 stdout/stderr 를 캡처해 그대로 되돌려 찍고(`    | ` 접두사), `classify_resubmit()` 으로 **sent / nothing / refused / unclear / error** 로 분류한다. 집계는 **`sent` 만** 재제출로 센다. 요약 끝에 outcome breakdown 과 `NOTE: 'refused' tasks were NOT resubmitted` 를 찍는다. 사용자 로그의 5가지 문자열로 분류기 회귀 테스트 통과(v13.9). `refused` 는 몇 분 뒤 `--resubmit` 재실행하면 된다 — task 가 CRAB 서버엔 있지만 아직 grid scheduler 로 안 나간 과도 상태다.
