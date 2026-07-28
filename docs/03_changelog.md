@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.18).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.19).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -761,4 +761,33 @@ CERN 문서의 방법 1 을 적용했다:
 맨 `/eos/` 가 남아 있으면 제출 전에 FATAL. 정규식은 실패했던 5줄 + 정상 6줄로 단위 검증
 (`root://eosuser.cern.ch//eos/...` 통과, 맨 `/eos/` 차단). XRootD 의 **호스트 뒤 슬래시 2개**도
 따로 검증했다 — `rstrip()` 으로 1개가 되는 실수를 그 검증에서 잡았다.
+
+---
+
+## 2026-07-28 — v13.19: proxy 를 schedd 가 읽을 수 있는 곳으로 (HOLD 해결)
+
+제출은 통과했는데 job 이 hold 됐다:
+
+> `Transfer input files failure at access point bigbird27 ... reading from file
+> /tmp/x509up_u148947: (errno 2) No such file or directory`
+
+**`/tmp` 은 노드 로컬**이다. 제출은 `lxplus9103`, 파일을 실어 보내는 것은 access point
+(`bigbird27`) — 거기엔 그 파일이 없다. 상세는 [08](08_troubleshooting.md) **T-24**.
+
+**내 preflight 의 결함**: "제출 노드에서 proxy 가 보이는가"만 봤다. 봐야 했던 것은 "**schedd 가**
+읽을 수 있는가"다. 그래서 31 PASS 를 주고도 hold 를 막지 못했다 — v13.16 에서 proxy 탐지를 고칠 때
+`/tmp` 라는 위치 자체가 문제라는 것까지 생각하지 못했다.
+
+`stage_proxy()` 신설:
+
+- 찾은 proxy 가 `/tmp/` 아래면 **`~/.x509up_condor` (AFS 홈)로 복사**, 권한 `0600`
+- git 작업 트리(`condor_val*/`)가 아니라 홈에 두는 이유: proxy 는 자격증명이다
+- **제출마다 복사** → 갱신된 proxy 가 자동 반영
+- preflight 는 `/tmp` proxy 를 **PASS 가 아니라 WARN** 으로 보고하고 복사 예정 위치를 출력
+
+단위 검증: `/tmp` → 홈 0600 사본(내용 동일) / 이미 공유 위치면 그대로 / preflight 는 복사하지 않음.
+
+**부수 관찰**: `condor_q -better-analyze` 가 `RequestMemory = 3000 (mb)` 로 보고했다 — 우리가 준
+2000 보다 크다(CERN 로컬 설정의 하한으로 보임). nano 쪽 사전 정렬(최악 ~586 MB)을 넣을 여유가
+그만큼 더 있다는 뜻이다.
 

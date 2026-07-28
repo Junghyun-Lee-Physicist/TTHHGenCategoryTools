@@ -288,9 +288,15 @@ def run_preflight(a, P, shorts):
         cb if ok_cb else "cannot determine -- pass --cmssw-base")
     add("PASS" if Path("/cvmfs/cms.cern.ch/cmsset_default.sh").is_file() else "FAIL",
         "cvmfs cmsset_default.sh", "/cvmfs/cms.cern.ch/cmsset_default.sh")
-    proxy = find_proxy(a.proxy)
+    proxy, note = stage_proxy(a.proxy, do_copy=False)
     if proxy:
-        add("PASS", "x509 proxy", proxy)
+        # A /tmp proxy is a FAIL, not a pass: preflight used to check only that
+        # the submit host could see it, which is the wrong machine.
+        if str(proxy).startswith("/tmp/"):
+            add("WARN", "x509 proxy on /tmp (node-local)",
+                "%s -- %s" % (proxy, note))
+        else:
+            add("PASS", "x509 proxy", proxy)
     else:
         # jobs read central NanoAOD over XRootD; without a proxy every job fails
         add("FAIL", "x509 proxy",
@@ -354,6 +360,38 @@ def find_proxy(explicit):
         if cand and Path(cand).is_file():
             return cand
     return None
+
+
+# Where a /tmp proxy gets copied so the schedd can read it. AFS home, not the
+# repo: it is a credential and does not belong in a git working tree.
+PROXY_COPY = Path.home() / ".x509up_condor"
+
+
+def stage_proxy(explicit, do_copy=True):
+    """Return a proxy path the SCHEDD can read, copying it out of /tmp if needed.
+
+    WHY (2026-07-28, job 13284914 went on hold):
+        Hold reason: Transfer input files failure at access point bigbird27
+        ... reading from file /tmp/x509up_u148947: (errno 2) No such file
+    /tmp is NODE-LOCAL. The submit host (lxplus9103) is not the access point
+    (bigbird27), so a /tmp path in x509userproxy is unreadable exactly when
+    condor needs it. AFS home is visible to the AP, so copy the proxy there.
+    Copying on every submit also means a refreshed proxy is picked up.
+    """
+    src = find_proxy(explicit)
+    if src is None:
+        return None, None
+    if not str(src).startswith("/tmp/"):
+        return src, None                      # already somewhere shared
+    if not do_copy:
+        return src, "would copy to %s" % PROXY_COPY
+    try:
+        import shutil
+        shutil.copyfile(src, str(PROXY_COPY))
+        os.chmod(str(PROXY_COPY), 0o600)      # a proxy is a credential
+    except OSError as exc:
+        return src, "COPY FAILED (%s) -- submission will go on hold" % exc
+    return str(PROXY_COPY), "copied from %s (schedd cannot read /tmp)" % src
 
 
 def shutil_which(x):
@@ -545,7 +583,10 @@ def write_condor(a, P, plan):
     if not dest_url.endswith("/"):
         dest_url += "/"
 
-    proxy = find_proxy(a.proxy) or ""
+    proxy, note = stage_proxy(a.proxy)
+    if note:
+        print("[proxy] %s -> %s" % (note, proxy))
+    proxy = proxy or ""
     image_line = ("" if a.no_container
                   else 'MY.SingularityImage = "%s"\n' % a.container)
     sub = work / "match.sub"

@@ -291,6 +291,17 @@ int main(int argc, char** argv) {
   }
 
   // ---- part cache (one resident part) ----
+  // Memory resident = ONE part. Row is 32 B (Key 16 + 4 Int_t), part is 500k
+  // rows -> 16 MB, independent of sample size. That is the whole point of this
+  // tool: the in-memory variant would need ~15-38 GB for TTToSemiLeptonic.
+  //
+  // partLoads counts how often the cache had to be refilled. It is the direct
+  // measure of whether the nano traversal order thrashes the cache:
+  //   partLoads ~= number of parts        -> a clean monotone sweep (ideal)
+  //   partLoads >> number of parts        -> thrashing; each miss is a 16 MB
+  //                                          read, so this dominates runtime
+  // Reported in the summary and in --json so it is a number, not a guess.
+  Long64_t partLoads = 0;
   int cachedPart = -1;
   std::vector<Row> cache;   // sorted by key
 
@@ -320,6 +331,7 @@ int main(int argc, char** argv) {
     for (Long64_t i = 0; i < n; ++i) { t->GetEntry(i); cache.push_back(r); }
     f->Close(); delete f;
     cachedPart = pidx;
+    ++partLoads;
     // parts are globally sorted, so each part is already sorted; assert-lite:
     // (we trust sortSplitExtend; no re-sort to keep it light)
   };
@@ -425,6 +437,9 @@ int main(int argc, char** argv) {
   std::printf("[matchSorted]   unmatched    : %lld  (nano events not in extend file; expected if extend file is a subset)\n", unmatched);
   std::printf("[matchSorted]   agree        : %lld\n", agree);
   std::printf("[matchSorted]   disagree     : %lld\n", disagree);
+  std::printf("[matchSorted]   part loads   : %lld  (parts in index = %d;"
+              " ~equal = clean sweep, >> = cache thrashing)\n",
+              partLoads, (int)parts.size());
   if (!disagreeBySub.empty()) {
     std::printf("[matchSorted]   disagreements by nano sub-code:\n");
     for (const auto& kv : disagreeBySub)
@@ -466,6 +481,8 @@ int main(int argc, char** argv) {
     std::fprintf(jf, "  \"sorted_dir\": \"%s\",\n", args.sortedDir.c_str());
     std::fprintf(jf, "  \"nano_filelist\": \"%s\",\n", args.nanoFilelist.c_str());
     std::fprintf(jf, "  \"nano_files\": %d,\n", (int)nanoFiles.size());
+    std::fprintf(jf, "  \"parts_in_index\": %d,\n", (int)parts.size());
+    std::fprintf(jf, "  \"part_loads\": %lld,\n", (long long)partLoads);
     std::fprintf(jf, "  \"nano_entries\": %lld,\n", (long long)nano.GetEntries());
     std::fprintf(jf, "  \"nano_entries_opencheck\": %lld,\n", (long long)expNano);
     std::fprintf(jf, "  \"matched\": %lld,\n",   (long long)matched);

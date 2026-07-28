@@ -57,7 +57,9 @@ DEFAULT_EOS = "/eos/user/j/junghyun/TTHHGenCategoryTools"
 VIOL_KEYS = ["viol_ext_but_lt3", "viol_ge3_not_ext",
              "viol_prefix_changed", "viol_le2_changed"]
 SUM_KEYS = (["nano_entries", "nano_entries_opencheck", "matched", "unmatched",
-             "agree", "disagree", "nAddBJets_ge3", "expanded_sub_in_set"]
+             "agree", "disagree", "nAddBJets_ge3", "expanded_sub_in_set",
+             # performance diagnostic, not a correctness criterion
+             "part_loads"]
             + VIOL_KEYS)
 MAP_KEYS = ["expanded_sub_counts", "orig_sub_of_reclassified",
             "disagree_by_nano_sub"]
@@ -255,6 +257,13 @@ def main():
         for name, o, detail in crit:
             mark = "ok  " if o is True else ("SKIP" if o is None else "FAIL")
             print("    [%s] %-30s %s" % (mark, name, detail))
+        if agg["chunks_found"] and agg["part_loads"]:
+            # Not a PASS/FAIL criterion -- a performance readout. High loads per
+            # chunk mean the nano traversal order is thrashing the 16 MB part
+            # cache, which shows up as wall time, not as a wrong answer.
+            print("    part loads (all chunks): %s   [%s per chunk]"
+                  % (fmt(agg["part_loads"]),
+                     fmt(agg["part_loads"] // max(1, agg["chunks_found"]))))
         if agg["chunks_found"]:
             print("    tt+bbb (61+62) : %s     tt+4b (71+72) : %s"
                   % (fmt(sum(v for k, v in agg["expanded_sub_counts"].items()
