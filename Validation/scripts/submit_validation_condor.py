@@ -36,6 +36,26 @@
 #   * SMOKE FIRST. --smoke submits exactly ONE chunk of ONE sample so the first
 #     thing you look at is a single job log, not 49 of them.
 #
+# WHERE TO RUN THIS, AND WHY IT MATTERS (2026-07-28, found by --preflight)
+#   `condor_submit` does NOT exist inside the cmssw-el7 container, only on the
+#   EL9 lxplus host. But the Validation binaries are built inside that container
+#   (slc7_amd64_gcc700 / ROOT 6.14) and cannot run on a bare EL9 worker. So:
+#
+#       SUBMIT   from the EL9 host        (that is where condor_submit lives)
+#       EXECUTE  inside an EL7 container  (that is where the binary runs)
+#
+#   Therefore this script does NOT use `getenv = True`. Shipping the host's EL9
+#   environment into an EL7 payload would be actively wrong. Instead the submit
+#   file asks HTCondor for the container image (MY.SingularityImage) and the
+#   generated job script sets up CMSSW from cvmfs itself:
+#       source /cvmfs/cms.cern.ch/cmsset_default.sh
+#       cd <CMSSW_BASE>/src && eval `scramv1 runtime -sh`
+#   That makes each job self-contained and independent of how it was submitted.
+#
+#   --no-container is available if you ever rebuild the tools against a native
+#   EL9 ROOT (e.g. an LCG view) -- the docs do say Validation is CMSSW-agnostic
+#   -- but do NOT use it with a container-built binary.
+#
 # USAGE
 #   # 0) one-time: sort every sample (idempotent, skips completed ones)
 #   python3 scripts/submit_validation_condor.py --era 2018 --sort-only
@@ -73,6 +93,11 @@ SHORTS = ["tt4b", "ttbb_Hadronic", "ttbb_SemiLeptonic", "ttbb_2L2Nu",
 SMOKE_SHORT = "ttbb_2L2Nu"
 
 DEFAULT_EOS = "/eos/user/j/junghyun/TTHHGenCategoryTools"
+
+# EL7 image on cvmfs, so an slc7_amd64_gcc700 / ROOT 6.14 payload can run on the
+# EL9 condor workers. Verified by --preflight before use.
+DEFAULT_IMAGE = ("/cvmfs/unpacked.cern.ch/registry.hub.docker.com/"
+                 "cmssw/el7:x86_64")
 
 
 def parse_args():
@@ -113,7 +138,17 @@ def parse_args():
                    help='+JobFlavour (default "workday" = 8 h; a 20-file chunk '
                         'measured well under 1 h, but WAN reads are variable).')
     p.add_argument("--proxy", default=None,
-                   help="x509 proxy path; default $X509_USER_PROXY.")
+                   help="x509 proxy path. Default: $X509_USER_PROXY, else the "
+                        "conventional /tmp/x509up_u<uid>.")
+    p.add_argument("--container", default=DEFAULT_IMAGE,
+                   help="Container image for the payload (EL7, to match the "
+                        "slc7/ROOT-6.14 build). Default: %(default)s")
+    p.add_argument("--no-container", action="store_true",
+                   help="Do not request a container. ONLY correct if the "
+                        "binaries were built against a native EL9 ROOT.")
+    p.add_argument("--cmssw-base", default=None,
+                   help="CMSSW release the job should set up. Default: "
+                        "$CMSSW_BASE, else derived from this script's path.")
     return p.parse_args()
 
 
@@ -121,6 +156,8 @@ def parse_args():
 # paths
 # ---------------------------------------------------------------------------
 def resolve_paths(a):
+    """All paths absolute: condor resolves relative names against the submit
+    dir, and transfer_output_remaps in particular is fragile with them."""
     era = a.era
     d = {}
     d["extend_dir"] = Path(a.extend_filelist_dir or
@@ -130,7 +167,22 @@ def resolve_paths(a):
     d["sorted_base"] = Path(a.sorted_base or ("%s/sorted%s" % (DEFAULT_EOS, era)))
     d["out_base"] = Path(a.out_base or ("%s/valout%s" % (DEFAULT_EOS, era)))
     d["bin_dir"] = Path(a.bin_dir or (VAL_ROOT / "bin"))
+    for k in list(d):
+        d[k] = d[k].resolve()
     return d
+
+
+def guess_cmssw_base():
+    """Walk up from this script to the release top (the dir containing src/).
+
+    Lets the job set up the right release even when the submitting shell has no
+    CMSSW environment -- which is the normal case now that we submit from the
+    EL9 host rather than from inside the container.
+    """
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "src").is_dir() and parent.name.startswith("CMSSW"):
+            return str(parent)
+    return ""
 
 
 def chunks_for(nano_dir, short):
@@ -186,15 +238,41 @@ def run_preflight(a, P, shorts):
         add("PASS" if p.is_file() and os.access(p, os.X_OK) else "FAIL",
             "binary %s" % exe,
             str(p) if p.is_file() else "MISSING -- run `make -j4` in Validation/")
-    add("PASS" if shutil_which("condor_submit") else "FAIL", "condor_submit",
-        shutil_which("condor_submit") or "not on PATH")
-    proxy = a.proxy or os.environ.get("X509_USER_PROXY") or ""
-    if proxy and Path(proxy).is_file():
+    cs = shutil_which("condor_submit")
+    if cs:
+        add("PASS", "condor_submit", cs)
+    else:
+        # This is the normal state INSIDE cmssw-el7: the condor client lives on
+        # the EL9 host only. Submitting is a host-side action; the payload runs
+        # in a container (see the header).
+        add("FAIL", "condor_submit",
+            "not on PATH -- are you inside cmssw-el7? Submit from the EL9 host "
+            "(type `exit` first); the jobs still run in an EL7 container.")
+
+    if a.no_container:
+        add("WARN", "container",
+            "--no-container: only valid for a native-EL9 build of the tools")
+    else:
+        img = a.container
+        # Singularity images live on cvmfs; a missing path means every job would
+        # fail to start, which is worth catching before 49 submissions.
+        add("PASS" if Path(img).exists() else "FAIL", "container image",
+            img if Path(img).exists() else "%s NOT FOUND on cvmfs" % img)
+
+    cb = a.cmssw_base or os.environ.get("CMSSW_BASE") or guess_cmssw_base()
+    ok_cb = bool(cb) and Path(cb, "src").is_dir()
+    add("PASS" if ok_cb else "FAIL", "CMSSW base for job env",
+        cb if ok_cb else "cannot determine -- pass --cmssw-base")
+    add("PASS" if Path("/cvmfs/cms.cern.ch/cmsset_default.sh").is_file() else "FAIL",
+        "cvmfs cmsset_default.sh", "/cvmfs/cms.cern.ch/cmsset_default.sh")
+    proxy = find_proxy(a.proxy)
+    if proxy:
         add("PASS", "x509 proxy", proxy)
     else:
         # jobs read central NanoAOD over XRootD; without a proxy every job fails
         add("FAIL", "x509 proxy",
-            "not found -- voms-proxy-init -voms cms -rfc --valid 168:00")
+            "not found (checked --proxy, $X509_USER_PROXY, /tmp/x509up_u%d) -- "
+            "voms-proxy-init -voms cms -rfc --valid 168:00" % os.getuid())
 
     # output base must not be AFS (quota + 25 h token lifetime, T-21/T-22)
     ob = str(P["out_base"])
@@ -221,6 +299,13 @@ def run_preflight(a, P, shorts):
             str(P["sorted_base"] / s) if ready
             else "not sorted yet -- run --sort-only first")
 
+    # The jobs read the sorted parts from EOS POSIX directly. That is standard on
+    # lxplus batch, but it IS an assumption about the worker, so say so instead of
+    # letting a 49-job failure explain it. The job script exits 125 with a clear
+    # message if index.txt is unreadable.
+    add("WARN", "worker must see EOS (POSIX)",
+        "%s -- verified by --smoke, job exits 125 with a clear message if not"
+        % P["sorted_base"])
     add("PASS", "total condor jobs", str(total_jobs))
     n_fail = sum(1 for l, _, _ in rows if l == "FAIL")
     n_warn = sum(1 for l, _, _ in rows if l == "WARN")
@@ -230,6 +315,22 @@ def run_preflight(a, P, shorts):
     print("RESULT: %s" % ("NOT READY -- fix the FAIL items" if n_fail
                           else "READY" + (" (review WARNs)" if n_warn else "")))
     return 1 if n_fail else 0
+
+
+def find_proxy(explicit):
+    """Locate the x509 proxy.
+
+    voms-proxy-init writes /tmp/x509up_u<uid> and does NOT export
+    X509_USER_PROXY, so checking only the env var reports "no proxy" on a
+    perfectly good session -- which is exactly what the first --preflight run
+    did on 2026-07-28.
+    """
+    for cand in (explicit,
+                 os.environ.get("X509_USER_PROXY"),
+                 "/tmp/x509up_u%d" % os.getuid()):
+        if cand and Path(cand).is_file():
+            return cand
+    return None
 
 
 def shutil_which(x):
@@ -280,13 +381,40 @@ JSON_OUT="$4"        # local name; condor ships it back
 ROOT_OUT="$5"
 
 echo "[job] host=$(hostname)"
-echo "[job] date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "[job] date=$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)"
+echo "[job] pwd=$(pwd)"
+echo "[job] os=$(cat /etc/redhat-release 2>/dev/null || echo unknown)"
 echo "[job] chunk=${NANO_CHUNK}  label=${LABEL}"
 echo "[job] sorted=${SORTED_DIR}"
-echo "[job] nano files in chunk: $(wc -l < "${NANO_CHUNK}")"
 
-MATCH="%(match_bin)s"
-test -x "${MATCH}" || { echo "[job] FATAL: matcher not executable: ${MATCH}"; exit 127; }
+# ---------------------------------------------------------------------------
+# Environment. We do NOT rely on `getenv = True`: this job is submitted from the
+# EL9 lxplus host but the payload is an slc7_amd64_gcc700 / ROOT 6.14 binary
+# running inside an EL7 container, so the submitter's environment is the WRONG
+# one to inherit. Set up the release from cvmfs instead -- that makes the job
+# reproducible regardless of how it was launched.
+# ---------------------------------------------------------------------------
+%(env_setup)s
+echo "[job] which root-config: $(which root-config 2>/dev/null || echo NONE)"
+echo "[job] SCRAM_ARCH=${SCRAM_ARCH:-unset}"
+
+# Transferred into the scratch dir by condor (see transfer_input_files).
+MATCH="./$(basename "%(match_bin)s")"
+chmod +x "${MATCH}" 2>/dev/null || true
+if [ ! -x "${MATCH}" ]; then
+  echo "[job] FATAL: matcher not executable: ${MATCH}"
+  echo "[job]        expected it to be transferred into $(pwd); ls follows:"
+  ls -la
+  exit 127
+fi
+if [ ! -r "${NANO_CHUNK}" ]; then
+  echo "[job] FATAL: nano chunk not readable: ${NANO_CHUNK}"; exit 126
+fi
+echo "[job] nano files in chunk: $(wc -l < "${NANO_CHUNK}")"
+if [ ! -r "${SORTED_DIR}/index.txt" ]; then
+  echo "[job] FATAL: no index.txt under ${SORTED_DIR} (sample not sorted?)"
+  exit 125
+fi
 
 # NOTE: no --allow-missing-files here, deliberately. If a nano file in this
 # chunk cannot be read after the built-in retries, this job MUST fail (exit 4)
@@ -299,10 +427,12 @@ test -x "${MATCH}" || { echo "[job] FATAL: matcher not executable: ${MATCH}"; ex
     --out            "${ROOT_OUT}"
 rc=$?
 echo "[job] matchTtbarIdSorted exit=${rc}"
-# Emit the JSON into the job stdout too, so a lost transfer still leaves the
-# numbers recoverable from the condor .out file.
+# Emit the JSON into the job stdout too, so a lost file transfer still leaves
+# the numbers recoverable from the condor .out file.
 if [ -f "${JSON_OUT}" ]; then
   echo "[job] ---- BEGIN JSON ----"; cat "${JSON_OUT}"; echo "[job] ---- END JSON ----"
+else
+  echo "[job] WARNING: no JSON produced"
 fi
 echo "[job] done rc=${rc}"
 exit ${rc}
@@ -313,7 +443,10 @@ executable              = %(run_sh)s
 arguments               = $(chunk) $(sorted) $(label) $(json) $(rootout)
 should_transfer_files   = YES
 when_to_transfer_output = ON_EXIT
-transfer_input_files    = $(chunk)
+# The matcher is TRANSFERRED, not read from AFS: a condor worker has no AFS
+# token for this home directory, so reading bin/ over AFS would fail. Its
+# ROOT libraries come from cvmfs via the cmsenv done inside the job.
+transfer_input_files    = $(chunk), %(match_bin)s
 transfer_output_files   = $(json), $(rootout)
 transfer_output_remaps  = "$(json) = %(jsondir)s/$(json) ; $(rootout) = %(rootdir)s/$(rootout)"
 output                  = %(logdir)s/$(label).$(ClusterId).$(ProcId).out
@@ -321,8 +454,9 @@ error                   = %(logdir)s/$(label).$(ClusterId).$(ProcId).err
 log                     = %(logdir)s/$(label).$(ClusterId).log
 request_memory          = %(memory)d
 request_cpus            = 1
-getenv                  = True
-%(proxy_line)s+JobFlavour            = "%(flavour)s"
+# getenv is deliberately False: submitted from EL9, executed in EL7 (see header).
+getenv                  = False
+%(image_line)s%(proxy_line)s+JobFlavour            = "%(flavour)s"
 queue chunk, sorted, label, json, rootout from %(argsfile)s
 """
 
@@ -336,8 +470,25 @@ def write_condor(a, P, plan):
     for d in (work, logdir, jsondir, rootdir):
         d.mkdir(parents=True, exist_ok=True)
 
+    cmssw_base = (a.cmssw_base or os.environ.get("CMSSW_BASE")
+                  or guess_cmssw_base())
+    if a.no_container:
+        env_setup = ('echo "[job] --no-container: expecting root-config already '
+                     'on PATH"')
+    else:
+        if not cmssw_base:
+            sys.exit("FATAL: cannot determine CMSSW base for the job "
+                     "environment. Pass --cmssw-base /path/to/CMSSW_X_Y_Z.")
+        env_setup = ("source /cvmfs/cms.cern.ch/cmsset_default.sh\n"
+                     'cd "%s/src" || { echo "[job] FATAL: no %s/src"; exit 124; }\n'
+                     "eval `scramv1 runtime -sh`\n"
+                     "cd - >/dev/null" % (cmssw_base, cmssw_base))
+
     run_sh = work / "run_match.sh"
-    run_sh.write_text(RUN_SH % {"match_bin": P["bin_dir"] / "matchTtbarIdSorted"})
+    run_sh.write_text(RUN_SH % {
+        "match_bin": P["bin_dir"] / "matchTtbarIdSorted",
+        "env_setup": env_setup,
+    })
     run_sh.chmod(0o755)
 
     argsfile = work / "match.args"
@@ -346,11 +497,15 @@ def write_condor(a, P, plan):
             fh.write("%s, %s, %s, %s, %s\n"
                      % (chunk, P["sorted_base"] / short, short, jname, rname))
 
-    proxy = a.proxy or os.environ.get("X509_USER_PROXY") or ""
+    proxy = find_proxy(a.proxy) or ""
+    image_line = ("" if a.no_container
+                  else 'MY.SingularityImage = "%s"\n' % a.container)
     sub = work / "match.sub"
     sub.write_text(SUB % {
         "run_sh": run_sh, "logdir": logdir, "jsondir": jsondir,
+        "match_bin": P["bin_dir"] / "matchTtbarIdSorted",
         "rootdir": rootdir, "memory": a.memory, "flavour": a.flavour,
+        "image_line": image_line,
         "proxy_line": ("x509userproxy = %s\n" % proxy) if proxy else "",
         "argsfile": argsfile,
     })

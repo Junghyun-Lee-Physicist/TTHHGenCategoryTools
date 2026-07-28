@@ -214,19 +214,36 @@ done
 (실측 CPU 효율 25%) nano chunk 단위로 쪼개면 **1~2시간**이 된다.
 근거·경위는 [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) **T-22**.
 
+> ### ⚠️ 실행 위치가 단계마다 다르다
+> `condor_submit` 은 **cmssw-el7 컨테이너 안에 없다** — EL9 호스트에만 있다. 반면
+> `Validation/bin/*` 는 그 컨테이너에서 빌드된 slc7 / ROOT 6.14 바이너리라 EL9 워커에서
+> 그냥은 돌지 않는다. 그래서:
+>
+> | 단계 | 어디서 | 왜 |
+> |---|---|---|
+> | `make`, `--sort-only` | **컨테이너 안** (`cmssw-el7` + `cmsenv`) | 바이너리를 빌드·실행 |
+> | `--preflight`, `--smoke`, 전량 제출 | **EL9 호스트** (`exit` 로 나온 뒤) | `condor_submit` 이 거기 있음 |
+> | job 실행 | 자동으로 **EL7 컨테이너** | `MY.SingularityImage` 로 요청 |
+>
+> 그래서 submitter 는 `getenv = True` 를 **쓰지 않는다** — EL9 호스트 환경을 EL7 payload 에
+> 물려주는 건 틀린 짓이다. 대신 job 스크립트가 cvmfs 에서 직접 릴리스를 세팅한다
+> (`cmsset_default.sh` → `scramv1 runtime -sh`). 바이너리도 AFS 에서 읽지 않고
+> **transfer 한다** — 워커에는 이 홈 디렉토리의 AFS 토큰이 없다.
+
 ```bash
-# (0) 사전 점검 — 아무것도 쓰지 않는다
+# (0) 사전 점검 — 아무것도 쓰지 않는다.  ※ EL9 호스트에서 (컨테이너 밖)
 python3 scripts/submit_validation_condor.py --era 2018 --preflight
 
-# (1) 전 샘플 정렬 (로컬·직렬. 소형은 수 초, 대형은 10~36분. 이미 된 것은 skip)
+# (1) 전 샘플 정렬  ※ 컨테이너 안에서 (cmssw-el7 + cmsenv)
+#     로컬·직렬. 소형은 수 초, 대형은 10~36분. 이미 된 것은 skip
 python3 scripts/submit_validation_condor.py --era 2018 --sort-only
 
-# (2) 스모크 — 1샘플 1 chunk 만 제출해서 job 로그 한 장을 먼저 본다
+# (2) 스모크 — 1샘플 1 chunk.  ※ EL9 호스트에서
 python3 scripts/submit_validation_condor.py --era 2018 --smoke
 condor_q
 #   끝나면: /eos/user/j/junghyun/TTHHGenCategoryTools/valout2018/logs/*.out 확인
 
-# (3) 전량 제출
+# (3) 전량 제출  ※ EL9 호스트에서
 python3 scripts/submit_validation_condor.py --era 2018
 
 # (4) 합산 + 판정 (샘플별 PASS/FAIL 한 장)

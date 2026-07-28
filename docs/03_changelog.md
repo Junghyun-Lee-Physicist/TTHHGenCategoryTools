@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.15).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.16).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -669,4 +669,40 @@ truncation 전파도 확인. **condor 제출 경로는 이 환경에서 검증 �
 
 `Validation/README.md` **§4.0** 을 권장 경로로 신설하고, 기존 §4.1 인터랙티브 절차는
 "스팟체크용"으로 강등했다. `.gitignore` 에 `valout*/`·`match_*.root`·`.done_*` 추가.
+
+---
+
+## 2026-07-28 — v13.16: condor 실행 환경 수정 (첫 `--preflight` 이 두 개를 잡았다)
+
+v13.15 를 실기기에서 `--preflight` 돌렸더니 FAIL 2건. **둘 다 실제 문제였고 하나는 설계 결함**이다.
+
+**① `condor_submit not on PATH` — 실행 환경이 갈린다는 것을 내가 놓쳤다.**
+`condor_submit` 은 cmssw-el7 컨테이너에 없고 **EL9 호스트**에만 있다. 반면 `Validation/bin/*` 는
+그 컨테이너에서 빌드된 **slc7_amd64_gcc700 / ROOT 6.14** 바이너리라 EL9 워커에서 못 돈다. 즉
+
+> **제출 = EL9 호스트 · 실행 = EL7 컨테이너**
+
+v13.15 는 `submit_hist_condor.py` 를 따라 `getenv = True` 를 썼는데, 그건 **EL9 호스트 환경을 EL7
+payload 에 물려주는** 잘못이다. 수정:
+
+- `getenv = False`, 대신 submit 파일이 `MY.SingularityImage` 로 EL7 이미지를 요청
+  (`--container` 로 교체 가능, preflight 가 cvmfs 경로 존재를 확인)
+- job 스크립트가 **스스로** `source /cvmfs/cms.cern.ch/cmsset_default.sh` →
+  `scramv1 runtime -sh` 로 릴리스를 세팅 → 어떻게 제출됐는지와 무관하게 재현 가능
+- **바이너리를 transfer** 한다 — 워커에는 이 홈의 AFS 토큰이 없어 `bin/` 을 AFS 로 읽으면 실패한다.
+  ROOT 라이브러리는 cvmfs 에서 오므로 실행 파일만 옮기면 충분하다
+- 생성 파일의 모든 경로를 **절대경로**로 (`transfer_output_remaps` 가 상대경로에 특히 취약)
+- job 스크립트에 단계별 가드 + 고유 exit code. **실측 확인**: 바이너리 없음 **127** /
+  sorted `index.txt` 없음 **125** / chunk 없음 **126**. 원인이 로그 첫 줄에 뜬다
+- 남은 **가정 하나를 명시**: sorted part 를 EOS POSIX 로 직접 읽는다(lxplus batch 관례).
+  `index.txt` 가 `ifstream` 이라 XRootD URL 로 대체할 수 없어서다. preflight 가 이걸 WARN 으로
+  띄우고, 안 보이면 job 이 125 로 분명히 죽는다 — 49 job 이 조용히 실패하는 것보다 낫다
+
+**② `x509 proxy not found` — preflight 자체의 버그.**
+`$X509_USER_PROXY` 만 보고 있었는데 `voms-proxy-init` 은 그 변수를 export 하지 않고
+`/tmp/x509up_u<uid>` 에 쓴다. 정상 발급된 세션을 FAIL 로 오진한 것. `--proxy` →
+`$X509_USER_PROXY` → `/tmp/x509up_u<uid>` 순으로 찾도록 수정.
+
+`Validation/README.md` §4.0 에 **단계별 실행 위치 표**(make/sort=컨테이너, preflight/제출=호스트,
+job=자동 EL7)를 넣었다. 이게 없으면 다음 사람이 같은 곳에서 막힌다.
 
