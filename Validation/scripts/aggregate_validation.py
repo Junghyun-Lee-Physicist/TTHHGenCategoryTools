@@ -201,7 +201,13 @@ def main():
     a = parse_args()
     era = a.era
     out_base = Path(a.out_base or ("%s/valout%s" % (DEFAULT_EOS, era)))
-    jsondir = out_base / "json"
+    # Condor's output_destination delivers every transferred output file into ONE
+    # flat directory (it cannot fan out into json/ and root/ sub-dirs), so the
+    # per-chunk JSON and ROOT files share results/. Fall back to the older
+    # json/ layout so summaries produced before 2026-07-28 still aggregate.
+    jsondir = out_base / "results"
+    if not jsondir.is_dir() and (out_base / "json").is_dir():
+        jsondir = out_base / "json"
     nano_dir = Path(a.nano_filelist_dir or
                     VAL_ROOT / "filelists" / ("nano%s" % era))
     xsec_path = a.xsec_db or (VAL_ROOT.parent.parent / "tempTTHH" / "data"
@@ -216,9 +222,11 @@ def main():
     print("  xsec db   : %s" % xsec_path)
     print("=" * 92)
     if not jsondir.is_dir():
-        sys.exit("FATAL: no json directory %s\n"
-                 "  Did the condor jobs run? Check %s/logs/"
-                 % (jsondir, out_base))
+        sys.exit("FATAL: no results directory %s\n"
+                 "  Did the condor jobs run? The condor .out/.err logs are on\n"
+                 "  AFS under <Validation>/condor_val<era>/logs/ -- each job also\n"
+                 "  echoes its JSON between 'BEGIN JSON'/'END JSON' there, so the\n"
+                 "  numbers survive even a failed EOS transfer." % jsondir)
 
     db = None if a.no_das_check else load_xsec_db(xsec_path)
     summary, all_ok = {}, True

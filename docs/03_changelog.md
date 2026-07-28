@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.17).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.18).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -732,4 +732,33 @@ MC 규약(lumisection 당 1000 event)과 일치한다.
 
 교훈: **사용자가 준 경로 표기를 보존한다.** 정규화가 곧 개선은 아니다. 이건 `--sort-only` 로그를
 읽다가 발견했다 — 스모크를 먼저 돌리는 순서가 여기서도 값을 했다.
+
+---
+
+## 2026-07-28 — v13.18: submit 파일에서 `/eos` 제거 (schedd 거부 해결)
+
+`--preflight` 는 31 PASS / 0 FAIL 로 통과했는데 실제 `condor_submit` 이 거부했다:
+
+> `Standard batch schedds cannot use /eos paths directly within the submit file.`
+
+**내가 구분하지 못한 것**: job 이 **런타임에** EOS 를 POSIX 로 읽는 것과, **제출 시점에** condor 가
+그 경로를 관리하도록 요구하는 것은 다른 문제다. 후자만 금지돼 있다. 상세는 [08](08_troubleshooting.md) **T-23**.
+
+CERN 문서의 방법 1 을 적용했다:
+
+| | 전 (거부) | 후 |
+|---|---|---|
+| `executable`, `args`, `output/error/log` | `--out-base` (EOS) | **`--work-base` (AFS)** — 기본 `Validation/condor_val<era>/` |
+| 결과 전송 | `transfer_output_remaps` → `/eos/...` | **`output_destination = root://eosuser.cern.ch//eos/.../results/`** |
+| sorted 경로 | condor argument | **job 스크립트에 baked-in** (스크립트 내용은 검사 대상 아님) |
+
+부수 변경: `output_destination` 은 한 디렉토리로만 보내므로 json/·root/ 분리가 불가능 →
+합산기가 `results/` 를 보도록 갱신(구 `json/` 레이아웃 fallback 유지). 로그는 AFS 로 가지만 KB
+단위라 quota 무관하고, **각 job 이 JSON 을 stdout 에도 찍으므로 EOS 전송이 실패해도 숫자는
+`.out` 에서 복구된다**.
+
+**재발 방지 2중**: `--work-base` 가 `/eos` 면 FATAL, 그리고 **생성된 `.sub` 를 스스로 grep** 해서
+맨 `/eos/` 가 남아 있으면 제출 전에 FATAL. 정규식은 실패했던 5줄 + 정상 6줄로 단위 검증
+(`root://eosuser.cern.ch//eos/...` 통과, 맨 `/eos/` 차단). XRootD 의 **호스트 뒤 슬래시 2개**도
+따로 검증했다 — `rstrip()` 으로 1개가 되는 실수를 그 검증에서 잡았다.
 
