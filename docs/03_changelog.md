@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.14).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.15).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -626,4 +626,47 @@ degrade 되고 반쪽 상태로 죽지 않는다).
 > 이스케이프는 파일에서는 ASCII 지만 `print()` 시점에는 non-ASCII 다. [09](09_environment.md)
 > 의 "ASCII-only 파일" 규칙이 이 경우를 못 막는다는 뜻이므로, 규칙을 **"출력 문자열은 ASCII"**
 > 로 읽어야 한다.
+
+---
+
+## 2026-07-28 — v13.15: 검증을 HTCondor 로 (submitter + JSON 카운터 + 합산기)
+
+사용자 지시: *"이런 작업 그냥 condor로 한 방에 되도록 만드는게 맞는 것 같은데. 왜 터미널
+3개에서 명령을 3개나 하고 있었지?"* 맞는 지적이고, 실측이 그걸 뒷받침한다 — 남은 대형
+3샘플이 **직렬 ~38시간**이다. 경위는 [08](08_troubleshooting.md) **T-22**.
+
+**신설**
+
+| 파일 | 역할 |
+|---|---|
+| `Validation/scripts/submit_validation_condor.py` | 정렬(`--sort-only`) → 스모크(`--smoke`) → 전량 제출. nano chunk 1개 = job 1개 |
+| `Validation/scripts/aggregate_validation.py` | chunk JSON 합산 + DAS 대조 → 샘플별 PASS/FAIL 1장 |
+| `matchTtbarIdSorted --json PATH` | 기계가 읽는 카운터(22 key). regex 긁기 대신 |
+
+**실측 근거**: 소형 매칭 11.5분(4.79 M) / 29분(8.05 M) → 대형 145·334·476 M 은 ~6·13·19시간.
+CPU 효율 25% 로, 병목은 계산이 아니라 **중앙 NanoAOD ~1.2 TB WAN 읽기**. 따라서 nano 를
+쪼개는 것이 정확히 맞는 축이다. 정렬은 반대로 싸다 — 146 M rows **10분54초**, peak RSS 881 MB.
+
+**설계 결정 4개**
+
+1. **파이프라인 통일** — 전 샘플 `sortSplitExtend` → `matchTtbarIdSorted`. "이 샘플은 정렬이
+   필요한가"를 손으로 판단하던 분기를 없앴고, job 메모리가 in-memory map 수 GB → **~16 MB**.
+2. **job = nano chunk** — `make_nano_filelists_das.sh` 가 `SPLIT_SIZE=20` 으로 이미 만들어 둔
+   split 을 소비(주석에 "per-condor-job splits" 라고 적혀 있던 그 용도). 대형 45 + 소형 4 job.
+3. **산출물 EOS 강제** — `--out-base` 가 `/afs/` 면 **FATAL 로 거부**. AFS quota(94% 실측)와
+   ~25시간 토큰이 6~19시간 job 과 양립하지 않는다는 것을 두 번의 `TFile::Flush` I/O error 로
+   확인했다.
+4. **합산기의 판정 기준에 완결성을 넣었다** — `all chunks present` 와
+   **`sum(nano_entries) == DAS nevents`** 가 1급 기준이다. T-21 의 교훈("`unmatched` 는 데이터
+   손실에 단조 감소하므로 단독으로는 완결성 증명이 될 수 없다")을 코드로 옮긴 부분이다.
+   `--no-das-check` 가 있지만 help 에 DISCOURAGED 로 표시.
+
+**검증 범위(정직하게)**: JSON 스키마·합산·판정 로직은 stub ROOT + 합성 fixture 로 확인했다.
+특히 **`unmatched 0` 이고 모든 chunk 가 내부적으로 깨끗한데 chunk 1개가 없는 경우 → DAS 대조가
+FAIL 을 잡아내는 것**을 재현했다(이게 T-21 사고의 정확한 형태다). disagree·불변식 위반·사후
+truncation 전파도 확인. **condor 제출 경로는 이 환경에서 검증 불가** — 그래서 `--preflight`
+(쓰기 없는 점검)와 `--smoke`(1샘플 1 chunk)를 먼저 통과시키는 순서를 문서·코드 양쪽에 박았다.
+
+`Validation/README.md` **§4.0** 을 권장 경로로 신설하고, 기존 §4.1 인터랙티브 절차는
+"스팟체크용"으로 강등했다. `.gitignore` 에 `valout*/`·`match_*.root`·`.done_*` 추가.
 

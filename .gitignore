@@ -39,3 +39,11 @@ __pycache__/
 *.swp
 .DS_Store
 ._*
+
+# Condor validation campaign (2026-07-28). Work/log/args files are regenerable;
+# the real outputs live on EOS (out-base), never here.
+Validation/condor_val*/
+Validation/valout*/
+Validation/scripts/__pycache__/
+Validation/match_*.root
+Validation/.done_*

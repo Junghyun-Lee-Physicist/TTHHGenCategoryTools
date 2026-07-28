@@ -206,7 +206,57 @@ done
 
 출력 로그의 `selected tt+nb rows`와 `tt+bbb(61+62) / tt+4b(71+72)` 개수는 같은 샘플의 match 검증 로그와 **정확히 일치**해야 한다 (일치 = 추출 정확). 2026-06에 산출된 7편(구 규약)은 [`lookup/`](lookup/README.txt)에 보존 — 두 규약을 한 디렉토리에 섞지 말 것.
 
-### 4.1 다른 연도(2018 UL) 복붙용 — 검증 + patch 추출 한 번에
+### 4.0 ★ 권장 경로 — HTCondor 로 전 샘플 한 번에 (2026-07-28 신설)
+
+**아래 §4.1 의 인터랙티브 절차는 소형 샘플 스팟체크용으로만 남긴다.** 전량 검증은
+직렬로 **~38시간**이다(실측 기반: 4.79 M nano 11.5분 / 8.05 M 29분 → 145·334·476 M 은
+각각 ~6·13·19시간). 병목은 CPU 가 아니라 중앙 NanoAOD **~1.2 TB WAN 읽기**이므로
+(실측 CPU 효율 25%) nano chunk 단위로 쪼개면 **1~2시간**이 된다.
+근거·경위는 [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) **T-22**.
+
+```bash
+# (0) 사전 점검 — 아무것도 쓰지 않는다
+python3 scripts/submit_validation_condor.py --era 2018 --preflight
+
+# (1) 전 샘플 정렬 (로컬·직렬. 소형은 수 초, 대형은 10~36분. 이미 된 것은 skip)
+python3 scripts/submit_validation_condor.py --era 2018 --sort-only
+
+# (2) 스모크 — 1샘플 1 chunk 만 제출해서 job 로그 한 장을 먼저 본다
+python3 scripts/submit_validation_condor.py --era 2018 --smoke
+condor_q
+#   끝나면: /eos/user/j/junghyun/TTHHGenCategoryTools/valout2018/logs/*.out 확인
+
+# (3) 전량 제출
+python3 scripts/submit_validation_condor.py --era 2018
+
+# (4) 합산 + 판정 (샘플별 PASS/FAIL 한 장)
+python3 scripts/aggregate_validation.py --era 2018 --json-out ~/val_summary_2018.json
+```
+
+설계 요점 네 가지:
+
+- **파이프라인 통일**: 소형·대형 구분 없이 전부 `sortSplitExtend` → `matchTtbarIdSorted`.
+  "이 샘플은 정렬이 필요한가?"를 손으로 판단할 일이 없어지고, job 당 메모리가
+  in-memory map 의 수 GB 대신 **~16 MB**(정렬 part 1개 상주)로 고정된다.
+- **job = nano chunk 1개**: `make_nano_filelists_das.sh` 가 이미 20파일씩 쪼개 둔
+  `nano<era>/<short>/file_<short>_<i>.txt` 를 그대로 쓴다(그 스크립트가 "per-condor-job
+  splits"라고 적어둔 바로 그 소비자다). job 은 `--sorted-dir` 를 **읽기만** 하므로 공유 안전.
+- **산출물은 EOS**: AFS 홈은 quota 제한(실측 10 GB 중 94% 사용)이고 토큰이 ~25시간이라
+  이 작업보다 짧다. 실제로 `SysError in <TFile::Flush> ... (Input/output error)` 를 두 번
+  맞았다. 그래서 `--out-base` 가 AFS 면 submitter 가 **거부**한다.
+- **합산기가 DAS 대조를 한다**: `unmatched` 는 데이터 손실에 대해 **단조 감소**라 그것만으로는
+  완결성을 증명할 수 없다(T-21). 그래서 `sum(nano_entries) == DAS nevents` 를 **1급 판정
+  기준**으로 넣었고, chunk JSON 이 하나라도 없으면 `all chunks present` 에서 FAIL 한다.
+
+> 판정 기준: `all chunks present` · `nano total == DAS nevents` · `unmatched 0` ·
+> `disagree 0` · 보존식 · 불변식 4종 0 · 전 chunk exit 0 — **전부 통과해야** PASS 다.
+> 2017 수치(tt+nb 1,882,170)는 2018 의 기준이 **아니다**.
+
+---
+
+### 4.1 다른 연도(2018 UL) 복붙용 — 인터랙티브 (스팟체크용)
+
+> **전량 검증에는 §4.0 을 쓴다.** 아래는 샘플 1~2개를 손으로 확인할 때만.
 
 §0.1 로 `filelists/sidecar2018/`·`filelists/nano2018/` 를 만든 뒤 실행한다.
 `ALLOW_MULTI_CRAB_SUBMISSION` 가드가 통과했다는 것은 샘플마다 CRAB 제출이 하나뿐임을

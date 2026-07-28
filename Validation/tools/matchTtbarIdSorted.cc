@@ -69,6 +69,7 @@ struct Args {
   std::string treeNano = "Events";
   int         dumpN = 0;
   bool allowMissing = false;   // --allow-missing-files (T-21)
+  std::string json;            // --json PATH: machine-readable counters
 };
 
 [[noreturn]] void usage(int code) {
@@ -77,6 +78,8 @@ struct Args {
     "  --sorted-dir DIR        directory from sortSplitExtend (partNNNNN.root + index.txt)\n"
     "  --nano-filelist PATH    text file, one central NanoAOD path per line\n"
     "  --out PATH              optional ROOT file with matched-event histograms\n"
+    "  --json PATH             write counters as JSON (for aggregation across\n"
+    "                          condor chunks; see scripts/aggregate_validation.py)\n"
     "  --label NAME            label for messages/histogram titles\n"
     "  --tree-nano NAME        nano tree name (default Events)\n"
     "  --dump-mismatches N     print up to N genTtbarId mismatches\n"
@@ -98,6 +101,7 @@ Args parseArgs(int argc, char** argv) {
     else if (s == "--label")          a.label        = need(i, "--label");
     else if (s == "--tree-nano")      a.treeNano     = need(i, "--tree-nano");
     else if (s == "--dump-mismatches")a.dumpN        = std::stoi(need(i, "--dump-mismatches"));
+    else if (s == "--json")           a.json         = need(i, "--json");
     else if (s == "--allow-missing-files") a.allowMissing = true;
     else if (s == "-h" || s == "--help") usage(0);
     else { std::fprintf(stderr, "ERROR: unknown arg '%s'\n", s.c_str()); usage(2); }
@@ -349,6 +353,9 @@ int main(int argc, char** argv) {
   Long64_t nPrefixBad = 0;      // reclassified but prefix changed (must be 0)
   Long64_t nLe2Changed = 0;     // nAddBJets<=2 but Expanded != genTtbarId (must be 0)
 
+  std::map<int, Long64_t> expSubCount;   // Expanded sub-code -> n (61/62/71/72)
+  std::map<int, Long64_t> origSubOfExt;  // nano sub-code of reclassified events
+
   auto isExt = [](int sub){ return sub==61||sub==62||sub==71||sub==72; };
 
   for (Long64_t i = 0; i < nN; ++i) {
@@ -386,7 +393,8 @@ int main(int argc, char** argv) {
     const int esub = ((sr.expandedId % 100) + 100) % 100;
     const bool ge3 = (sr.nAddBJets >= 3);
     if (ge3) ++nGe3;
-    if (isExt(esub)) ++nExtended;
+    if (isExt(esub)) { ++nExtended; ++expSubCount[esub];
+                       ++origSubOfExt[((nGtb % 100) + 100) % 100]; }
     if (isExt(esub) && !ge3) ++nExtNotGe3;
     if (ge3 && !isExt(esub)) ++nGe3NotExt;
     if (isExt(esub) && (sr.expandedId / 100 != sr.genTtbarId / 100)) ++nPrefixBad;
@@ -438,6 +446,63 @@ int main(int argc, char** argv) {
     std::printf("[matchSorted]   >>> extended-id consistent (v10 model).\n");
   else
     std::printf("[matchSorted]   >>> extended-id INCONSISTENT (see nonzero lines above).\n");
+
+  // ---- machine-readable counters (--json) --------------------------------
+  // Written BEFORE the exit-code branches so a FAILING chunk still reports its
+  // numbers -- the aggregator needs the bad chunk's counters to tell you WHICH
+  // chunk broke and by how much. Emitted with plain fprintf (no JSON library in
+  // this standalone build); keys are flat and stable.
+  if (!args.json.empty()) {
+    FILE* jf = std::fopen(args.json.c_str(), "w");
+    if (!jf) {
+      std::fprintf(stderr, "ERROR: cannot write --json %s\n", args.json.c_str());
+      return 3;                       // do not silently lose the counters
+    }
+    const bool extOkNow = (nGe3 == nExtended) && nExtNotGe3 == 0 && nGe3NotExt == 0
+                          && nPrefixBad == 0 && nLe2Changed == 0;
+    std::fprintf(jf, "{\n");
+    std::fprintf(jf, "  \"tool\": \"matchTtbarIdSorted\",\n");
+    std::fprintf(jf, "  \"label\": \"%s\",\n", args.label.c_str());
+    std::fprintf(jf, "  \"sorted_dir\": \"%s\",\n", args.sortedDir.c_str());
+    std::fprintf(jf, "  \"nano_filelist\": \"%s\",\n", args.nanoFilelist.c_str());
+    std::fprintf(jf, "  \"nano_files\": %d,\n", (int)nanoFiles.size());
+    std::fprintf(jf, "  \"nano_entries\": %lld,\n", (long long)nano.GetEntries());
+    std::fprintf(jf, "  \"nano_entries_opencheck\": %lld,\n", (long long)expNano);
+    std::fprintf(jf, "  \"matched\": %lld,\n",   (long long)matched);
+    std::fprintf(jf, "  \"unmatched\": %lld,\n", (long long)unmatched);
+    std::fprintf(jf, "  \"agree\": %lld,\n",     (long long)agree);
+    std::fprintf(jf, "  \"disagree\": %lld,\n",  (long long)disagree);
+    std::fprintf(jf, "  \"nAddBJets_ge3\": %lld,\n", (long long)nGe3);
+    std::fprintf(jf, "  \"expanded_sub_in_set\": %lld,\n", (long long)nExtended);
+    std::fprintf(jf, "  \"viol_ext_but_lt3\": %lld,\n",  (long long)nExtNotGe3);
+    std::fprintf(jf, "  \"viol_ge3_not_ext\": %lld,\n",  (long long)nGe3NotExt);
+    std::fprintf(jf, "  \"viol_prefix_changed\": %lld,\n", (long long)nPrefixBad);
+    std::fprintf(jf, "  \"viol_le2_changed\": %lld,\n",  (long long)nLe2Changed);
+    std::fprintf(jf, "  \"ext_consistent\": %s,\n", extOkNow ? "true" : "false");
+    auto dumpMap = [&](const char* key, const std::map<int, Long64_t>& m2) {
+      std::fprintf(jf, "  \"%s\": {", key);
+      bool first = true;
+      for (const auto& kv : m2) {
+        std::fprintf(jf, "%s\"%d\": %lld", first ? "" : ", ", kv.first,
+                     (long long)kv.second);
+        first = false;
+      }
+      std::fprintf(jf, "},\n");
+    };
+    dumpMap("expanded_sub_counts", expSubCount);
+    dumpMap("orig_sub_of_reclassified", origSubOfExt);
+    dumpMap("disagree_by_nano_sub", disagreeBySub);
+    // exit_code is what THIS chunk would return; the aggregator re-derives the
+    // sample-level verdict from the summed counters, not from these codes.
+    int wouldExit = 0;
+    if (matched == 0)        wouldExit = 5;
+    else if (disagree != 0)  wouldExit = 6;
+    else if (!extOkNow)      wouldExit = 8;
+    std::fprintf(jf, "  \"exit_code\": %d\n", wouldExit);
+    std::fprintf(jf, "}\n");
+    std::fclose(jf);
+    std::printf("[matchSorted] wrote counters JSON -> %s\n", args.json.c_str());
+  }
 
   if (matched == 0) { std::printf("[matchSorted] >>> NO events matched.\n"); return 5; }
   if (disagree != 0) { std::printf("[matchSorted] >>> genTtbarId DISAGREEMENT.\n"); return 6; }
