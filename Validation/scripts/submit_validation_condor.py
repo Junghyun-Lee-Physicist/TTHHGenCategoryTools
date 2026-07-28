@@ -502,12 +502,22 @@ JSONEOF
   #    submit template). mkdir is idempotent; -f overwrites a previous attempt.
   echo "[job] staging results to ${DEST_URL}"
   xrdfs %(eos_host)s mkdir -p "%(dest_dir)s" 2>/dev/null || true
-  xrdcp -f "${JSON_OUT}" "${DEST_URL}/${JSON_OUT}"
-  xrc=$?
+  # Retry: EOS hiccups happen, and losing the JSON of a good run means redoing
+  # the whole chunk. Three tries with backoff.
+  xrc=1
+  for attempt in 1 2 3; do
+    xrdcp -f "${JSON_OUT}" "${DEST_URL}/${JSON_OUT}" && { xrc=0; break; }
+    xrc=$?
+    echo "[job] xrdcp attempt ${attempt} failed (rc=${xrc}); retrying"
+    sleep $((attempt * 5))
+  done
   if [ ${xrc} -ne 0 ]; then
-    echo "[job] WARNING: xrdcp of the JSON failed (rc=${xrc})."
-    echo "[job]          The counters are still in this .out between the"
-    echo "[job]          BEGIN JSON / END JSON markers."
+    echo "[job] ERROR: could not stage the JSON to EOS after 3 tries (rc=${xrc})."
+    echo "[job]        The counters ARE in this .out between the BEGIN JSON /"
+    echo "[job]        END JSON markers, so nothing is lost -- but the aggregator"
+    echo "[job]        will report this chunk as missing until it is re-run."
+    echo "[job]        Exiting 122 so condor_history flags it immediately."
+    rc=122
   fi
   if [ -f "${ROOT_OUT}" ]; then
     xrdcp -f "${ROOT_OUT}" "${DEST_URL}/${ROOT_OUT}" \\
@@ -638,11 +648,24 @@ def write_condor(a, P, plan):
 
     # XRootD destination for the job's own xrdcp. Host and path are needed
     # separately for `xrdfs <host> mkdir -p <path>`.
+    #
+    # XRootD REQUIRES A DOUBLE SLASH between host and an absolute path:
+    #     root://eosuser.cern.ch//eos/user/...
+    # A single slash gives "xrdcp ... rc=54". This exact mistake was made TWICE
+    # (2026-07-28: once with output_destination, then reintroduced here via
+    # rstrip("/")), so the invariant is asserted below rather than trusted.
     dest_dir = str(P["out_base"] / "results")
     prefix = a.eos_url_prefix if a.eos_url_prefix.endswith("/") \
         else a.eos_url_prefix + "/"
-    eos_host = prefix.split("//")[1].rstrip("/") if "//" in prefix else prefix
-    dest_url = prefix.rstrip("/") + dest_dir          # host + absolute path
+    eos_host = prefix.rstrip("/")                     # root://eosuser.cern.ch
+    dest_url = eos_host + "/" + dest_dir              # '/' + '/eos/...' -> '//'
+    if "://" in dest_url:
+        _host, _path = dest_url.split("://", 1)[1], None
+        _rest = dest_url.split("://", 1)[1]
+        if "//" not in _rest:
+            sys.exit("FATAL(internal): XRootD destination lacks the required "
+                     "double slash between host and path:\n    %s\n"
+                     "  Expected the form root://<host>//<abs-path>." % dest_url)
 
     run_sh = work / "run_match.sh"
     run_sh.write_text(RUN_SH % {

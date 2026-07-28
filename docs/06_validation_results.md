@@ -68,3 +68,49 @@ tt+nb 비율: dedicated tt4b **19.8%** ≫ 4FS ttbb ~0.3–0.4% ≫ inclusive ~0
 - **v6.1 (CMSSW_14_2_1, TTToHadronic 84k × nano 1.28M)**: genTtbarId full/자릿수별/서브코드, nGenJet, leading-jet pT/η 전부 100%; confusion matrix 완전 대각.
 - **v8/v8.1 (2026-05-29, TTbb_4f 100 events)**: ttbarId-extend `genTtbarId` 100/100 byte-identical; sub-code 분포 라인 단위 동일.
 - **Approach 2 (v7.2, 2026-05-28)**: enriched NanoAOD 공통 **1,665 branch 전부 ratio=1.000** — 상세와 검증 경계는 [10_enriched_nanoaod_archive.md](10_enriched_nanoaod_archive.md).
+
+---
+
+## 2018 UL — condor 검증 (진행 중, 2026-07-28)
+
+### 스모크: `ttbb_2L2Nu` (nano 6파일 = 샘플 전체, 1 job)
+
+`matchTtbarIdSorted` 를 이 캠페인에서 **처음** 실데이터로 돌린 결과이며, 같은 샘플의 인터랙티브
+`matchTtbarId` 결과와 **완전히 일치**한다 — 두 알고리즘이 같은 결론을 낸다는 실증.
+
+| 항목 | 인터랙티브 `matchTtbarId` | condor `matchTtbarIdSorted` |
+|---|---|---|
+| nano entries | 4,792,850 (= DAS) | **4,792,850** ✓ |
+| matched | 4,792,850 | **4,792,850** ✓ |
+| unmatched | 0 | **0** ✓ |
+| agree / disagree | 4,792,850 / 0 | **4,792,850 / 0** ✓ |
+| nAddBJets≥3 | 15,573 | **15,573** ✓ |
+| exit | 0 | **0** ✓ |
+
+**성능 실측** (job 13284921, `condor_history`):
+
+| | 값 |
+|---|---|
+| wall clock | **1,245 s = 20.8 분** |
+| peak memory | **489 MB** (request 2000, CERN 하한 3000) |
+| `part_loads` | **347** (index 의 part 수 = 10 → 이상값의 34.7배) |
+| 처리율 | **231 k event/분** |
+
+`part_loads` 가 이상값의 34.7배인 것은 **nano 가 키 순서로 저장돼 있지 않다**는 확인이다(사용자가
+예측한 대로). 다만 감당 가능하다: 347 × 16 MB = 5.5 GB 추가 EOS 읽기이고, event 당 부하는
+**part 총개수와 무관**하게 일정하다(1 load / 13,800 event).
+
+sorted 경로는 이 소형 샘플에서 in-memory(11.5분)보다 **느리다**(20.8분) — 정상이다. sorted 는
+메모리를 위해 I/O 를 지불하는 거래이고, 대형에서는 in-memory 가 애초에 불가능하다(15~38 GB).
+
+### 대형 3샘플 외삽 (231 k event/분 기준)
+
+| sample | chunk 수 | chunk 당 event | chunk 당 예상 |
+|---|---|---|---|
+| TTTo2L2Nu | 8 | ~18 M | ~79분 |
+| TTToHadronic | 17 | ~20 M | ~87분 |
+| TTToSemiLeptonic | 20 | ~24 M | ~104분 |
+
+49 job 동시 → **전체 wall clock ~1.7시간** 예상. `+JobFlavour = "workday"`(8 h) 안에 여유.
+직렬 ~38시간(T-22) 대비 **~22배**.
+

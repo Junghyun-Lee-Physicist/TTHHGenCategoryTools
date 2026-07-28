@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.22).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.23).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -889,4 +889,36 @@ SingularityImage 로 EL7 이 실측 확인됐다 — 도는 것을 바꾸지 않
 
 **교훈**: 같은 워크스페이스에 도는 선례가 있으면 **그것을 먼저 읽는다.** 새 인프라 코드를 쓰기 전
 `find . -iname '*condor*'` 부터 할 일이었다.
+
+---
+
+## 2026-07-28 — v13.23: 스모크 성공 + XRootD 슬래시 버그(2회째) 수정
+
+**스모크가 물리적으로 완전 성공했다.** `matchTtbarIdSorted` 를 이 캠페인에서 처음 실데이터로
+돌렸고, 인터랙티브 `matchTtbarId` 와 **모든 카운터가 일치**했다. 수치와 성능 실측은
+[06](06_validation_results.md) 에 기록.
+
+확인된 것 (전부 그동안의 미지수였다):
+
+- EL7 컨테이너 (`os=CentOS Linux release 7.9.2009`)
+- cvmfs CMSSW 세팅 (`root-config` 발견, `SCRAM_ARCH=slc7_amd64_gcc700`)
+- **워커가 EOS 를 POSIX 로 읽음** (`sorted parts in index: 10`) → `--part-url-prefix` 우회 불필요
+- nano 전량 접근 + **DAS 값 일치** (4,792,850)
+- **`part_loads = 347`** (이상값 10 의 34.7배) — nano 가 키 순서가 아니라는 사용자 예측이 맞았다.
+  다만 event 당 부하는 part 총개수와 무관하게 일정하므로 대형에서도 외삽 가능
+- wall **20.8분**, 메모리 **489 MB** → 대형 chunk 당 ~1.3–1.7 h, 49 job 동시 **~1.7 h**
+
+**버그 수정 — 같은 실수 2회째.** EOS `results/` 가 비어 있었다: `xrdcp ... rc=54`.
+XRootD 는 host 와 절대경로 사이에 **슬래시 2개**를 요구하는데 1개였다. v13.18 에서 이미 잡고
+단위검증까지 했는데, v13.22 에서 `output_destination` 을 제거하며 `rstrip("/")` 로 재조립해
+되살아났다. 상세는 [08](08_troubleshooting.md) **T-27**.
+
+- **코드에 단정문**을 넣었다 — `dest_url` 의 `://` 뒤에 `//` 가 없으면 제출 전 FATAL.
+  검증했던 불변식을 사람 기억이 아니라 코드로 고정한다
+- **xrdcp 재시도 3회 + backoff** — 정상 계산된 chunk 의 JSON 을 EOS 하나 때문에 잃으면 안 된다
+- **영구 실패 시 exit 122** — 물리 결과가 정상이어도 그렇게 한다. 전송 실패는 조용히 넘어가면 안 된다
+
+**설계가 값을 한 확인**: v13.22 의 "condor 에게 출력을 맡기지 않는다" 덕분에 이 job 은 **hold 되지
+않고** exit 0 으로 끝났고 **숫자가 `.out` 에 남았다**. 이전 설계라면 hold + transfer 에러로 원인이
+또 은폐됐을 것이다.
 
