@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.20).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.22).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -826,4 +826,67 @@ AAA 와 구분되지 않는다**. 그 혼동을 한 번 겪었으니 미리 잡�
 
 단위 검증 6가지: proxy 없음 / `/tmp` 에만 있음 / `--proxy` 로 `/tmp` 명시 / 존재하지 않는 경로 /
 공유 위치 정상 / 안내 명령 동반.
+
+---
+
+## 2026-07-28 — v13.21: `set -u` 가 job 을 죽이고 있었다 + 실패를 숨기지 않게
+
+스모크 job 이 워커에서 즉시 죽었다. `.err` 한 줄이 전부였다:
+
+> `cmsset_local.sh: line 8: CVS_RSH: unbound variable`
+
+**내가 job 스크립트에 건 `set -u` 가 CMSSW 환경 세팅을 죽였다.** `cmsset_default.sh` 는 유명하게
+`-u` non-clean 인데, `-u` 에서 미설정 변수 참조는 즉시 shell 종료다. 첫 setup 줄에서 끝난 것이다.
+상세는 [08](08_troubleshooting.md) **T-25**.
+
+그리고 **두 번째 결함이 그 원인을 가렸다**: `transfer_output_files` 는 파일이 반드시 있어야 하는
+계약이라, payload 가 죽으면 condor 가 HOLD 하고 hold 이유로 *transfer 에러*를 보고한다. 진짜
+원인은 `.err` 한 줄에 있었는데 그게 안 보였다.
+
+**수정 4가지**
+
+1. **`set -u` 전역 제거** (`set -o pipefail` 만 유지). 서드파티 셸을 source 하는 스크립트에
+   `-u` 를 걸면 안 된다.
+2. **환경 세팅 성공을 검증** — `command -v root-config` 실패 시 **exit 123** + 이유 출력.
+   matcher 는 ROOT 를 링크하니 그 없이 진행할 의미가 없다.
+3. **출력 보장을 `trap ... EXIT` 로** — 꼬리의 검사는 조기 abort 시 실행되지 않는다(이번이 정확히
+   그 경우). trap 은 어디서 죽어도 돈다. 실패 시 `job_failed:true` + 실제 exit code 스텁을 써서
+   전송을 성공시키고, 합산기가 그 chunk 를 **FAILED**(누락이 아니라)로 표시한다.
+4. `sorted parts in index` 를 로그에 추가 — 다음 스모크에서 EOS 가시성을 한눈에 본다.
+
+**확인된 성공 하나**: `.out` 의 `os=CentOS Linux release 7.9.2009` — **`MY.SingularityImage` 가
+EL9 워커에서 EL7 컨테이너를 정상 제공**했다. T-22 ⑥의 환경 분리 설계가 맞았다는 실증이다.
+
+**아직 미확인**: 워커의 EOS POSIX 가시성. job 이 setup 에서 죽어 그 검사(exit 125)에 도달하지
+못했다. 다음 스모크가 그것을 본다.
+
+---
+
+## 2026-07-28 — v13.22: 도는 선례로 수렴 (`TopCPVGenCategorizer/condor`)
+
+사용자 지적: *"왜 이렇게 condor에서 에러가 나게 하냐? tempTTHH condor job 같은거 확인해봐.
+너 너무 복잡하게 코드 짜는거 아님?"*
+
+**맞는 지적이었다.** 같은 워크스페이스에 CERN 에서 실제로 돌던 참조가 있었다 —
+`TopCPVGenCategorizer/condor/{submit_all.sh,runJob.sh}`. 그걸 먼저 읽지 않고 설계해서
+참조가 이미 피해 둔 함정을 하나씩 다시 밟았다. 대조는 [08](08_troubleshooting.md) **T-26**.
+
+| | 돌던 참조 | v13.21 (내가 한 것) |
+|---|---|---|
+| 출력 | `transfer_output_files = ""` + job 이 직접 `xrdcp` | condor 에 위임 → **hold, 원인 은폐** |
+| `set -u` | 안 씀 | 씀 → cmsset 에서 즉사 |
+| 바이너리 | AFS 에서 직접 읽음 | 전송(가정 과함) |
+| proxy | 제출 디렉토리로 복사 + `use_x509userproxy` | (강제 방식으로 별도 해결) |
+
+**핵심 변경 하나**: **condor 가 출력을 관리하지 않는다.** `transfer_output_files = ""` 로 두고
+job 이 `xrdfs mkdir -p` → `xrdcp -f` 로 결과를 EOS 에 올린다. 이 하나로 `output_destination`,
+`transfer_output_remaps`, 그리고 **hold-on-missing-output 실패 유형 전체**가 사라진다.
+`use_x509userproxy = true`, `notification = never` 도 참조에서 가져왔다.
+
+**유지한 것**: `MY.SingularityImage`(참조는 `MY.WantOS="el8"` 이지만 우리 payload 는 slc7 이고
+SingularityImage 로 EL7 이 실측 확인됐다 — 도는 것을 바꾸지 않는다), 실패 스텁 JSON + `trap`
+(합산기가 실패 chunk 를 누락과 구분하려면 여전히 필요), `.sub` 의 `/eos` 자기검사.
+
+**교훈**: 같은 워크스페이스에 도는 선례가 있으면 **그것을 먼저 읽는다.** 새 인프라 코드를 쓰기 전
+`find . -iname '*condor*'` 부터 할 일이었다.
 

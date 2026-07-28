@@ -140,6 +140,13 @@ def aggregate_sample(short, jsondir, expected):
                 agg[k][str(sub)] = agg[k].get(str(sub), 0) + int(n)
         ec = int(d.get("exit_code", -1))
         agg["chunk_exit_codes"][tag] = ec
+        # A stub written by run_match.sh when the matcher produced no JSON. Its
+        # counters are all absent (so they sum as 0), which would make this look
+        # like an empty-but-present chunk. Say plainly that the job failed.
+        if d.get("job_failed"):
+            problems.append(
+                "chunk %s: JOB FAILED (exit %d, no counters) -- %s"
+                % (tag, ec, d.get("note", "see condor logs")))
         # A chunk that opened fewer entries than its own open-check saw means the
         # chain lost a file between check and read; the C++ side aborts on that,
         # but if an older binary produced the JSON we still want to notice.

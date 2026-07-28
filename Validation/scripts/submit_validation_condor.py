@@ -453,7 +453,12 @@ RUN_SH = """#!/usr/bin/env bash
 # condor argument, because CERN's standard schedds reject /eos paths appearing in
 # a submit file. The job reads it as a normal POSIX path at RUN time, which is a
 # different thing from condor being asked to manage it at SUBMIT time.
-set -uo pipefail
+#
+# NOTE ON `set -u`: deliberately NOT enabled globally. cmsset_default.sh is not
+# -u clean (2026-07-28: "cmsset_local.sh: line 8: CVS_RSH: unbound variable"),
+# and under -u that aborts the whole job at the very first setup line.
+set -o pipefail
+
 NANO_CHUNK="$1"      # transferred into the scratch dir by condor
 LABEL="$2"           # sample short name; selects the sorted sub-directory
 JSON_OUT="$3"        # written here, shipped to EOS by output_destination
@@ -461,6 +466,56 @@ ROOT_OUT="$4"
 
 SORTED_BASE="%(sorted_base)s"
 SORTED_DIR="${SORTED_BASE}/${LABEL}"
+DEST_URL="%(dest_url)s"
+
+# ---------------------------------------------------------------------------
+# Guarantee the declared output files exist, NO MATTER where this script dies.
+#
+# WHY A TRAP AND NOT A TAIL CHECK (2026-07-28, jobs 13284916 / 13284914):
+#   transfer_output_files is a HARD contract -- a missing file puts the job on
+#   HOLD and the hold reason is a *transfer* error, which HIDES the payload's
+#   real failure. A tail-of-script check does not help when the script aborts
+#   early (which is exactly what happened: `set -u` killed it at the first
+#   cmsset line, long before any check). An EXIT trap always runs.
+# ---------------------------------------------------------------------------
+ensure_outputs() {
+  rc=$?
+  # 1) Always have a JSON, even if the matcher never ran. A stub with
+  #    job_failed:true lets the aggregator mark this chunk FAILED instead of
+  #    silently missing. The EXIT trap (not a tail check) is what makes this
+  #    reliable: the script can die at the very first setup line.
+  if [ ! -f "${JSON_OUT}" ]; then
+    echo "[job] no JSON from the matcher; writing a failure stub (rc=${rc})."
+    cat > "${JSON_OUT}" <<JSONEOF
+{
+  "tool": "run_match.sh",
+  "label": "${LABEL}",
+  "nano_filelist": "${NANO_CHUNK}",
+  "job_failed": true,
+  "exit_code": ${rc},
+  "note": "no counters produced -- see this job's condor .out/.err on AFS"
+}
+JSONEOF
+  fi
+
+  # 2) Stage results to EOS OURSELVES (condor manages no output files -- see the
+  #    submit template). mkdir is idempotent; -f overwrites a previous attempt.
+  echo "[job] staging results to ${DEST_URL}"
+  xrdfs %(eos_host)s mkdir -p "%(dest_dir)s" 2>/dev/null || true
+  xrdcp -f "${JSON_OUT}" "${DEST_URL}/${JSON_OUT}"
+  xrc=$?
+  if [ ${xrc} -ne 0 ]; then
+    echo "[job] WARNING: xrdcp of the JSON failed (rc=${xrc})."
+    echo "[job]          The counters are still in this .out between the"
+    echo "[job]          BEGIN JSON / END JSON markers."
+  fi
+  if [ -f "${ROOT_OUT}" ]; then
+    xrdcp -f "${ROOT_OUT}" "${DEST_URL}/${ROOT_OUT}" \\
+      || echo "[job] WARNING: xrdcp of the ROOT file failed (plot input only)"
+  fi
+  echo "[job] done rc=${rc}"
+}
+trap ensure_outputs EXIT
 
 echo "[job] host=$(hostname)"
 echo "[job] date=$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)"
@@ -470,14 +525,20 @@ echo "[job] chunk=${NANO_CHUNK}  label=${LABEL}"
 echo "[job] sorted=${SORTED_DIR}"
 
 # ---------------------------------------------------------------------------
-# Environment. We do NOT rely on `getenv = True`: this job is submitted from the
-# EL9 lxplus host but the payload is an slc7_amd64_gcc700 / ROOT 6.14 binary
-# running inside an EL7 container, so the submitter's environment is the WRONG
-# one to inherit. Set up the release from cvmfs instead.
+# Environment. We do NOT rely on `getenv = True`: submitted from EL9, executed
+# in EL7, so the submitter's environment is the WRONG one to inherit. Set the
+# release up from cvmfs instead. `set +u` is required around this -- see above.
 # ---------------------------------------------------------------------------
+set +u
 %(env_setup)s
 echo "[job] which root-config: $(which root-config 2>/dev/null || echo NONE)"
 echo "[job] SCRAM_ARCH=${SCRAM_ARCH:-unset}"
+if ! command -v root-config >/dev/null 2>&1; then
+  echo "[job] FATAL: root-config not on PATH after environment setup."
+  echo "[job]        The matcher links ROOT, so it cannot run. Check the .err"
+  echo "[job]        for cmsset/scram messages."
+  exit 123
+fi
 
 MATCH="./%(match_name)s"
 chmod +x "${MATCH}" 2>/dev/null || true
@@ -494,10 +555,11 @@ echo "[job] nano files in chunk: $(wc -l < "${NANO_CHUNK}")"
 if [ ! -r "${SORTED_DIR}/index.txt" ]; then
   echo "[job] FATAL: cannot read ${SORTED_DIR}/index.txt"
   echo "[job]        Either the sample is not sorted, or this worker does not"
-  echo "[job]        expose EOS as POSIX. Check:  ls ${SORTED_BASE}"
+  echo "[job]        expose EOS as POSIX. Listing the base directory:"
   ls -la "${SORTED_BASE}" 2>&1 | head -20
   exit 125
 fi
+echo "[job] sorted parts in index: $(grep -cv '^#' "${SORTED_DIR}/index.txt")"
 
 # NOTE: no --allow-missing-files here, deliberately. If a nano file in this
 # chunk cannot be read after the built-in retries, this job MUST fail (exit 4)
@@ -510,14 +572,11 @@ fi
     --out            "${ROOT_OUT}"
 rc=$?
 echo "[job] matchTtbarIdSorted exit=${rc}"
-# Echo the JSON into stdout as well: if the EOS transfer fails, the numbers are
-# still recoverable from the condor .out file (which lands on AFS).
+# Echo the JSON into stdout too: the .out lands on AFS, so the numbers survive
+# even if the EOS copy below fails.
 if [ -f "${JSON_OUT}" ]; then
   echo "[job] ---- BEGIN JSON ----"; cat "${JSON_OUT}"; echo "[job] ---- END JSON ----"
-else
-  echo "[job] WARNING: no JSON produced"
 fi
-echo "[job] done rc=${rc}"
 exit ${rc}
 """
 
@@ -526,16 +585,16 @@ executable              = %(run_sh)s
 arguments               = $(chunk) $(label) $(json) $(rootout)
 should_transfer_files   = YES
 when_to_transfer_output = ON_EXIT
-# The matcher is TRANSFERRED, not read from AFS at run time: a condor worker has
-# no AFS token for this home directory. Its ROOT libraries come from cvmfs via
-# the cmsenv done inside the job.
 transfer_input_files    = $(chunk), %(match_bin)s
-transfer_output_files   = $(json), $(rootout)
-# Results leave over XRootD. A literal /eos path anywhere in this file makes the
-# standard schedds refuse the submission outright, so this URL form is required
-# (https://batchdocs.web.cern.ch/local/file_xfer_plugin.html).
-output_destination      = %(dest_url)s
-# Everything condor manages directly stays on AFS for the same reason.
+# Condor manages NO output files. The job xrdcp's its own results to EOS.
+#
+# WHY (2026-07-28, and it is what TopCPVGenCategorizer/condor already did):
+#   With a non-empty transfer_output_files, a payload that dies leaves the
+#   declared file missing -> condor HOLDS the job and reports a *transfer*
+#   error, hiding the real failure. Two holds were spent learning this. Letting
+#   the job stage its own output means a failing job just exits nonzero and its
+#   .out tells you why.
+transfer_output_files   = ""
 output                  = %(logdir)s/$(label).$(ClusterId).$(ProcId).out
 error                   = %(logdir)s/$(label).$(ClusterId).$(ProcId).err
 log                     = %(logdir)s/$(label).$(ClusterId).log
@@ -543,7 +602,9 @@ request_memory          = %(memory)d
 request_cpus            = 1
 # getenv is deliberately False: submitted from EL9, executed in EL7 (see header).
 getenv                  = False
+use_x509userproxy       = true
 %(image_line)s%(proxy_line)s+JobFlavour            = "%(flavour)s"
+notification            = never
 queue chunk, label, json, rootout from %(argsfile)s
 """
 
@@ -551,8 +612,10 @@ queue chunk, label, json, rootout from %(argsfile)s
 def write_condor(a, P, plan):
     """plan: list of (short, chunk_path, json_name, root_name).
 
-    Scaffolding on AFS (work_base), results to EOS over XRootD. See the SUB
-    template for why: a /eos path anywhere in the submit file is rejected.
+    Scaffolding on AFS (work_base); the JOB stages its own results to EOS over
+    XRootD. Modelled on TopCPVGenCategorizer/condor, which has been running at
+    CERN: condor manages no output files there either, precisely so a failing
+    payload reports its own error instead of a transfer error.
     """
     work = P["work_base"]
     logdir = work / "logs"
@@ -573,11 +636,22 @@ def write_condor(a, P, plan):
                      "eval `scramv1 runtime -sh`\n"
                      "cd - >/dev/null" % (cmssw_base, cmssw_base))
 
+    # XRootD destination for the job's own xrdcp. Host and path are needed
+    # separately for `xrdfs <host> mkdir -p <path>`.
+    dest_dir = str(P["out_base"] / "results")
+    prefix = a.eos_url_prefix if a.eos_url_prefix.endswith("/") \
+        else a.eos_url_prefix + "/"
+    eos_host = prefix.split("//")[1].rstrip("/") if "//" in prefix else prefix
+    dest_url = prefix.rstrip("/") + dest_dir          # host + absolute path
+
     run_sh = work / "run_match.sh"
     run_sh.write_text(RUN_SH % {
         "match_name": "matchTtbarIdSorted",
         "sorted_base": P["sorted_base"],
         "env_setup": env_setup,
+        "dest_url": dest_url,
+        "dest_dir": dest_dir,
+        "eos_host": prefix.rstrip("/"),
     })
     run_sh.chmod(0o755)
 
@@ -586,19 +660,6 @@ def write_condor(a, P, plan):
         for short, chunk, jname, rname in plan:
             fh.write("%s, %s, %s, %s\n" % (chunk, short, jname, rname))
 
-    # output_destination must be a directory URL ending in '/'. XRootD needs a
-    # DOUBLE slash between host and an absolute path -- the CERN error message
-    # spells it "root://eosuser.cern.ch//eos/...". So the prefix ends with '/'
-    # and the absolute path keeps its leading '/'.
-    dest = str(P["out_base"] / "results")
-    prefix = a.eos_url_prefix if a.eos_url_prefix.endswith("/") \
-        else a.eos_url_prefix + "/"
-    dest_url = prefix + dest        # dest is absolute -> '//' as required
-    if not dest_url.endswith("/"):
-        dest_url += "/"
-
-    # Hard gate: never submit without a schedd-readable proxy. Reaching the
-    # queue and then sitting on hold wastes more time than refusing here.
     proxy, problem = resolve_proxy(a.proxy)
     if problem:
         sys.exit("FATAL: %s" % problem)
@@ -608,31 +669,29 @@ def write_condor(a, P, plan):
                  "    %s" % (proxy, left // 60, PROXY_CMD))
     print("[proxy] %s%s" % (proxy,
           "" if left is None else "  (%.0f h left)" % (left / 3600.0)))
+
     image_line = ("" if a.no_container
                   else 'MY.SingularityImage = "%s"\n' % a.container)
     sub = work / "match.sub"
     sub.write_text(SUB % {
         "run_sh": run_sh, "logdir": logdir,
         "match_bin": P["bin_dir"] / "matchTtbarIdSorted",
-        "dest_url": dest_url,
         "memory": a.memory, "flavour": a.flavour,
         "image_line": image_line,
-        "proxy_line": ("x509userproxy = %s\n" % proxy) if proxy else "",
+        "proxy_line": "x509userproxy = %s\n" % proxy,
         "argsfile": argsfile,
     })
 
     # ---- self-check: no bare /eos path may survive in the submit file ------
-    # This exact mistake cost a failed submission on 2026-07-28. Catch it here
-    # rather than letting the schedd explain it again.
+    # The standard schedds reject them outright (T-23). Catch it here rather
+    # than letting the schedd explain it again.
     bad = [ln for ln in sub.read_text().splitlines()
            if re.search(r"(^|[^:/])/eos/", ln) and not ln.lstrip().startswith("#")]
     if bad:
         sys.exit("FATAL: generated submit file still contains bare /eos paths;\n"
                  "  the standard schedds will reject it. Offending line(s):\n    "
-                 + "\n    ".join(bad)
-                 + "\n  (results must go out via %s, scaffolding must be on AFS;\n"
-                   "   use --work-base to move the scaffolding off /eos)"
-                   % a.eos_url_prefix)
+                 + "\n    ".join(bad))
+    print("results -> %s/" % dest_url)
     return sub, argsfile, logdir
 
 
