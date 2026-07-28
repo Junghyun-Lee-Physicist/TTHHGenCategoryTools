@@ -56,6 +56,7 @@
 #include <TFile.h>
 #include <TH1.h>
 #include <TTree.h>
+#include <TSystem.h>
 #include <RtypesCore.h>
 
 namespace {
@@ -122,29 +123,44 @@ std::vector<std::string> readFilelist(const std::string& path) {
   return files;
 }
 
-// Verify every nano file actually opens; abort otherwise.  Same rationale as in
-// matchTtbarId (docs/08_troubleshooting.md T-21): TChain::Add() does not open
-// the file, so unreachable files silently shrink the sample while `unmatched`
-// can only get SMALLER -- producing a false pass.  Observed for real on
-// 2026-07-27 (5 of 6 nano files, XRootD "[3014] Network is unreachable").
-int assertAllFilesOpen(const std::vector<std::string>& files,
-                       const std::string& treeName, bool allowMissing) {
+// Verify every nano file opens (WITH RETRIES) and return total entries; abort
+// otherwise. Same rationale as matchTtbarId (docs/08 T-21): TChain::Add() does
+// not open the file, so unreachable files silently shrink the sample while
+// `unmatched` can only get SMALLER -- a false pass. The 2026-07-27 case was a
+// TRANSIENT AAA failure (the same files opened fine minutes later in the same
+// environment), so retry is the right response, backed by a hard assertion.
+long long assertAllFilesOpen(const std::vector<std::string>& files,
+                             const std::string& treeName, bool allowMissing,
+                             int maxAttempts = 3) {
   std::vector<std::string> bad;
   long long total = 0;
+  int retried = 0;
   for (const auto& f : files) {
-    TFile* fh = TFile::Open(f.c_str());
-    if (!fh || fh->IsZombie()) { bad.push_back(f); if (fh) delete fh; continue; }
-    auto* t = dynamic_cast<TTree*>(fh->Get(treeName.c_str()));
-    if (!t) bad.push_back(f + "   (opened, but no tree '" + treeName + "')");
-    else    total += t->GetEntries();
-    delete fh;
+    bool ok = false;
+    for (int attempt = 1; attempt <= maxAttempts && !ok; ++attempt) {
+      if (attempt > 1) {
+        ++retried;
+        std::printf(">>> nano retry %d/%d after %ds  %s\n",
+                    attempt, maxAttempts, (attempt - 1) * 5, f.c_str());
+        std::fflush(stdout);
+        gSystem->Sleep(1000 * 5 * (attempt - 1));
+      }
+      TFile* fh = TFile::Open(f.c_str());
+      if (!fh || fh->IsZombie()) { if (fh) delete fh; continue; }
+      auto* t = dynamic_cast<TTree*>(fh->Get(treeName.c_str()));
+      if (t) { total += t->GetEntries(); ok = true; }
+      delete fh;
+      if (!ok) break;
+    }
+    if (!ok) bad.push_back(f);
   }
-  std::printf(">>> nano open-check %d/%d files OK, total entries = %lld\n",
-              (int)(files.size() - bad.size()), (int)files.size(), total);
+  std::printf(">>> nano open-check %d/%d files OK, total entries = %lld%s\n",
+              (int)(files.size() - bad.size()), (int)files.size(), total,
+              retried ? "   (retries needed)" : "");
   if (!bad.empty()) {
-    std::fprintf(stderr, "\n%s: %d of %d nano file(s) could NOT be read:\n",
+    std::fprintf(stderr, "\n%s: %d of %d nano file(s) unreadable after %d attempts:\n",
                  allowMissing ? "WARNING" : "FATAL",
-                 (int)bad.size(), (int)files.size());
+                 (int)bad.size(), (int)files.size(), maxAttempts);
     int shown = 0;
     for (const auto& b : bad) {
       if (shown++ >= 10) { std::fprintf(stderr, "        ... and %d more\n",
@@ -154,17 +170,28 @@ int assertAllFilesOpen(const std::vector<std::string>& files,
     if (!allowMissing) {
       std::fprintf(stderr,
         "\n  A partial nano list still prints 'unmatched 0' -- a false pass.\n"
-        "  Aborting with exit 4.  For XRootD '[3014] Network is unreachable':\n"
-        "    export XRD_NETWORKSTACK=IPv4\n"
-        "  or rebuild the filelist against another redirector\n"
-        "  (make_nano_filelists_das.sh <era> lfn, then prefix\n"
-        "   root://xrootd-cms.infn.it/ or root://cmsxrootd.fnal.gov/).\n"
-        "  Use --allow-missing-files only for an indicative cross-check.\n");
+        "  Transient AAA failures are normal; the retries above already covered\n"
+        "  short blips, so just re-run. Aborting with exit 4.\n"
+        "  --allow-missing-files gives an INDICATIVE result only.\n");
       std::exit(4);
     }
   }
-  return (int)(files.size() - bad.size());
+  return total;
 }
+
+// The pre-check total is the contract: the chain must hold exactly that many
+// entries, or a file died between the check and the read.
+void assertChainComplete(TChain& ch, long long expected, const char* tag) {
+  const long long got = ch.GetEntries();
+  if (got == expected) return;
+  std::fprintf(stderr,
+    "\nFATAL: %s chain holds %lld entries but the open-check counted %lld "
+    "(difference %lld).\n  A file became unreadable between check and read; this "
+    "run would cover only part of the sample. Re-run. Exit 4.\n",
+    tag, got, expected, expected - got);
+  std::exit(4);
+}
+
 
 
 // 128-bit-ish key as a struct, compared (run, lumi, event).
@@ -233,8 +260,10 @@ int main(int argc, char** argv) {
   const auto nanoFiles = readFilelist(args.nanoFilelist);
   if (nanoFiles.empty()) { std::fprintf(stderr, "ERROR: nano filelist empty\n"); return 3; }
   TChain nano(args.treeNano.c_str());
-  assertAllFilesOpen(nanoFiles, args.treeNano, args.allowMissing);
+  const long long expNano =
+      assertAllFilesOpen(nanoFiles, args.treeNano, args.allowMissing);
   for (const auto& f : nanoFiles) nano.Add(f.c_str());
+  if (!args.allowMissing) assertChainComplete(nano, expNano, "nano");
   UInt_t nRun = 0, nLumi = 0; ULong64_t nEvt = 0; Int_t nGtb = 0;
   nano.SetBranchStatus("*", 0);
   for (const char* b : {"run", "luminosityBlock", "event", "genTtbarId"})
