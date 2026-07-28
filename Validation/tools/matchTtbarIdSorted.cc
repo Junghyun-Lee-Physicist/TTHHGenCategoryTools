@@ -67,6 +67,7 @@ struct Args {
   std::string label = "sample";
   std::string treeNano = "Events";
   int         dumpN = 0;
+  bool allowMissing = false;   // --allow-missing-files (T-21)
 };
 
 [[noreturn]] void usage(int code) {
@@ -96,6 +97,7 @@ Args parseArgs(int argc, char** argv) {
     else if (s == "--label")          a.label        = need(i, "--label");
     else if (s == "--tree-nano")      a.treeNano     = need(i, "--tree-nano");
     else if (s == "--dump-mismatches")a.dumpN        = std::stoi(need(i, "--dump-mismatches"));
+    else if (s == "--allow-missing-files") a.allowMissing = true;
     else if (s == "-h" || s == "--help") usage(0);
     else { std::fprintf(stderr, "ERROR: unknown arg '%s'\n", s.c_str()); usage(2); }
   }
@@ -119,6 +121,51 @@ std::vector<std::string> readFilelist(const std::string& path) {
   }
   return files;
 }
+
+// Verify every nano file actually opens; abort otherwise.  Same rationale as in
+// matchTtbarId (docs/08_troubleshooting.md T-21): TChain::Add() does not open
+// the file, so unreachable files silently shrink the sample while `unmatched`
+// can only get SMALLER -- producing a false pass.  Observed for real on
+// 2026-07-27 (5 of 6 nano files, XRootD "[3014] Network is unreachable").
+int assertAllFilesOpen(const std::vector<std::string>& files,
+                       const std::string& treeName, bool allowMissing) {
+  std::vector<std::string> bad;
+  long long total = 0;
+  for (const auto& f : files) {
+    TFile* fh = TFile::Open(f.c_str());
+    if (!fh || fh->IsZombie()) { bad.push_back(f); if (fh) delete fh; continue; }
+    auto* t = dynamic_cast<TTree*>(fh->Get(treeName.c_str()));
+    if (!t) bad.push_back(f + "   (opened, but no tree '" + treeName + "')");
+    else    total += t->GetEntries();
+    delete fh;
+  }
+  std::printf(">>> nano open-check %d/%d files OK, total entries = %lld\n",
+              (int)(files.size() - bad.size()), (int)files.size(), total);
+  if (!bad.empty()) {
+    std::fprintf(stderr, "\n%s: %d of %d nano file(s) could NOT be read:\n",
+                 allowMissing ? "WARNING" : "FATAL",
+                 (int)bad.size(), (int)files.size());
+    int shown = 0;
+    for (const auto& b : bad) {
+      if (shown++ >= 10) { std::fprintf(stderr, "        ... and %d more\n",
+                                        (int)bad.size() - 10); break; }
+      std::fprintf(stderr, "        %s\n", b.c_str());
+    }
+    if (!allowMissing) {
+      std::fprintf(stderr,
+        "\n  A partial nano list still prints 'unmatched 0' -- a false pass.\n"
+        "  Aborting with exit 4.  For XRootD '[3014] Network is unreachable':\n"
+        "    export XRD_NETWORKSTACK=IPv4\n"
+        "  or rebuild the filelist against another redirector\n"
+        "  (make_nano_filelists_das.sh <era> lfn, then prefix\n"
+        "   root://xrootd-cms.infn.it/ or root://cmsxrootd.fnal.gov/).\n"
+        "  Use --allow-missing-files only for an indicative cross-check.\n");
+      std::exit(4);
+    }
+  }
+  return (int)(files.size() - bad.size());
+}
+
 
 // 128-bit-ish key as a struct, compared (run, lumi, event).
 struct Key {
@@ -186,6 +233,7 @@ int main(int argc, char** argv) {
   const auto nanoFiles = readFilelist(args.nanoFilelist);
   if (nanoFiles.empty()) { std::fprintf(stderr, "ERROR: nano filelist empty\n"); return 3; }
   TChain nano(args.treeNano.c_str());
+  assertAllFilesOpen(nanoFiles, args.treeNano, args.allowMissing);
   for (const auto& f : nanoFiles) nano.Add(f.c_str());
   UInt_t nRun = 0, nLumi = 0; ULong64_t nEvt = 0; Int_t nGtb = 0;
   nano.SetBranchStatus("*", 0);

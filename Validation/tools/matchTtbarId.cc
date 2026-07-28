@@ -59,6 +59,9 @@
 //   7  duplicate (run, lumi, event) key found in extend file  (the "must not happen" case)
 //   8  extended-id (Expanded_genTtbarId) consistency check failed
 //   9  run != 1 encountered (this tooling assumes MC; run is always 1)
+//   4  one or more INPUT FILES could not be opened -> a partial run would print
+//      a false "unmatched 0" pass (see assertAllFilesOpen / docs/08 T-21).
+//      Override with --allow-missing-files ONLY for an indicative cross-check.
 // =============================================================================
 
 #include <cstdint>
@@ -75,6 +78,7 @@
 #include <TFile.h>
 #include <TH1.h>
 #include <RtypesCore.h>
+#include <TError.h>
 
 namespace {
 
@@ -86,6 +90,7 @@ struct Args {
   std::string treeNano    = "Events";
   std::string label       = "";
   int         dumpN       = 20;
+  bool allowMissing = false;   // --allow-missing-files (see assertAllFilesOpen)
 };
 
 [[noreturn]] void usage(int code) {
@@ -98,6 +103,8 @@ struct Args {
     "  --tree-nano NAME          nano tree name (default Events)\n"
     "  --label NAME              label for histogram titles (default from --out)\n"
     "  --dump-mismatches N       print up to N disagreeing events (default 20)\n"
+    "  --allow-missing-files     DO NOT USE for a completeness claim: continue\n"
+    "                            even if some input files cannot be opened.\n"
     "  -h, --help                this help\n";
   std::exit(code);
 }
@@ -117,6 +124,7 @@ Args parseArgs(int argc, char** argv) {
     else if (s == "--tree-nano")        a.treeNano        = need(i, s.c_str());
     else if (s == "--label")            a.label           = need(i, s.c_str());
     else if (s == "--dump-mismatches")  a.dumpN           = std::stoi(need(i, s.c_str()));
+    else if (s == "--allow-missing-files") a.allowMissing = true;
     else if (s == "-h" || s == "--help") usage(0);
     else { std::cerr << "ERROR: unknown arg '" << s << "'\n"; usage(2); }
   }
@@ -185,6 +193,68 @@ struct Row {
   Int_t nAddBJetsMulti;
 };
 
+// Verify that EVERY file in the list can actually be opened, and abort if not.
+//
+// WHY THIS EXISTS (2026-07-27, real incident -- docs/08_troubleshooting.md T-21):
+// TChain::Add() does NOT open the file; it only registers the path. An
+// unreachable file therefore contributes 0 entries and the run continues
+// silently on whatever loaded. On 2026-07-27, 5 of 6 nano files for
+// ttbb_2L2Nu failed with XRootD "[3014] ... Network is unreachable", so the
+// chain held 628,000 of 4,792,850 events and the tool cheerfully reported
+//     matched 628000 / unmatched 0 / disagree 0 / ALL ... consistent
+// i.e. a PASS over 13% of the sample. `unmatched 0` is worthless if the nano
+// side is truncated: unmatched counts nano events missing from extend, so
+// dropping nano files can only ever make it look better. That is the most
+// dangerous kind of green light, so it is now a hard failure.
+//
+// Returns the number of files that opened; aborts (exit 4) on any failure
+// unless allowMissing is set.
+int assertAllFilesOpen(const std::vector<std::string>& files,
+                       const std::string& treeName,
+                       const char* tag, bool allowMissing) {
+  const Int_t prevLevel = gErrorIgnoreLevel;
+  std::vector<std::string> bad;
+  Long64_t total = 0;
+  for (const auto& f : files) {
+    TFile* fh = TFile::Open(f.c_str());
+    if (!fh || fh->IsZombie()) { bad.push_back(f); if (fh) delete fh; continue; }
+    auto* t = dynamic_cast<TTree*>(fh->Get(treeName.c_str()));
+    if (!t) { bad.push_back(f + "   (opened, but no tree '" + treeName + "')"); }
+    else    { total += t->GetEntries(); }
+    delete fh;
+  }
+  gErrorIgnoreLevel = prevLevel;
+  std::cout << "[matchTtbarId] " << tag << ": open-check "
+            << (files.size() - bad.size()) << "/" << files.size()
+            << " files OK, total entries = " << total << "\n";
+  if (!bad.empty()) {
+    std::cerr << "\n[matchTtbarId] " << (allowMissing ? "WARNING" : "FATAL")
+              << ": " << bad.size() << " of " << files.size() << " " << tag
+              << " file(s) could NOT be read:\n";
+    int shown = 0;
+    for (const auto& b : bad) {
+      if (shown++ >= 10) { std::cerr << "        ... and "
+                                     << (bad.size() - 10) << " more\n"; break; }
+      std::cerr << "        " << b << "\n";
+    }
+    if (!allowMissing) {
+      std::cerr <<
+        "\n  Continuing would validate only PART of the sample while still\n"
+        "  printing 'unmatched 0' -- a false pass. Aborting with exit 4.\n"
+        "  Typical causes and fixes for XRootD '[3014] Network is unreachable':\n"
+        "    export XRD_NETWORKSTACK=IPv4          # broken IPv6 on the host\n"
+        "    # or regenerate the filelist against a different redirector:\n"
+        "    #   make_nano_filelists_das.sh <era> lfn   -> bare /store/... paths\n"
+        "    #   then prefix with root://xrootd-cms.infn.it/ (EU) or\n"
+        "    #                     root://cmsxrootd.fnal.gov/ (US)\n"
+        "  If you really want a partial cross-check, pass --allow-missing-files\n"
+        "  and treat the result as indicative only (NOT a completeness proof).\n";
+      std::exit(4);
+    }
+  }
+  return (int)(files.size() - bad.size());
+}
+
 TChain* makeChain(const std::string& treeName,
                   const std::vector<std::string>& files,
                   const char* tag) {
@@ -220,6 +290,7 @@ int main(int argc, char** argv) {
   if (nanoFiles.empty())    { std::cerr << "ERROR: nano filelist empty\n";    return 3; }
 
   // ---- Load extend file into a (run,lumi,event) -> Row map, detecting duplicates ----
+  assertAllFilesOpen(extendFiles, args.treeExtend, "extend", args.allowMissing);
   TChain* sChain = makeChain(args.treeExtend, extendFiles, "extend");
   UInt_t    sRun = 0, sLumi = 0;
   ULong64_t sEvt = 0;
@@ -307,6 +378,7 @@ int main(int argc, char** argv) {
   }
 
   // ---- Iterate nano, look up each (run,lumi,event) in the extend file map ----
+  assertAllFilesOpen(nanoFiles, args.treeNano, "nano", args.allowMissing);
   TChain* nChain = makeChain(args.treeNano, nanoFiles, "nano");
   UInt_t    nRun = 0, nLumi = 0;
   ULong64_t nEvt = 0;
