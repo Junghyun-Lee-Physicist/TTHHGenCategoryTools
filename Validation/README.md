@@ -230,6 +230,22 @@ done
 > (`cmsset_default.sh` → `scramv1 runtime -sh`). 바이너리도 AFS 에서 읽지 않고
 > **transfer 한다** — 워커에는 이 홈 디렉토리의 AFS 토큰이 없다.
 
+> ### ⚠️ 제출 전 필수 — grid proxy 를 **공유 위치**에 만든다
+> job 은 nano 를 `root://cms-xrd-global.cern.ch//store/...` 로 읽으므로 proxy 가 **필수**다.
+> 그런데 `voms-proxy-init` 의 기본 출력 위치인 **`/tmp` 는 노드 로컬**이라 schedd(access
+> point)가 읽지 못한다 — 그대로 제출하면 job 이 hold 된다
+> ([08](../docs/08_troubleshooting.md) T-24). 그래서 **현 디렉토리에 만들고 환경변수로 가리킨다**:
+>
+> ```bash
+> voms-proxy-init -voms cms -rfc --valid 192:00 --out $PWD/proxy.cert
+> export X509_USER_PROXY=$PWD/proxy.cert
+> ```
+>
+> `proxy.cert` 는 `.gitignore` 에 있다 — **자격증명이므로 커밋하지 않는다.** submitter 는
+> proxy 를 홈 등 다른 곳에 **자동으로 복사하지 않는다**(자격증명을 사용자 모르게 남기지 않는다).
+> 대신 `/tmp` 에 있거나 없거나 1시간 미만 남았으면 **제출을 거부**하고 위 명령을 그대로 출력한다.
+> 매 세션 한 번만 하면 되고, 남은 수명은 `--preflight` 가 시간 단위로 보고한다.
+
 ```bash
 # (0) 사전 점검 — 아무것도 쓰지 않는다.  ※ EL9 호스트에서 (컨테이너 밖)
 python3 scripts/submit_validation_condor.py --era 2018 --preflight

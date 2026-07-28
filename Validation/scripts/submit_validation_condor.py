@@ -288,20 +288,26 @@ def run_preflight(a, P, shorts):
         cb if ok_cb else "cannot determine -- pass --cmssw-base")
     add("PASS" if Path("/cvmfs/cms.cern.ch/cmsset_default.sh").is_file() else "FAIL",
         "cvmfs cmsset_default.sh", "/cvmfs/cms.cern.ch/cmsset_default.sh")
-    proxy, note = stage_proxy(a.proxy, do_copy=False)
-    if proxy:
-        # A /tmp proxy is a FAIL, not a pass: preflight used to check only that
-        # the submit host could see it, which is the wrong machine.
-        if str(proxy).startswith("/tmp/"):
-            add("WARN", "x509 proxy on /tmp (node-local)",
-                "%s -- %s" % (proxy, note))
-        else:
-            add("PASS", "x509 proxy", proxy)
+    # Jobs read central NanoAOD as root://cms-xrd-global.cern.ch//store/... so a
+    # proxy is mandatory, and it must be readable by the SCHEDD, not just here.
+    proxy, problem = resolve_proxy(a.proxy)
+    if problem:
+        add("FAIL", "x509 proxy", problem)
     else:
-        # jobs read central NanoAOD over XRootD; without a proxy every job fails
-        add("FAIL", "x509 proxy",
-            "not found (checked --proxy, $X509_USER_PROXY, /tmp/x509up_u%d) -- "
-            "voms-proxy-init -voms cms -rfc --valid 168:00" % os.getuid())
+        left = proxy_timeleft(proxy)
+        if left is None:
+            add("PASS", "x509 proxy", "%s  (lifetime not checked)" % proxy)
+        elif left < 3600:
+            add("FAIL", "x509 proxy lifetime",
+                "%s  expires in %d min -- renew:\n    %s"
+                % (proxy, left // 60, PROXY_CMD))
+        elif left < 24 * 3600:
+            add("WARN", "x509 proxy lifetime",
+                "%s  only %.1f h left; the campaign may outlive it"
+                % (proxy, left / 3600.0))
+        else:
+            add("PASS", "x509 proxy",
+                "%s  (%.0f h left)" % (proxy, left / 3600.0))
 
     # output base must not be AFS (quota + 25 h token lifetime, T-21/T-22)
     ob = str(P["out_base"])
@@ -346,52 +352,60 @@ def run_preflight(a, P, shorts):
     return 1 if n_fail else 0
 
 
-def find_proxy(explicit):
-    """Locate the x509 proxy.
-
-    voms-proxy-init writes /tmp/x509up_u<uid> and does NOT export
-    X509_USER_PROXY, so checking only the env var reports "no proxy" on a
-    perfectly good session -- which is exactly what the first --preflight run
-    did on 2026-07-28.
-    """
-    for cand in (explicit,
-                 os.environ.get("X509_USER_PROXY"),
-                 "/tmp/x509up_u%d" % os.getuid()):
-        if cand and Path(cand).is_file():
-            return cand
-    return None
+# The one command that makes a submittable proxy. Printed verbatim whenever the
+# proxy is missing or unusable, so the remedy is never something to look up.
+PROXY_CMD = ("voms-proxy-init -voms cms -rfc --valid 192:00 "
+             "--out $PWD/proxy.cert && export X509_USER_PROXY=$PWD/proxy.cert")
 
 
-# Where a /tmp proxy gets copied so the schedd can read it. AFS home, not the
-# repo: it is a credential and does not belong in a git working tree.
-PROXY_COPY = Path.home() / ".x509up_condor"
+def resolve_proxy(explicit):
+    """Return (path, problem). Never copies, never writes anything.
 
-
-def stage_proxy(explicit, do_copy=True):
-    """Return a proxy path the SCHEDD can read, copying it out of /tmp if needed.
-
-    WHY (2026-07-28, job 13284914 went on hold):
+    WHY /tmp IS REJECTED (2026-07-28, job 13284914 went on hold)
         Hold reason: Transfer input files failure at access point bigbird27
         ... reading from file /tmp/x509up_u148947: (errno 2) No such file
-    /tmp is NODE-LOCAL. The submit host (lxplus9103) is not the access point
-    (bigbird27), so a /tmp path in x509userproxy is unreadable exactly when
-    condor needs it. AFS home is visible to the AP, so copy the proxy there.
-    Copying on every submit also means a refreshed proxy is picked up.
+    /tmp is NODE-LOCAL. The submit host is not the access point, so a /tmp path
+    in x509userproxy is unreadable exactly when condor needs it. The proxy must
+    sit somewhere the schedd can see (AFS, e.g. the working directory).
+
+    We deliberately do NOT auto-copy it into $HOME: a credential should not
+    appear in the user's home directory as a side effect of a submit command.
+    The user creates it where they want it; this function only checks.
     """
-    src = find_proxy(explicit)
-    if src is None:
-        return None, None
-    if not str(src).startswith("/tmp/"):
-        return src, None                      # already somewhere shared
-    if not do_copy:
-        return src, "would copy to %s" % PROXY_COPY
+    cand = explicit or os.environ.get("X509_USER_PROXY")
+    if not cand:
+        tmp_default = "/tmp/x509up_u%d" % os.getuid()
+        if Path(tmp_default).is_file():
+            return tmp_default, (
+                "proxy is on /tmp, which the schedd cannot read (jobs would go "
+                "on hold). Re-create it in a shared location:\n    " + PROXY_CMD)
+        return None, ("no proxy found ($X509_USER_PROXY unset, no %s).\n    "
+                      % tmp_default + PROXY_CMD)
+    if not Path(cand).is_file():
+        return None, "proxy path does not exist: %s\n    %s" % (cand, PROXY_CMD)
+    if str(cand).startswith("/tmp/"):
+        return cand, ("proxy is on /tmp (node-local); the schedd cannot read it "
+                      "and jobs will go on hold. Re-create it elsewhere:\n    "
+                      + PROXY_CMD)
+    return str(cand), None
+
+
+def proxy_timeleft(path):
+    """Remaining proxy lifetime in seconds, or None if it cannot be determined.
+
+    Jobs here run for hours and the whole campaign is 49 of them, so a proxy
+    that expires mid-flight produces XRootD read failures that look exactly
+    like the transient AAA errors of T-21. Worth checking up front.
+    """
+    if not shutil_which("voms-proxy-info"):
+        return None
     try:
-        import shutil
-        shutil.copyfile(src, str(PROXY_COPY))
-        os.chmod(str(PROXY_COPY), 0o600)      # a proxy is a credential
-    except OSError as exc:
-        return src, "COPY FAILED (%s) -- submission will go on hold" % exc
-    return str(PROXY_COPY), "copied from %s (schedd cannot read /tmp)" % src
+        out = subprocess.check_output(
+            ["voms-proxy-info", "-file", str(path), "-timeleft"],
+            stderr=subprocess.DEVNULL)
+        return int(out.decode().strip().split()[0])
+    except (subprocess.CalledProcessError, ValueError, IndexError, OSError):
+        return None
 
 
 def shutil_which(x):
@@ -583,10 +597,17 @@ def write_condor(a, P, plan):
     if not dest_url.endswith("/"):
         dest_url += "/"
 
-    proxy, note = stage_proxy(a.proxy)
-    if note:
-        print("[proxy] %s -> %s" % (note, proxy))
-    proxy = proxy or ""
+    # Hard gate: never submit without a schedd-readable proxy. Reaching the
+    # queue and then sitting on hold wastes more time than refusing here.
+    proxy, problem = resolve_proxy(a.proxy)
+    if problem:
+        sys.exit("FATAL: %s" % problem)
+    left = proxy_timeleft(proxy)
+    if left is not None and left < 3600:
+        sys.exit("FATAL: proxy %s expires in %d min; renew before submitting:\n"
+                 "    %s" % (proxy, left // 60, PROXY_CMD))
+    print("[proxy] %s%s" % (proxy,
+          "" if left is None else "  (%.0f h left)" % (left / 3600.0)))
     image_line = ("" if a.no_container
                   else 'MY.SingularityImage = "%s"\n' % a.container)
     sub = work / "match.sub"

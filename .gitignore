@@ -47,3 +47,10 @@ Validation/valout*/
 Validation/scripts/__pycache__/
 Validation/match_*.root
 Validation/.done_*
+
+# Grid proxy. The submit workflow asks you to create it in the working directory
+# (see Validation/README.md 4.0) because /tmp is invisible to the condor schedd.
+# It is a CREDENTIAL -- never commit it.
+proxy.cert
+*.proxy
+x509up_u*
