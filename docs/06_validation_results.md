@@ -114,3 +114,36 @@ sorted 경로는 이 소형 샘플에서 in-memory(11.5분)보다 **느리다**(
 49 job 동시 → **전체 wall clock ~1.7시간** 예상. `+JobFlavour = "workday"`(8 h) 안에 여유.
 직렬 ~38시간(T-22) 대비 **~22배**.
 
+### 스모크 확정 — 합산기 PASS (job 13284921 재실행, 2026-07-28)
+
+`results/file_ttbb_2L2Nu_0.json` 이 EOS 에 정상 도착하고 합산기가 **PASS** 했다. 하위 카운터까지
+인터랙티브와 전부 일치:
+
+| | 인터랙티브 | condor |
+|---|---|---|
+| tt+bbb (61+62) | 13,811 | **13,811** |
+| tt+4b (71+72) | 1,762 | **1,762** |
+| sub-code 61 / 62 | — / 4,652 | **9,159 / 4,652** |
+| sub-code 71 / 72 | — / 199 | **1,563 / 199** |
+| 원 sub-code 53/54/55 | 10,716 / 4,711 / 146 | **동일** |
+| 보존식 ge3 == extended | — | 15,573 vs 15,573 |
+| 불변식 4종 | 0 | **0** |
+
+**단, 이 실행에서 `nano total == DAS nevents` 가 `[SKIP]` 이었다** — 기본 xsec-db 경로 추정이
+lxplus 배치(별도 CMSSW 릴리스)와 맞지 않아서다. 완결성의 유일한 진짜 증명이 꺼진 채 PASS 가 난
+것이므로 합산기를 고쳤다(**못 찾으면 FAIL**, [08](08_troubleshooting.md) T-23 ⑦). 값 자체는
+`samples_2018UL.json` 에 있고 `TTbb_DiLep` = **4,792,850** 으로 정확히 일치하므로, `--xsec-db` 를
+주고 재실행하면 이 기준도 통과한다.
+
+2018 UL DAS nevents (대조 기준):
+
+| KEY | nevents |
+|---|---|
+| TT4b | 9,844,000 |
+| TTbb_Hadronic | 8,049,064 |
+| TTbb_SemiLep | 10,378,681 |
+| TTbb_DiLep | 4,792,850 |
+| TTbar_Hadronic | 334,206,000 |
+| TTbar_SemiLep | 476,408,000 |
+| TTbar_DiLep | 145,020,000 |
+

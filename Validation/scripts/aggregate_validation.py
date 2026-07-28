@@ -30,6 +30,7 @@
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -89,15 +90,53 @@ def parse_args():
     return p.parse_args()
 
 
+def find_xsec_db(explicit, era):
+    """Locate samples_<era>UL.json. Returns (path, tried_list).
+
+    WHY THE SEARCH (2026-07-28): the naive guess
+    <Validation>/../../tempTTHH/data/ assumes TTHHGenCategoryTools and tempTTHH
+    live in the SAME CMSSW release. On lxplus they do not -- the categorizer is
+    in CMSSW_10_6_32_patch1 and tempTTHH in CMSSW_14_2_1 -- so the guess missed
+    and the DAS check was silently skipped while the sample still said PASS.
+    That is the exact class of silently-degrading safety check this tool exists
+    to prevent, so now we search, and a miss is a FAILURE (see verdict()).
+    """
+    name = "samples_%sUL.json" % era
+    tried = []
+    # An EXPLICIT --xsec-db is authoritative: if it does not exist, fail. Falling
+    # back to a guessed path would silently substitute a different file for the
+    # one the user named -- worse than a clear error.
+    if explicit:
+        tried.append(str(explicit))
+        return (Path(explicit) if Path(explicit).is_file() else None), tried
+    cands = []
+    if os.environ.get("TTHH_XSEC_DB"):
+        cands.append(Path(os.environ["TTHH_XSEC_DB"]))
+    # same release (workspace layout: tempTTHH is a sibling of this repo)
+    cands.append(VAL_ROOT.parent.parent / "tempTTHH" / "data" / name)
+    # sibling CMSSW releases (lxplus layout)
+    for up in (3, 4, 5):
+        try:
+            base = VAL_ROOT.parents[up]
+        except IndexError:
+            continue
+        cands.extend(sorted(base.glob("CMSSW_*/src/tempTTHH/data/" + name)))
+    for c in cands:
+        tried.append(str(c))
+        if c.is_file():
+            return c, tried
+    return None, tried
+
+
 def load_xsec_db(path):
-    if not path or not Path(path).is_file():
-        return None
+    """Returns (db, problem). A problem is a string, never a silent None."""
+    if path is None:
+        return None, "file not found"
     try:
-        with open(path, encoding="utf-8") as fh:
-            return json.load(fh)
+        with open(str(path), encoding="utf-8") as fh:
+            return json.load(fh), None
     except (OSError, ValueError) as exc:
-        print("[warn] cannot read xsec db %s: %s" % (path, exc))
-        return None
+        return None, "unreadable (%s)" % exc
 
 
 def expected_chunks(nano_dir, short):
@@ -170,8 +209,16 @@ def verdict(short, agg, problems, das_nevents):
                                   agg["missing_chunks"][:6])
                               + (" ..." if len(agg["missing_chunks"]) > 6 else ""))))
 
-    if das_nevents is None:
-        crit.append(("nano total == DAS nevents", None, "no DAS value available"))
+    if das_nevents == "skipped":
+        # Only an explicit --no-das-check gets a SKIP.
+        crit.append(("nano total == DAS nevents", None,
+                     "SKIPPED by --no-das-check (completeness NOT proven)"))
+    elif das_nevents is None:
+        # Missing db or missing key is a FAILURE, not a shrug: without it the
+        # only real completeness proof is absent (see the module header / T-21).
+        crit.append(("nano total == DAS nevents", False,
+                     "no DAS nevents available -- pass --xsec-db "
+                     "/path/to/samples_<era>UL.json (or set TTHH_XSEC_DB)"))
     else:
         ok = agg["nano_entries"] == das_nevents
         crit.append(("nano total == DAS nevents", ok,
@@ -219,8 +266,11 @@ def main():
         jsondir = out_base / "json"
     nano_dir = Path(a.nano_filelist_dir or
                     VAL_ROOT / "filelists" / ("nano%s" % era))
-    xsec_path = a.xsec_db or (VAL_ROOT.parent.parent / "tempTTHH" / "data"
-                              / ("samples_%sUL.json" % era))
+    if a.no_das_check:
+        xsec_path, xsec_tried, db, db_problem = None, [], None, None
+    else:
+        xsec_path, xsec_tried = find_xsec_db(a.xsec_db, era)
+        db, db_problem = load_xsec_db(xsec_path)
     shorts = ([s.strip() for s in a.samples.split(",")] if a.samples
               else list(SHORTS))
 
@@ -228,7 +278,14 @@ def main():
     print("ttbarId-extend validation summary   era=%s" % era)
     print("  json dir  : %s" % jsondir)
     print("  nano lists: %s" % nano_dir)
-    print("  xsec db   : %s" % xsec_path)
+    if a.no_das_check:
+        print("  xsec db   : (--no-das-check: DAS comparison disabled)")
+    elif db is not None:
+        print("  xsec db   : %s" % xsec_path)
+    else:
+        print("  xsec db   : NOT FOUND (%s)" % (db_problem or "no candidate"))
+        for t in xsec_tried:
+            print("      tried  : %s" % t)
     print("=" * 92)
     if not jsondir.is_dir():
         sys.exit("FATAL: no results directory %s\n"
@@ -237,20 +294,24 @@ def main():
                  "  echoes its JSON between 'BEGIN JSON'/'END JSON' there, so the\n"
                  "  numbers survive even a failed EOS transfer." % jsondir)
 
-    db = None if a.no_das_check else load_xsec_db(xsec_path)
     summary, all_ok = {}, True
 
     for short in shorts:
         exp = expected_chunks(nano_dir, short)
         agg, problems = aggregate_sample(short, jsondir, exp)
 
-        das = None
-        if db is not None:
+        if a.no_das_check:
+            das = "skipped"
+        elif db is None:
+            das = None                      # -> FAIL in verdict()
+        else:
             key = SHORT_TO_XSECKEY.get(short)
             if key and key in db:
                 das = db[key].get("nevents")
             else:
-                problems.append("no xsec-db key for short name %r" % short)
+                das = None
+                problems.append("no xsec-db key for short name %r (looked for %r)"
+                                % (short, key))
 
         crit = verdict(short, agg, problems, das)
         ok = all(c[1] is not False for c in crit)

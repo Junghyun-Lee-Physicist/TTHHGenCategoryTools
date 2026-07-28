@@ -60,6 +60,8 @@ CMSSW 불필요; `root-config`만 있으면 `make`. 각 `src/*.cc`가 `bin/<이�
 | `matchTtbarIdSorted` | 대샘플용 matchTtbarId: index binary-search로 covering part만 적재(1개 상주) | 검사 항목·exit 계약은 matchTtbarId와 동일 |
 | `extractTtbarIdPatch` | analyzer 소비용 patch 파일 생산: `Expanded%100∈{61,62,71,72}`(⇔`nAddBJets≥3`) row만 추출, 두 기준 불일치 시 abort. 요약 카운트는 match 로그와 일치해야 함 | exit 0/2 args/3 filelist/7 selection 불일치. 구 규약 호환: `--out ttnb_X.root --out-tree TtNb` |
 | `scanOrder` | filelist의 per-file (run,lumi,event) 정렬·범위 진단 (streaming, 메모리 무시 가능) | — |
+| `scripts/submit_validation_condor.py` | 전량 검증 오케스트레이션: 정렬(로컬·직렬) → preflight → job = nano chunk 1개로 HTCondor 제출 | — |
+| `scripts/aggregate_validation.py` | chunk 별 `--json` 카운터 합산 + DAS nevents 대조 → 샘플별 PASS/FAIL | 0 / 1 |
 | `scripts/submit_hist_condor.py`, `scripts/merge_hists.sh` | makeTtbarHist의 HTCondor 병렬화 + hadd 병합 | — |
 | `scripts/das_lineage.py` | DAS file-level parent/child lineage 조회 (grid proxy + dasgoclient 필요) | 사용 이력 OPEN ([01](01_status.md) O3) |
 | `filelists/` | 7개 샘플의 nano/ttbarId-extend filelist (검증 캠페인 실사용 입력) | — |
@@ -77,3 +79,19 @@ CMSSW 불필요; `root-config`만 있으면 `make`. 각 `src/*.cc`가 `bin/<이�
 2. era가 다르면 `run_ttbarIdExtend_cfg.py`의 era modifier와 datasets.yaml의 era 블록 갱신 ([09](09_environment.md) §3.7).
 3. CRAB 4단계 강제 순서: `preflight.py` → `--dry-run` → `--max-files 5` 스모크 → 본제출.
 4. `Validation/filelists/`에 nano/ttbarId-extend filelist 생성(`make_filelists*.py`) → 소샘플은 `matchTtbarId`, 대샘플(대략 5천만 event 초과)은 sorted 경로 → `extractTtbarIdPatch`.
+
+## 3.1 전량 검증의 실행 구조 (HTCondor, 2026-07-28)
+
+**분할 축은 nano 쪽이다.** 각 job 은 nano filelist chunk 1개(20파일)를 받고, **extend 쪽은 정렬본
+전체**를 본다. 그래서 경계 효과가 없다 — 어떤 nano event 든 extend 전량에서 찾는다. extend 를
+쪼갰다면 틀렸을 것이다.
+
+메모리는 샘플 크기와 무관하게 일정하다: `matchTtbarIdSorted` 는 `index.txt`(수십 KB)와 **정렬 part
+1개**만 상주시킨다. `Row` = `Key`(16 B) + `Int_t`×4 = **32 B**, part = 500 k row → **16 MB**
+(실측 peak RSS 489 MB — ROOT 버퍼 포함). in-memory `matchTtbarId` 로 `TTToSemiLeptonic`(479 M row)을
+하면 flat 이어도 15 GB, `std::map` 이면 ~38 GB 라 **불가능**하다(D8).
+
+실행 환경이 두 층으로 갈린다: **제출은 EL9 호스트**(`condor_submit` 이 거기 있다), **실행은 EL7
+컨테이너**(바이너리가 slc7_amd64_gcc700 / ROOT 6.14 다). 그래서 `getenv = True` 를 쓰지 않고
+job 이 cvmfs 에서 릴리스를 직접 세팅한다. 결과는 condor 에 맡기지 않고 job 이 `xrdcp` 로 EOS 에
+올린다 — 그 이유와 나머지 함정은 [08](08_troubleshooting.md) **T-23**.

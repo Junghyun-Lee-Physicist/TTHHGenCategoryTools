@@ -2,19 +2,28 @@
 
 > **목적**: ttbarId-extend ↔ 중앙 NanoAODv9의 전량 byte-identity 검증, 분포 비교, analyzer용 patch 파일 추출의 **복붙 가능한 명령 모음**.
 > **대상 독자**: 검증을 (재)수행하거나 새 샘플을 추가하는 사람. 검사 로직·설계는 [../docs/05_architecture.md](../docs/05_architecture.md) §3, 완료된 결과 수치는 [../docs/06_validation_results.md](../docs/06_validation_results.md).
-> **상태**: 워크플로 DECIDED (2026-06 캠페인에서 그대로 사용). 2026-07-05: 도구 rename `extractTtNb` → `extractTtbarIdPatch` (로직 무변경, D12) — 이 문서의 명령은 신규약 기준, 구규약 재생산법 병기.
+> **상태**: 워크플로 DECIDED. 2026-07-28: **HTCondor 전량 검증 경로 신설·실동작 확인**(§4.0) — 스모크가 인터랙티브와 전 카운터 일치. 2026-06 캠페인(2017)은 인터랙티브 경로로 완료. 2026-07-05: 도구 rename `extractTtNb` → `extractTtbarIdPatch` (로직 무변경, D12) — 이 문서의 명령은 신규약 기준, 구규약 재생산법 병기.
 > **환경**: CMSSW 불필요. `root-config`가 PATH에 있는 아무 ROOT 6.x 환경 (KNU Tier3, lxplus 등). 소스는 `Validation/tools/`에 있고 BuildFile.xml이 없어 **scram이 건드리지 않는다**(standalone `make`). 소스를 `src/`가 아니라 `tools/`에 둔 이유는 [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-15.
 
 ## 한눈에 보는 워크플로 (번호 없음 — 아래 §0부터가 실행 순서)
 
 ```
-filelists/{nano,sidecar}/filelist_<S>.txt        (검증 캠페인 실사용본 동봉)
+filelists/{nano,sidecar}<era>/                   (§0 에서 생성)
         │
-        ├── 소샘플(≲5천만 evt): matchTtbarId ──────────────┐
-        ├── 대샘플: sortSplitExtend → matchTtbarIdSorted ──┤→ match_<S>.root → plotTtbarCompare
-        │                                                   │   (byte-identity + 확장 무결성 판정)
+        ├── ★ 전량 검증 = HTCondor (§4.0, 권장 · 실동작 확인)
+        │     sortSplitExtend (전 샘플) → submit_validation_condor.py (job = nano chunk)
+        │       → 각 job: matchTtbarIdSorted --json → xrdcp → EOS results/
+        │       → aggregate_validation.py: 합산 + DAS 대조 → 샘플별 PASS/FAIL
+        │
+        ├── 스팟체크 = 인터랙티브 (§1, §3, §4.1)
+        │     소샘플: matchTtbarId ─────────────┐
+        │     대샘플: sortSplitExtend → Sorted ─┤→ match_<S>.root → plotTtbarCompare
+        │                                        │  (byte-identity + 확장 무결성)
         └── 검증 통과 후: extractTtbarIdPatch → ttbarIdPatch_<S>.root  (analyzer 소비, ../docs/07)
 ```
+
+**전량이면 §4.0 (HTCondor)** 로 간다 — 인터랙티브 직렬은 ~38시간이고 condor 는 ~1.7시간이다.
+§1·§3 의 인터랙티브 명령은 샘플 1~2개를 손으로 확인할 때만 쓴다.
 
 의존 순서 두 가지: (1) ttbarId-extend 파일이 먼저 생산돼 있어야 함([../TtbarIdExtender/README.md](../TtbarIdExtender/README.md)); (2) 대샘플은 반드시 `sortSplitExtend` 먼저 → 그 출력 `sorted_<S>/`를 `matchTtbarIdSorted --sorted-dir`로.
 
@@ -125,6 +134,8 @@ bin/plotTtbarCompare --match match_tt4b.root --out tt4b.png --label tt4b
 | `extractTtbarIdPatch` | tt+nb row만 추출한 per-sample patch (analyzer 소비용) | 0 / 2 args / 3 filelist / 7 selection 불일치 |
 | `makeTtbarHist`+`plotTtbarCompare` | 분포·shape 비교 (per-bin ratio 숫자, 1 이탈은 red) | ratio≠1 sub-code를 stdout 나열 |
 | `scanOrder` | filelist 정렬/키범위 진단 (스트리밍) | — |
+| `scripts/submit_validation_condor.py` | **전량 검증 오케스트레이션** (§4.0): 정렬 → preflight → 스모크 → 49 job 제출 | preflight 가 FAIL 나열 / job exit 는 §4.0 표 |
+| `scripts/aggregate_validation.py` | chunk JSON 합산 + **DAS nevents 대조** → 샘플별 PASS/FAIL 1장 | 0 = 전 샘플 PASS / 1 = 하나 이상 FAIL |
 
 ## 3. 복붙용 — 2017 UL 7샘플 검증 전체 (2026-06 캠페인과 동일)
 
@@ -206,86 +217,162 @@ done
 
 출력 로그의 `selected tt+nb rows`와 `tt+bbb(61+62) / tt+4b(71+72)` 개수는 같은 샘플의 match 검증 로그와 **정확히 일치**해야 한다 (일치 = 추출 정확). 2026-06에 산출된 7편(구 규약)은 [`lookup/`](lookup/README.txt)에 보존 — 두 규약을 한 디렉토리에 섞지 말 것.
 
-### 4.0 ★ 권장 경로 — HTCondor 로 전 샘플 한 번에 (2026-07-28 신설)
+### 4.0 ★ 권장 경로 — HTCondor 전량 검증 (2026-07-28 실동작 확인)
 
-**아래 §4.1 의 인터랙티브 절차는 소형 샘플 스팟체크용으로만 남긴다.** 전량 검증은
-직렬로 **~38시간**이다(실측 기반: 4.79 M nano 11.5분 / 8.05 M 29분 → 145·334·476 M 은
-각각 ~6·13·19시간). 병목은 CPU 가 아니라 중앙 NanoAOD **~1.2 TB WAN 읽기**이므로
-(실측 CPU 효율 25%) nano chunk 단위로 쪼개면 **1~2시간**이 된다.
-근거·경위는 [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) **T-22**.
+**동작이 실증된 절차다.** 스모크 1 job 이 `matchTtbarIdSorted` 로 `ttbb_2L2Nu` 전량을 검증해
+인터랙티브 `matchTtbarId` 와 **모든 카운터가 일치**했다(수치·성능은
+[../docs/06_validation_results.md](../docs/06_validation_results.md)). 아래 명령은 그때 실제로 쓴 것이다.
 
-> ### ⚠️ 실행 위치가 단계마다 다르다
-> `condor_submit` 은 **cmssw-el7 컨테이너 안에 없다** — EL9 호스트에만 있다. 반면
-> `Validation/bin/*` 는 그 컨테이너에서 빌드된 slc7 / ROOT 6.14 바이너리라 EL9 워커에서
-> 그냥은 돌지 않는다. 그래서:
->
-> | 단계 | 어디서 | 왜 |
-> |---|---|---|
-> | `make`, `--sort-only` | **컨테이너 안** (`cmssw-el7` + `cmsenv`) | 바이너리를 빌드·실행 |
-> | `--preflight`, `--smoke`, 전량 제출 | **EL9 호스트** (`exit` 로 나온 뒤) | `condor_submit` 이 거기 있음 |
-> | job 실행 | 자동으로 **EL7 컨테이너** | `MY.SingularityImage` 로 요청 |
->
-> 그래서 submitter 는 `getenv = True` 를 **쓰지 않는다** — EL9 호스트 환경을 EL7 payload 에
-> 물려주는 건 틀린 짓이다. 대신 job 스크립트가 cvmfs 에서 직접 릴리스를 세팅한다
-> (`cmsset_default.sh` → `scramv1 runtime -sh`). 바이너리도 AFS 에서 읽지 않고
-> **transfer 한다** — 워커에는 이 홈 디렉토리의 AFS 토큰이 없다.
+전량을 인터랙티브로 돌리면 **직렬 ~38시간**이다(실측 외삽). 병목은 CPU 가 아니라 중앙 NanoAOD
+**~1.2 TB WAN 읽기**이므로 nano chunk 단위로 쪼개면 **49 job 동시 → ~1.7시간**이 된다.
 
-> ### ⚠️ 제출 전 필수 — grid proxy 를 **공유 위치**에 만든다
-> job 은 nano 를 `root://cms-xrd-global.cern.ch//store/...` 로 읽으므로 proxy 가 **필수**다.
-> 그런데 `voms-proxy-init` 의 기본 출력 위치인 **`/tmp` 는 노드 로컬**이라 schedd(access
-> point)가 읽지 못한다 — 그대로 제출하면 job 이 hold 된다
-> ([08](../docs/08_troubleshooting.md) T-24). 그래서 **현 디렉토리에 만들고 환경변수로 가리킨다**:
->
-> ```bash
-> voms-proxy-init -voms cms -rfc --valid 192:00 --out $PWD/proxy.cert
-> export X509_USER_PROXY=$PWD/proxy.cert
-> ```
->
-> `proxy.cert` 는 `.gitignore` 에 있다 — **자격증명이므로 커밋하지 않는다.** submitter 는
-> proxy 를 홈 등 다른 곳에 **자동으로 복사하지 않는다**(자격증명을 사용자 모르게 남기지 않는다).
-> 대신 `/tmp` 에 있거나 없거나 1시간 미만 남았으면 **제출을 거부**하고 위 명령을 그대로 출력한다.
-> 매 세션 한 번만 하면 되고, 남은 수명은 `--preflight` 가 시간 단위로 보고한다.
+#### 구조 — 무엇이 어디서 도는가
 
-```bash
-# (0) 사전 점검 — 아무것도 쓰지 않는다.  ※ EL9 호스트에서 (컨테이너 밖)
-python3 scripts/submit_validation_condor.py --era 2018 --preflight
-
-# (1) 전 샘플 정렬  ※ 컨테이너 안에서 (cmssw-el7 + cmsenv)
-#     로컬·직렬. 소형은 수 초, 대형은 10~36분. 이미 된 것은 skip
-python3 scripts/submit_validation_condor.py --era 2018 --sort-only
-
-# (2) 스모크 — 1샘플 1 chunk.  ※ EL9 호스트에서
-python3 scripts/submit_validation_condor.py --era 2018 --smoke
-condor_q
-#   끝나면: /eos/user/j/junghyun/TTHHGenCategoryTools/valout2018/logs/*.out 확인
-
-# (3) 전량 제출  ※ EL9 호스트에서
-python3 scripts/submit_validation_condor.py --era 2018
-
-# (4) 합산 + 판정 (샘플별 PASS/FAIL 한 장)
-python3 scripts/aggregate_validation.py --era 2018 --json-out ~/val_summary_2018.json
+```
+[제출: EL9 호스트]                      [실행: EL7 컨테이너 (워커)]
+submit_validation_condor.py             run_match.sh  (자동 생성)
+  --sort-only  → sortSplitExtend          ├ cvmfs 에서 cmsenv
+      (컨테이너 안, 로컬·직렬)             ├ matchTtbarIdSorted --json
+  --preflight  → 쓰기 없는 점검            └ xrdcp 로 결과를 EOS 에 직접 올림
+  --smoke      → 1샘플 1 chunk                    │
+  (플래그 없음) → 49 job                          ▼
+                                        EOS: valout2018/results/*.json
+                                                 │
+aggregate_validation.py  ◀───────────────────────┘
+  chunk JSON 합산 + DAS 대조 → 샘플별 PASS/FAIL 1장
 ```
 
-설계 요점 네 가지:
+| 위치 | 이유 |
+|---|---|
+| `make`, `--sort-only` | **컨테이너 안** (`cmssw-el7` + `cmsenv`) — 바이너리를 빌드·실행 |
+| `--preflight`, `--smoke`, 전량 제출 | **EL9 호스트** (`exit` 로 나온 뒤) — `condor_submit` 이 거기 있음 |
+| job 실행 | 자동으로 **EL7 컨테이너** (`MY.SingularityImage`, 실측 `os=CentOS 7.9.2009`) |
+| condor 스캐폴딩 (`condor_val<era>/`) | **AFS** — submit 파일에 `/eos` 가 있으면 schedd 가 거부 |
+| 결과 (`valout<era>/results/`) | **EOS** — job 이 `xrdcp` 로 직접 올림 |
 
-- **파이프라인 통일**: 소형·대형 구분 없이 전부 `sortSplitExtend` → `matchTtbarIdSorted`.
-  "이 샘플은 정렬이 필요한가?"를 손으로 판단할 일이 없어지고, job 당 메모리가
-  in-memory map 의 수 GB 대신 **~16 MB**(정렬 part 1개 상주)로 고정된다.
-- **job = nano chunk 1개**: `make_nano_filelists_das.sh` 가 이미 20파일씩 쪼개 둔
-  `nano<era>/<short>/file_<short>_<i>.txt` 를 그대로 쓴다(그 스크립트가 "per-condor-job
-  splits"라고 적어둔 바로 그 소비자다). job 은 `--sorted-dir` 를 **읽기만** 하므로 공유 안전.
-- **산출물은 EOS**: AFS 홈은 quota 제한(실측 10 GB 중 94% 사용)이고 토큰이 ~25시간이라
-  이 작업보다 짧다. 실제로 `SysError in <TFile::Flush> ... (Input/output error)` 를 두 번
-  맞았다. 그래서 `--out-base` 가 AFS 면 submitter 가 **거부**한다.
-- **합산기가 DAS 대조를 한다**: `unmatched` 는 데이터 손실에 대해 **단조 감소**라 그것만으로는
-  완결성을 증명할 수 없다(T-21). 그래서 `sum(nano_entries) == DAS nevents` 를 **1급 판정
-  기준**으로 넣었고, chunk JSON 이 하나라도 없으면 `all chunks present` 에서 FAIL 한다.
+함정의 근거는 [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) **T-23 (6대 함정)**.
 
-> 판정 기준: `all chunks present` · `nano total == DAS nevents` · `unmatched 0` ·
-> `disagree 0` · 보존식 · 불변식 4종 0 · 전 chunk exit 0 — **전부 통과해야** PASS 다.
-> 2017 수치(tt+nb 1,882,170)는 2018 의 기준이 **아니다**.
+#### 0단계 — grid proxy (세션당 1회, 필수)
+
+job 이 nano 를 `root://cms-xrd-global.cern.ch//store/...` 로 읽으므로 proxy 가 **필수**다.
+`voms-proxy-init` 의 기본 출력 위치 `/tmp` 는 **노드 로컬이라 schedd 가 못 읽는다** → job 이 HOLD 된다.
+그래서 현 디렉토리에 만들고 환경변수로 가리킨다:
+
+```bash
+cd $CMSSW_BASE/src/TTHHGenCategoryTools/Validation
+voms-proxy-init -voms cms -rfc --valid 192:00 --out $PWD/proxy.cert
+export X509_USER_PROXY=$PWD/proxy.cert
+```
+
+`proxy.cert` 는 `.gitignore` 에 있다 — **자격증명이므로 커밋하지 않는다.** submitter 는 proxy 를
+어디로도 **자동 복사하지 않고**, 없거나 `/tmp` 거나 수명 <1 h 이면 **제출을 거부**하고 위 명령을
+출력한다. 컨테이너를 드나들면 `export` 가 초기화되므로 호스트에서 다시 해준다.
+
+#### 1단계 — 빌드 + 정렬 (컨테이너 안)
+
+```bash
+cmssw-el7
+cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src && cmsenv
+cd TTHHGenCategoryTools/Validation && make -j4
+./bin/matchTtbarIdSorted --help | grep -A1 -- --json     # 새 바이너리 확인
+
+python3 scripts/submit_validation_condor.py --era 2018 --sort-only
+#   이미 정렬된 샘플은 index.txt 존재로 SKIP (재실행 안전)
+#   실측: 소형 4개 수 초 / TTToHadronic ~26분 / TTToSemiLeptonic ~36분
+exit
+```
+
+정렬 결과(`sorted<era>/`)는 **입력이므로 지우지 않는다** — 재생성에 ~1시간이 든다.
+
+#### 2단계 — preflight (호스트, 쓰기 없음)
+
+```bash
+cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src/TTHHGenCategoryTools/Validation
+export X509_USER_PROXY=$PWD/proxy.cert
+python3 scripts/submit_validation_condor.py --era 2018 --preflight
+```
+
+**FAIL 0** 이어야 진행한다. `worker must see EOS (POSIX)` WARN 1건은 정상이다(스모크가 확인한다).
+바이너리·filelist·정렬본·proxy 수명·컨테이너 이미지·job 수(49)를 모두 보고한다.
+
+#### 3단계 — 스모크 (1 job) → 소형 4샘플 (4 jobs) → 전량 (49 jobs)
+
+```bash
+# 스모크: ttbb_2L2Nu 1 chunk = 샘플 전체. ~21분
+python3 scripts/submit_validation_condor.py --era 2018 --smoke
+condor_q
+
+# 소형 4샘플: 각 nano <20파일이라 샘플당 1 chunk = 샘플 전체
+python3 scripts/submit_validation_condor.py --era 2018 \
+    --samples tt4b,ttbb_Hadronic,ttbb_SemiLeptonic,ttbb_2L2Nu
+
+# 전량 49 jobs
+python3 scripts/submit_validation_condor.py --era 2018
+```
+
+`--dry-run` 을 붙이면 `condor_submit` 없이 `condor_val<era>/match.sub` 만 만든다.
+
+#### 4단계 — 결과 확인
+
+```bash
+# job 상태 / 실측 성능
+condor_q
+condor_history <clusterid> -limit 1 -af RemoteWallClockTime MemoryUsage ExitCode
+
+# job 로그는 AFS (condor 관리), 결과는 EOS (job 이 xrdcp)
+grep -E "os=|root-config|parts in index|part loads|matched|unmatched|disagree|exit=" \
+     condor_val2018/logs/<label>.*.out
+ls /eos/user/j/junghyun/TTHHGenCategoryTools/valout2018/results/
+
+# 합산 + 판정 (샘플별 PASS/FAIL 1장)
+# ★ --xsec-db 는 명시하는 편이 안전하다: TTHHGenCategoryTools(10_6_32)와
+#   tempTTHH(14_2_1)가 다른 릴리스에 있어 자동 탐색이 실패할 수 있다.
+#   못 찾으면 DAS 대조가 FAIL 로 나온다(조용히 넘어가지 않는다).
+python3 scripts/aggregate_validation.py --era 2018 \
+    --xsec-db /afs/cern.ch/user/j/junghyun/CMSSW_14_2_1/src/tempTTHH/data/samples_2018UL.json \
+    --json-out ~/val_summary_2018.json
+```
+
+> **판정 기준 (전부 통과해야 PASS)**: `all chunks present` · **`nano total == DAS nevents`** ·
+> `unmatched 0` · `disagree 0` · 보존식(`nAddBJets≥3 == Expanded sub∈{61,62,71,72}`) · 불변식 4종 0 ·
+> 전 chunk exit 0.
+>
+> **`unmatched 0` 만으로는 완결성이 증명되지 않는다** — 데이터 손실에 대해 단조 감소하므로 nano
+> 입력을 잃으면 오히려 좋아 보인다(T-21 에서 13% 로 clean pass 가 나왔다). 그래서 **DAS 대조**가
+> 1급 기준이고, chunk JSON 이 하나라도 없으면 `all chunks present` 에서 FAIL 한다.
+>
+> 2017 수치(tt+nb 1,882,170)는 2018 의 기준이 **아니다** — event 수가 다르다.
+
+#### 진단 — exit code 로 원인을 안다
+
+| exit | 의미 | 대응 |
+|---|---|---|
+| 0 | 정상 | — |
+| 4 | nano 파일을 재시도 후에도 못 읽음 | 해당 chunk 재제출 (transient AAA) |
+| 6 / 8 | `genTtbarId` 불일치 / 확장 무결성 위반 | **실제 물리 문제** — 조사 필요 |
+| 122 | 계산은 정상, EOS 전송 3회 실패 | 숫자는 `.out` 의 `BEGIN/END JSON` 에 있음. 재제출 |
+| 123 | `root-config` 없음 (cvmfs/scram 세팅 실패) | `.err` 확인 |
+| 124–127 | CMSSW src / sorted `index.txt` / chunk / 바이너리 부재 | 해당 경로 확인 |
+
+job 이 어디서 죽어도 `trap` 이 **스텁 JSON** 을 남기므로, 합산기가 그 chunk 를 **FAILED**(누락이
+아니라)로 표시한다. 그리고 각 job 은 JSON 을 stdout 에도 찍으므로 **EOS 전송이 실패해도 숫자는
+`.out` 에서 복구된다**.
+
+#### 성능 실측 (2026-07-28, `ttbb_2L2Nu` 1 chunk)
+
+| | 값 |
+|---|---|
+| wall clock | 1,245 s = **20.8분** (4,792,850 event) |
+| peak memory | **489 MB** (request 2000) |
+| `part_loads` | **347** (index part 수 = 10) |
+| 처리율 | **231 k event/분** |
+
+`part_loads` 가 이상값의 34.7배인 것은 **nano 가 키 순서로 저장돼 있지 않다**는 뜻이다. 감당
+가능하다 — event 당 부하가 **part 총개수와 무관하게** 일정하므로(1 load / 13,800 event) 대형에도
+같은 처리율을 외삽할 수 있다. 대형 chunk 당 1.3–1.7 h → 49 job 동시 **~1.7 h**.
 
 ---
+
 
 ### 4.1 다른 연도(2018 UL) 복붙용 — 인터랙티브 (스팟체크용)
 
