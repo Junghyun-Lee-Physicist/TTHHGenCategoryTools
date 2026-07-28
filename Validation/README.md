@@ -134,7 +134,7 @@ bin/plotTtbarCompare --match match_tt4b.root --out tt4b.png --label tt4b
 | `extractTtbarIdPatch` | tt+nb row만 추출한 per-sample patch (analyzer 소비용) | 0 / 2 args / 3 filelist / 7 selection 불일치 |
 | `makeTtbarHist`+`plotTtbarCompare` | 분포·shape 비교 (per-bin ratio 숫자, 1 이탈은 red) | ratio≠1 sub-code를 stdout 나열 |
 | `scanOrder` | filelist 정렬/키범위 진단 (스트리밍) | — |
-| `scripts/submit_validation_condor.py` | **전량 검증 오케스트레이션** (§4.0): 정렬 → preflight → 스모크 → 49 job 제출 | preflight 가 FAIL 나열 / job exit 는 §4.0 표 |
+| `scripts/submit_validation_condor.py` | **전량 검증 오케스트레이션** (§4.0): `--sort-only` → `--preflight` → `--smoke` → 전량 → `--report` → `--resubmit-failed` | preflight 가 FAIL 나열 / job exit 는 §4.0 표 |
 | `scripts/aggregate_validation.py` | chunk JSON 합산 + **DAS nevents 대조** → 샘플별 PASS/FAIL 1장 | 0 = 전 샘플 PASS / 1 = 하나 이상 FAIL |
 
 ## 3. 복붙용 — 2017 UL 7샘플 검증 전체 (2026-06 캠페인과 동일)
@@ -325,6 +325,24 @@ grep -E "os=|root-config|parts in index|part loads|matched|unmatched|disagree|ex
 ls /eos/user/j/junghyun/TTHHGenCategoryTools/valout2018/results/
 
 # 합산 + 판정 (샘플별 PASS/FAIL 1장)
+> ### ⚠️ 이 기준 데이터는 **다른 프로젝트에서 복사한 것**이다 — 상류가 바뀌면 여기도 바꿔야 한다
+> `data/das_nevents_<era>.json` 은 `tempTTHH/data/samples_<era>UL.json` 의 `nevents` 를 복사한
+> 것이다. 런타임에 다른 repo 를 읽지 않기 위해 의도적으로 **복제**했다(그렇게 하지 않았을 때 검증
+> 기준이 조용히 꺼졌다 — [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-23 ⑦,
+> [../docs/04_decisions.md](../docs/04_decisions.md) D16). 복제의 대가는 **동기화 의무**다.
+>
+> **아래가 상류에서 바뀌면 이 repo 도 반드시 갱신한다:**
+>
+> | 상류 | 이 repo 에서 바꿀 곳 | 안 바꾸면 |
+> |---|---|---|
+> | `tempTTHH/data/samples_<era>UL.json` 의 `nevents` (dataset 교체·확장분 추가 등) | `Validation/data/das_nevents_<era>.json` | 완결성 기준이 **틀린 값과 비교** → 정상 실행이 FAIL 나거나 불완전 실행이 PASS |
+> | 프로젝트 샘플 키 이름 (`TTbar_SemiLep` 등) | `scripts/aggregate_validation.py` 의 `SHORT_TO_XSECKEY` | tempTTHH 파일을 fallback 으로 쓸 때 조회 실패 |
+> | analyzer 의 patch 파일 규약 (`ttnb_*`/`TtNb`) | `extractTtbarIdPatch` 호출의 `--out`/`--out-tree` (§4 · [../docs/07_analyzer_integration.md](../docs/07_analyzer_integration.md)) | analyzer 가 **조용히 INACTIVE** → NanoAOD 원값 사용 |
+> | NtupleForge 의 nano 산출 위치/이름 | `filelists/make_nano_filelists_das.sh` 의 dataset 목록 | filelist 가 옛 dataset 을 가리킴 |
+>
+> **불일치가 났을 때 `das_nevents_*.json` 을 고쳐서 '해결'하지 말 것.** DAS dataset 자체가 바뀐 게
+> 아니라면, 불일치는 **검증 실행이 불완전하다는 신호**다.
+
 # DAS nevents 기준은 이 repo 안에 있다 (data/das_nevents_<era>.json) — 추가 인자 불필요.
 python3 scripts/aggregate_validation.py --era 2018 --json-out ~/val_summary_2018.json
 ```
@@ -340,6 +358,34 @@ python3 scripts/aggregate_validation.py --era 2018 --json-out ~/val_summary_2018
 > 2017 수치(tt+nb 1,882,170)는 2018 의 기준이 **아니다** — event 수가 다르다.
 >
 > **DAS 기준값은 `data/das_nevents_<era>.json` 에 이 repo 안에 커밋돼 있다.** 처음엔 다른 repo(`tempTTHH/data/samples_<era>UL.json`)에서 읽었는데, 그건 lxplus 에 체크아웃돼 있지도 않아서 **기준이 조용히 SKIP 되고 PASS 가 났다**(T-23 ⑦). 검증 도구는 자기 기준 데이터를 들고 있어야 한다. `--xsec-db` 로 다른 파일을 줄 수 있지만, **주면 그 파일만 쓴다**(없으면 fallback 없이 FAIL). 불일치가 나면 **그 파일을 고치지 말고** 검증 실행이 불완전한 것으로 봐야 한다.
+
+#### 3.5단계 — 실패 chunk 확인 + 재제출
+
+`--report` 는 **배관 상태**(job 이 결과를 냈는가)만 본다. **물리 판정**(unmatched/disagree/DAS
+완결성)은 `aggregate_validation.py` 의 일이고 의도적으로 중복하지 않는다.
+
+```bash
+python3 scripts/submit_validation_condor.py --era 2018 --report
+```
+
+```
+sample                  total    ok  fail  miss  failing chunks
+TTToSemiLeptonic           20    18     1     1  file_TTToSemiLeptonic_7(exit 4), file_TTToSemiLeptonic_12(missing)
+TOTAL                      49    47     1     1
+```
+
+실패/누락된 것만 다시 보낸다:
+
+```bash
+python3 scripts/submit_validation_condor.py --era 2018 --resubmit-failed
+```
+
+> **chunk 단위 재제출이 안전한 이유** — 각 job 은 **자기 nano chunk 하나**를 스트리밍하며
+> **정렬본 전체**를 참조한다. 그래서 chunk 는 독립적이고 경계 효과가 없다. 메모리도 chunk 크기와
+> **무관**하다: 상주하는 것은 `index.txt`(수십 KB)와 **정렬 part 정확히 1개**(500k row × 32 B =
+> 16 MB)뿐이다(실측 peak RSS 489 MB). 즉 재제출은 처음 돌릴 때와 **같은 비용**이며 특별한 경우가
+> 아니다. "miniAOD event 마다 NanoAOD 를 메모리에서 찾는" 방식이 아니라 그 반대다 —
+> extend 쪽이 미리 정렬돼 디스크에 있다.
 
 #### 진단 — exit code 로 원인을 안다
 

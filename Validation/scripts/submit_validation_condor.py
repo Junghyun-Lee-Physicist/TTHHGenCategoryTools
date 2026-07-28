@@ -142,6 +142,14 @@ def parse_args():
     p.add_argument("--smoke", action="store_true",
                    help="Submit ONE chunk of ONE sample (%s) and stop."
                         % SMOKE_SHORT)
+    p.add_argument("--report", action="store_true",
+                   help="Per-chunk plumbing status (ok / failed / missing) from "
+                        "the result JSONs. Writes nothing. For the PHYSICS "
+                        "verdict use scripts/aggregate_validation.py.")
+    p.add_argument("--resubmit-failed", action="store_true",
+                   help="Submit ONLY the chunks that --report calls failed or "
+                        "missing. Same command, same memory as the original job "
+                        "-- a chunk is self-contained (see chunk_status()).")
     p.add_argument("--preflight", action="store_true",
                    help="Read-only check of every input; writes nothing.")
     p.add_argument("--dry-run", action="store_true",
@@ -185,12 +193,15 @@ def resolve_paths(a):
     d["bin_dir"] = Path(a.bin_dir or (VAL_ROOT / "bin"))
     d["work_base"] = Path(a.work_base or
                           (VAL_ROOT / ("condor_val%s" % era)))
+    d["era"] = era        # carried for message text only
     # abspath, NOT resolve(): resolve() follows symlinks, which rewrote
     # /eos/user/j/<u>/... into /eos/home-j/<u>/... on 2026-07-28. The
     # /eos/user/... spelling is the documented, stable one and is what the
     # condor workers mount; /eos/home-j/... is an internal realization and may
     # not exist there. Keep the user's spelling and only make it absolute.
     for k in list(d):
+        if k == "era":
+            continue
         d[k] = Path(os.path.abspath(str(d[k])))
     return d
 
@@ -244,6 +255,87 @@ def sorted_ready(sorted_base, short):
 # ---------------------------------------------------------------------------
 # preflight
 # ---------------------------------------------------------------------------
+def chunk_status(P, shorts):
+    """Per-chunk plumbing state from the result JSONs: (rows, failing).
+
+    rows    : [(short, total, ok, fail, miss, [detail strings])]
+    failing : [(short, chunk_path)] -- what --resubmit-failed would send
+
+    WHY A CHUNK IS A SAFE RESUBMIT UNIT
+      Each job streams ONE nano chunk against the FULL sorted extend set, so
+      chunks are independent and there are no boundary effects. Memory does not
+      depend on chunk size either: the matcher keeps the index (tens of KB) plus
+      exactly ONE 500k-row part (16 MB) resident, so re-running one chunk costs
+      the same as it did the first time (measured peak RSS 489 MB).
+
+    This reports PLUMBING only (did the job produce a result). The physics
+    verdict -- unmatched/disagree/invariants/DAS completeness -- belongs to
+    scripts/aggregate_validation.py and is deliberately not duplicated here.
+    """
+    import json as _json
+    resdir = P["out_base"] / "results"
+    rows, failing = [], []
+    for short in shorts:
+        cs = chunks_for(P["nano_dir"], short)
+        ok = fail = miss = 0
+        detail = []
+        for c in cs:
+            jf = resdir / ("%s.json" % c.stem)
+            if not jf.is_file():
+                miss += 1
+                detail.append("%s(missing)" % c.stem)
+                failing.append((short, c))
+                continue
+            try:
+                with open(str(jf), encoding="utf-8") as fh:
+                    d = _json.load(fh)
+                ec = int(d.get("exit_code", -1))
+            except (OSError, ValueError) as exc:
+                fail += 1
+                detail.append("%s(unreadable)" % c.stem)
+                failing.append((short, c))
+                continue
+            if ec == 0 and not d.get("job_failed"):
+                ok += 1
+            else:
+                fail += 1
+                detail.append("%s(exit %d)" % (c.stem, ec))
+                failing.append((short, c))
+        rows.append((short, len(cs), ok, fail, miss, detail))
+    return rows, failing
+
+
+def print_report(P, shorts):
+    rows, failing = chunk_status(P, shorts)
+    print("=" * 88)
+    print("per-chunk report   results = %s" % (P["out_base"] / "results"))
+    print("=" * 88)
+    print("%-22s %6s %5s %5s %5s  %s"
+          % ("sample", "total", "ok", "fail", "miss", "failing chunks"))
+    print("-" * 88)
+    tt = to = tf = tm = 0
+    for short, n, ok, fail, miss, detail in rows:
+        d = ", ".join(detail[:4]) + (" ..." if len(detail) > 4 else "")
+        print("%-22s %6d %5d %5d %5d  %s" % (short, n, ok, fail, miss, d))
+        tt += n; to += ok; tf += fail; tm += miss
+    print("-" * 88)
+    print("%-22s %6d %5d %5d %5d" % ("TOTAL", tt, to, tf, tm))
+    if failing:
+        print("\n%d chunk(s) need re-running. Same cost as the first run"
+              " (a chunk is self-contained; memory does not depend on its size):"
+              % len(failing))
+        print("  python3 %s --era %s --resubmit-failed"
+              % (Path(__file__).name, P.get("era", "<era>")))
+        print("\nFor the PHYSICS verdict (unmatched/disagree/DAS completeness):")
+        print("  python3 scripts/aggregate_validation.py --era %s"
+              % P.get("era", "<era>"))
+    else:
+        print("\nAll chunks produced a result. Now check the PHYSICS verdict:")
+        print("  python3 scripts/aggregate_validation.py --era %s"
+              % P.get("era", "<era>"))
+    return 1 if failing else 0
+
+
 def run_preflight(a, P, shorts):
     rows = []
 
@@ -334,13 +426,12 @@ def run_preflight(a, P, shorts):
             str(P["sorted_base"] / s) if ready
             else "not sorted yet -- run --sort-only first")
 
-    # The jobs read the sorted parts from EOS POSIX directly. That is standard on
-    # lxplus batch, but it IS an assumption about the worker, so say so instead of
-    # letting a 49-job failure explain it. The job script exits 125 with a clear
-    # message if index.txt is unreadable.
-    add("WARN", "worker must see EOS (POSIX)",
-        "%s -- verified by --smoke, job exits 125 with a clear message if not"
-        % P["sorted_base"])
+    # Was a WARN until the 2026-07-28 smoke proved it: the job logged
+    # "sorted parts in index: 10", i.e. a worker does read EOS as POSIX. Kept as
+    # a PASS line rather than removed, because it is a real environment
+    # dependency and the job still exits 125 with a clear message if it breaks.
+    add("PASS", "worker reads EOS (POSIX)",
+        "verified 2026-07-28 smoke; job exits 125 if it ever stops working")
     add("PASS", "total condor jobs", str(total_jobs))
     n_fail = sum(1 for l, _, _ in rows if l == "FAIL")
     n_warn = sum(1 for l, _, _ in rows if l == "WARN")
@@ -737,6 +828,9 @@ def main():
     print("samples          : %s" % ", ".join(shorts))
     print()
 
+    if a.report:
+        return print_report(P, shorts)
+
     if a.preflight:
         return run_preflight(a, P, shorts)
 
@@ -756,6 +850,32 @@ def main():
                  "  AFS home is quota-limited and its token expires in ~25 h,\n"
                  "  which is shorter than this campaign. Use EOS."
                  % P["out_base"])
+
+    if a.resubmit_failed:
+        _, failing = chunk_status(P, shorts)
+        if not failing:
+            print("Nothing to resubmit: every chunk already produced a result.")
+            print("Check the physics verdict with aggregate_validation.py.")
+            return 0
+        plan = []
+        for short, c in failing:
+            if not sorted_ready(P["sorted_base"], short):
+                sys.exit("FATAL: %s is not sorted (%s/index.txt missing)."
+                         % (short, P["sorted_base"] / short))
+            tag = c.stem
+            plan.append((short, c, "%s.json" % tag, "match_%s.root" % tag))
+        print("resubmitting %d failed/missing chunk(s):" % len(plan))
+        for short, c, _, _ in plan:
+            print("   %-22s %s" % (short, c.stem))
+        print()
+        sub, argsfile, logdir = write_condor(a, P, plan)
+        print("wrote %s" % sub)
+        if a.dry_run:
+            print("\n[dry-run] not submitting.")
+            return 0
+        rc = subprocess.call(["condor_submit", str(sub)])
+        print("condor_submit exit=%d" % rc)
+        return rc
 
     plan = []
     for s in shorts:

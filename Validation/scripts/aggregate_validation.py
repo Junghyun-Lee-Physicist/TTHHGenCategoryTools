@@ -20,6 +20,22 @@
 # expected chunk list and the JSON files on disk disagree, this prints which
 # chunk indices are absent and marks the sample INCOMPLETE.
 #
+# DUPLICATED REFERENCE DATA -- SYNC OBLIGATION (docs/04_decisions.md D16)
+#   The DAS nevents used by the completeness criterion live in THIS repo at
+#   data/das_nevents_<era>.json. They are a COPY of the `nevents` field in
+#   tempTTHH/data/samples_<era>UL.json. The copy is deliberate: reading another
+#   repository at runtime made the criterion silently degrade to SKIP on lxplus,
+#   where tempTTHH is not checked out at all (docs/08 T-23 (7)).
+#
+#   The price of the copy is that upstream changes must be mirrored here:
+#     * samples_<era>UL.json `nevents` changes  -> data/das_nevents_<era>.json
+#     * project sample KEY renames             -> SHORT_TO_XSECKEY below
+#     * analyzer patch-file convention changes -> extractTtbarIdPatch --out/--out-tree
+#     * NtupleForge dataset changes            -> filelists/make_nano_filelists_das.sh
+#
+#   If a run disagrees with these numbers, do NOT "fix" the json. Unless the DAS
+#   dataset itself changed, a mismatch means the validation run is INCOMPLETE.
+#
 # USAGE
 #   python3 scripts/aggregate_validation.py --era 2018
 #   python3 scripts/aggregate_validation.py --era 2018 --samples ttbb_2L2Nu

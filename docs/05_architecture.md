@@ -62,6 +62,9 @@ CMSSW 불필요; `root-config`만 있으면 `make`. 각 `src/*.cc`가 `bin/<이�
 | `scanOrder` | filelist의 per-file (run,lumi,event) 정렬·범위 진단 (streaming, 메모리 무시 가능) | — |
 | `scripts/submit_validation_condor.py` | 전량 검증 오케스트레이션: 정렬(로컬·직렬) → preflight → job = nano chunk 1개로 HTCondor 제출 | — |
 | `scripts/aggregate_validation.py` | chunk 별 `--json` 카운터 합산 + DAS nevents 대조 → 샘플별 PASS/FAIL | 0 / 1 |
+
+> 합산기의 DAS 기준값은 **이 repo 소유**다 (`Validation/data/das_nevents_<era>.json`, D16).
+> 상류(`tempTTHH`, NtupleForge)가 바뀌면 동기화해야 한다 — 대응 표는 `Validation/README.md` §4.0.
 | `scripts/submit_hist_condor.py`, `scripts/merge_hists.sh` | makeTtbarHist의 HTCondor 병렬화 + hadd 병합 | — |
 | `scripts/das_lineage.py` | DAS file-level parent/child lineage 조회 (grid proxy + dasgoclient 필요) | 사용 이력 OPEN ([01](01_status.md) O3) |
 | `filelists/` | 7개 샘플의 nano/ttbarId-extend filelist (검증 캠페인 실사용 입력) | — |

@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.26).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.28).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1006,4 +1006,59 @@ tempTTHH(편의 fallback). 두 키 형식(짧은 이름 / 프로젝트 키 + `ne
 불필요. 실제 스모크 JSON 으로 확인: `nano total == DAS nevents 4,792,850 vs 4,792,850` **PASS**.
 
 [08](08_troubleshooting.md) **T-23 ⑦** 갱신.
+
+---
+
+## 2026-07-28 — v13.27: 복제한 기준 데이터의 동기화 의무를 명문화 (D16)
+
+사용자 지시: *"configure를 직접 가지고 왔으므로 tthh analyzer나 ntuple forge의 configure가
+바뀌었을 때 본 프로젝트 코드에도 반영해야 한다는 사실을 docs 및 readme의
+aggregate_validation.py 명령어 부분 근처에 주석으로 남겨둬라."*
+
+v13.26 에서 DAS nevents 를 이 repo 로 복제했다. 복제는 **동기화 의무**를 만들고, 그 의무는
+기억이 아니라 문서에 있어야 한다. 세 곳에 같은 내용을 뒀다 — 사람이 실제로 보는 위치가 다르므로
+중복이 맞다:
+
+1. **`Validation/README.md` §4.0** — 합산 명령 **바로 위**에 경고 박스 + **상류→이 repo 대응 표**
+2. **`scripts/aggregate_validation.py` 헤더** — 같은 목록 (코드를 여는 사람용)
+3. **`docs/04_decisions.md` D16** (신설) — 결정·근거·기각한 대안 3개·규칙
+
+동기화 대상 4개와 안 했을 때의 증상:
+
+| 상류 | 이 repo | 안 바꾸면 |
+|---|---|---|
+| `samples_<era>UL.json` 의 `nevents` | `data/das_nevents_<era>.json` | 완결성 기준이 틀린 값과 비교 |
+| 프로젝트 샘플 키 이름 | `SHORT_TO_XSECKEY` | tempTTHH fallback 조회 실패 |
+| analyzer patch 규약 (`ttnb_*`/`TtNb`) | `extractTtbarIdPatch --out/--out-tree` | analyzer 가 **조용히 INACTIVE** |
+| NtupleForge dataset | `make_nano_filelists_das.sh` | filelist 가 옛 dataset 을 가리킴 |
+
+세 곳 모두에 같은 규칙을 반복했다: **불일치가 나면 json 을 고쳐서 '해결'하지 말 것.** DAS dataset
+자체가 바뀐 게 아니라면 불일치는 검증 실행이 불완전하다는 신호다.
+
+D16 이 기각한 대안: tempTTHH 를 lxplus 에 체크아웃(환경마다 재발) / 못 찾으면 SKIP 유지(판정이
+조용히 약해짐) / git submodule(릴리스 주기가 다르고 필요한 건 정수 7개).
+
+---
+
+## 2026-07-28 — v13.28: `--report` + `--resubmit-failed` (chunk 단위) + WARN 정리
+
+**① `--report`** — chunk 별 배관 상태(ok / fail / miss)를 샘플별로 집계해 표로 낸다. 실패한
+chunk 이름과 exit code 를 그대로 보여주고, 재제출 명령을 출력한다. **물리 판정은 하지 않는다** —
+그건 `aggregate_validation.py` 의 일이고 의도적으로 중복하지 않았다(한 사실을 한 곳에서).
+
+**② `--resubmit-failed`** — `--report` 가 실패/누락이라고 본 chunk **만** 다시 제출한다.
+
+**③ 사용자 질문에 대한 답 (문서화)**: *"chunk단위로 다시 돌리는게 괜찮나? … 각 miniAOD 이벤트마다
+일치하는 NanoAOD event를 찾아야 하는데 메모리 문제 없나?"* — 방향이 반대여서 문제없다. extend 쪽은
+**이미 디스크에 정렬**돼 있고, job 은 자기 nano chunk 를 스트리밍하며 `index.txt`(수십 KB) +
+**정렬 part 1개**(16 MB)만 상주시킨다. 그래서 메모리는 **chunk 크기와 무관하게 일정**하고(실측 peak
+489 MB), 재제출은 처음과 **같은 비용**이다. 각 chunk 가 정렬본 전체를 보므로 경계 효과도 없다 —
+그것이 chunk 를 재제출 단위로 쓸 수 있는 이유다. README §4.0 의 3.5단계에 박아뒀다.
+
+**④ preflight WARN 제거** — `worker must see EOS (POSIX)` 는 스모크가 `sorted parts in index: 10`
+을 찍어 **실증**했으므로 PASS 로 바꿨다. 줄 자체는 남겼다(실제 환경 의존성이고, 깨지면 job 이
+125 로 죽는다). 이제 preflight 는 **FAIL 0 / WARN 0** 이 정상 상태다.
+
+단위검증: A=[ok, exit 4, missing] · B=[ok, 스텁 exit 123] fixture 로 report 표·합계·재제출 args
+3줄(정확히 실패한 것만)을 확인. 전부 성공 시 "Nothing to resubmit" 도 확인.
 

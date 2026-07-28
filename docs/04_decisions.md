@@ -150,3 +150,29 @@
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 
 - 폐기 사유는 D1 참조. **검증됐던 사실**과 emit된 cfg 4편은 [10_enriched_nanoaod_archive.md](10_enriched_nanoaod_archive.md)와 `TtbarIdExtender/archive/enriched_nanoaod/`에 보존 — 지식은 버리지 않는다.
+
+## D16 — 검증 기준 데이터는 이 repo 가 소유한다 (cross-repo 런타임 읽기 금지)
+
+**결정**: 완결성 검증의 기준값(DAS nevents)을 `Validation/data/das_nevents_<era>.json` 으로
+**이 repo 에 복제해 커밋**한다. 다른 repo(`tempTTHH/data/samples_<era>UL.json`)를 런타임에 읽지
+않는다. tempTTHH 경로는 편의 fallback 으로만 남긴다.
+
+**근거** (2026-07-28 실측): 원래는 tempTTHH 파일만 읽었는데, lxplus 에는 tempTTHH 가 **체크아웃돼
+있지도 않다**. 그 결과 `nano total == DAS nevents` 기준이 **조용히 SKIP 되고 샘플은 PASS** 했다
+([08](08_troubleshooting.md) T-23 ⑦). 검증 도구가 자기 판정 기준을 외부 의존성으로 두면, 그
+의존성이 없는 환경에서 **판정이 약해진 것을 모른 채** 통과한다. 이 프로젝트에서 가장 비싼 실패
+유형(T-21 의 13% false pass)과 같은 부류다.
+
+**대가와 그 관리**: 복제는 동기화 의무를 만든다. 그래서 (1) `_meta` 에 출처·생성일·갱신 규칙을
+박고, (2) `Validation/README.md` §4.0 의 합산 명령 바로 위에 **상류→이 repo 대응 표**를 두고,
+(3) `aggregate_validation.py` 헤더에 같은 목록을 둔다. 동기화 대상 4개: `nevents` 값 /
+프로젝트 샘플 키 이름(`SHORT_TO_XSECKEY`) / analyzer patch 규약(`ttnb_*`/`TtNb`) /
+NtupleForge dataset 목록.
+
+**기각한 대안**: ① tempTTHH 를 lxplus 에 체크아웃해 경로를 맞춘다 — 환경마다 배치가 달라 같은
+문제가 재발하고, 검증이 남의 repo 존재에 의존한다. ② 못 찾으면 SKIP 유지 — 판정이 조용히
+약해지는 것을 허용하는 것이므로 기각(**안전장치는 입력이 없으면 통과가 아니라 실패해야 한다**).
+③ git submodule — 두 repo 의 릴리스 주기가 다르고, 필요한 것은 7개 정수뿐이다.
+
+**규칙**: 불일치가 나면 `das_nevents_*.json` 을 고치지 않는다. DAS dataset 자체가 바뀐 게
+아니라면, 불일치는 검증 실행이 불완전하다는 신호다.
