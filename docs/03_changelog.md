@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.16).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.17).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -705,4 +705,31 @@ payload 에 물려주는** 잘못이다. 수정:
 
 `Validation/README.md` §4.0 에 **단계별 실행 위치 표**(make/sort=컨테이너, preflight/제출=호스트,
 job=자동 EL7)를 넣었다. 이게 없으면 다음 사람이 같은 곳에서 막힌다.
+
+---
+
+## 2026-07-28 — v13.17: 정렬 7/7 완료 + `/eos/user` 경로 보존 수정
+
+**정렬 전량 완료** (`--sort-only`, 전부 exit 0, `_tmp_*` 자동 정리 확인):
+
+| sample | extend rows | parts |
+|---|---|---|
+| tt4b / ttbb_Hadronic / ttbb_SemiLeptonic / ttbb_2L2Nu | (소형) | — |
+| TTTo2L2Nu | 146,010,000 | 293 (기존, SKIP) |
+| TTToHadronic | 343,248,000 | 687 |
+| TTToSemiLeptonic | 478,982,000 | 958 |
+
+extend row 수가 nano event 수보다 **많은 것은 정상**이다 — extend 는 nano 의 상위집합이고,
+`matchTtbarId` 가 `unmatched (nano-only)` 로 재는 방향이 바로 그것이다(ttbb_2L2Nu 실측:
+extend 4,858,850 ⊃ nano 4,792,850, unmatched 0). event 번호가 `lumi×1000` 인 것도
+MC 규약(lumisection 당 1000 event)과 일치한다.
+
+**버그 수정 — 내가 v13.16 에서 넣은 것.** 절대경로화를 `Path.resolve()` 로 했더니 심볼릭 링크를
+따라가 `/eos/user/j/junghyun/...` 가 `/eos/home-j/junghyun/...` 로 재작성되어 생성 파일
+(`match.sub`, `match.args`)에 박혔다. `/eos/user/...` 는 문서화된 안정 경로이자 condor 워커가
+마운트하는 이름이고, `/eos/home-j/...` 는 내부 실현 경로라 워커에 없을 수 있다 — 그대로 제출하면
+**49 job 전멸**이었다. `os.path.abspath()` 로 교체했다(심볼릭 링크 미추적, 절대화만).
+
+교훈: **사용자가 준 경로 표기를 보존한다.** 정규화가 곧 개선은 아니다. 이건 `--sort-only` 로그를
+읽다가 발견했다 — 스모크를 먼저 돌리는 순서가 여기서도 값을 했다.
 

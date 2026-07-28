@@ -167,8 +167,13 @@ def resolve_paths(a):
     d["sorted_base"] = Path(a.sorted_base or ("%s/sorted%s" % (DEFAULT_EOS, era)))
     d["out_base"] = Path(a.out_base or ("%s/valout%s" % (DEFAULT_EOS, era)))
     d["bin_dir"] = Path(a.bin_dir or (VAL_ROOT / "bin"))
+    # abspath, NOT resolve(): resolve() follows symlinks, which rewrote
+    # /eos/user/j/<u>/... into /eos/home-j/<u>/... on 2026-07-28. The
+    # /eos/user/... spelling is the documented, stable one and is what the
+    # condor workers mount; /eos/home-j/... is an internal realization and may
+    # not exist there. Keep the user's spelling and only make it absolute.
     for k in list(d):
-        d[k] = d[k].resolve()
+        d[k] = Path(os.path.abspath(str(d[k])))
     return d
 
 
