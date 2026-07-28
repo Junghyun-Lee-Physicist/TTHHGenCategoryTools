@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.13).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-27** (v13.14).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -187,7 +187,7 @@ VERDICT: ALL INVARIANTS PASS
 - **`units_per_job` 은 1 유지** (2017 생산과 동일 조건). MiniAOD 파일이 NanoAOD 보다 훨씬 많아
   7샘플 = **20,953 jobs** (TTbar_SemiLep 만 10,010) 이고 job 하나는 47k event ≈ 55 s 로
   오버헤드 비중이 크지만, "2017 과 동일" 을 우선한다. 참고 수치: `units_per_job=10` 이면
-  2,097 jobs / job 당 ~9분.
+  2,097 jobs / job 당 ~9분. (당시 예측치. **실제 완료 캠페인은 혼합 설정 11,946 jobs** — v13.14)
 - **`--max-files` 로 스모크하지 않는다.** `Data.totalUnits=N` 은 **완결 불가능한 부분 task** 를
   만든다: 103 files 중 5개만 도는 task 가 `--report` 에 `done 5/5 = 100%` 로 뜨지만 실제
   커버리지는 5% 이고, 나머지를 처리하려면 같은 dataset 을 **또** 제출해야 해서 같은 LFN 아래
@@ -500,7 +500,8 @@ v13.11 은 `TTbar_SemiLep` 항목만 10 으로 올리고 나머지 6 task 는 "�
 "무거운 파일을 포함한 job"의 비율이 ~10배가 되므로 상한에 닿는 job 이 늘어난다. gen-only job 이
 2.5 GB 를 요청해도 거의 모든 slot 에 매칭되므로 헤드룸이 사실상 공짜다.
 
-**2018 전량 재제출 효과**: 7 tasks / **20,953 → 2,097 jobs** (정확히 10배).
+**2018 전량 재제출 효과(기대치)**: 7 tasks / **20,953 → 2,097 jobs** (정확히 10배).
+**[2026-07-27 실측 정정]** 실측 결과(2026-07-27 완료): **7 tasks / 11,946 jobs / failed 0, 전부 COMPLETED**. 설정이 **혼합**으로 돌았다 — `TTbar_SemiLep` 만 upj=10(1,003 jobs; 1,001 + CRAB block 경계로 +2), 나머지 6개는 upj=1(= MiniAOD 파일 수). 재제출이 `site_config.yaml` 기본값을 10 으로 올리기 **전에** 이뤄져 `datasets.yaml` per-entry override 만 적용된 상태였다. **무해하다**(D15: packing 은 물리에 무관) → 재생산하지 않는다. upj=10 기본값은 **다음 제출부터** 적용된다.
 샘플별: SemiLep 1,001 / Hadronic 720 / DiLep 307 / TTbb_SemiLep 22 / TT4b 19 /
 TTbb_Hadronic 17 / TTbb_DiLep 11.
 
@@ -563,3 +564,66 @@ NtupleForge 쪽 **preflight job-count 체크 부재는 OPEN gap 으로 명시**�
 **"내릴 때만 위험하다"** 로 적었다. 올리는 방향은 job 수를 줄이고 물리에 무관하며 walltime
 여유가 130배라 항상 안전하다 — 무조건 금지로 적으면 v13.11 의 효율 개선(1→10) 자체가 금지되는
 모순이 된다.
+
+---
+
+## 2026-07-27 — v13.14: 2018 extend 캠페인 **완료** (11,946 jobs, failed 0) + LANG=C 출력 크래시 수정
+
+### (1) 실측 정정 — 완료된 캠페인은 "전부 upj=10 / 2,097 jobs" 가 아니다
+
+`--report` 실측: **7 tasks 전부 COMPLETED / 11,946 jobs / failed 0.**
+설정이 **혼합**이었다:
+
+| sample | MiniAOD files | jobs | upj |
+|---|---|---|---|
+| TTbar_SemiLep | 10,010 | **1,003** | **10** (per-entry override) |
+| TTbar_Hadronic | 7,195 | 7,195 | 1 |
+| TTbar_DiLep | 3,069 | 3,069 | 1 |
+| TTbb_SemiLep / TT4b / TTbb_Hadronic / TTbb_DiLep | 219/188/169/103 | 동일 | 1 |
+| **합계** | 20,953 | **11,946** | |
+
+재제출이 v13.12 의 `site_config.yaml` 기본값 1→10 커밋 **이전**에 이뤄져,
+`datasets.yaml` 의 per-entry override 만 적용된 v13.11 상태로 돌았다.
+`TTbar_SemiLep` 이 **1,003**(= 1,001 + 2)인 것은 CRAB 의 FileBased 분할이 block 경계를
+넘지 않기 때문 — upj=10 이 실제로 적용된 증거다.
+
+**재생산하지 않는다**: packing 은 물리에 무관하고(D15) 산출물은 동일하며 failed 0 이다.
+`units_per_job: 10` 기본값은 **다음 제출부터** 적용된다.
+
+**AI 측 오진 기록 (재발 방지)**: filelist 로그의 `TTTo2L2Nu 3069 files` 를 보고
+"upj=1 로 돌았다 → SemiLep 이 또 SUBMITREFUSED 일 것" 이라고 판단해 사용자에게 filelist
+삭제와 작업 중단을 지시했다. **틀렸다.** 원인은 **제출 이후에 커밋된 config 를 이미 제출된
+캠페인에 대입**한 것이다. 게다가 하필 `TTbar_SemiLep` 이 유일하게 override 로 보호된
+샘플이었다. 교훈: **돌고 있는/끝난 캠페인의 설정은 현재 워킹트리가 아니라 `--report` 의
+job 수로 판정한다** — job 수는 제출 시점 설정의 직접 증거다.
+'2,097' 을 완료 상태로 서술한 6곳(README 3, 01_status, 03_changelog, RUNBOOK, datasets.yaml,
+T-19)을 실측값으로 정정했다.
+
+### (2) `LANG=C` 함정의 세 번째 변종 — print() 출력 (실제 크래시)
+
+`make_filelists_miniAOD.py` 가 `filelist_TTTo2L2Nu.txt` 를 쓴 직후
+`UnicodeEncodeError: 'ascii' codec can't encode characters` 로 죽었다. 원인은 출력 문자열의
+box-drawing 문자 `\u2514\u2500`:
+
+```
+print(f"       \u2514\u2500 Split into folder: ...")   # <- LANG=C 에서 stdout=ASCII
+```
+
+- **v12.5/v13.2 는 파일 *읽기*(`open()` encoding)와 *소스* 인코딩 문제였고, 이건 *출력* 이다.**
+  같은 뿌리(`LANG=C`)의 세 번째 변종이라 [09](09_environment.md) 표에 없던 축이다.
+- **성공 경로에 있었다** → 매 샘플 터진다. 실제로 1/7 샘플만 만들어진 **반쪽 상태**로 중단됐다.
+- 더 나쁜 것: **v13.5 의 중복 제출 FATAL 가드 메시지가 한글이었다** → 가드가 발동하는 순간
+  진단문 대신 traceback 이 나왔을 것이다. 정작 필요할 때 못 읽는 가드였다.
+
+**수정 (2중)**: 두 생성기(`make_filelists_miniAOD.py`, `make_filelists.py`)의 **출력 문자열
+15개를 전부 ASCII 화**(한글 주석은 유지 — 소스는 UTF-8 로 디코딩되므로 무해) + **stdout 안전망**
+추가(py3.6 호환 `TextIOWrapper(errors="replace")`; 향후 stray non-ASCII 가 있어도 `?` 로
+degrade 되고 반쪽 상태로 죽지 않는다).
+`LANG=C LC_ALL=C PYTHONIOENCODING=ascii` 로 실제 재현해 **정상 경로 / FATAL 가드(exit 3) /
+`ALLOW_MULTI_CRAB_SUBMISSION=1` 우회** 3경로 모두 확인.
+
+> **주의할 논점**: 소스를 ASCII-clean 하게 만드는 것만으로는 부족하다 — 리터럴 `\u2514`
+> 이스케이프는 파일에서는 ASCII 지만 `print()` 시점에는 non-ASCII 다. [09](09_environment.md)
+> 의 "ASCII-only 파일" 규칙이 이 경우를 못 막는다는 뜻이므로, 규칙을 **"출력 문자열은 ASCII"**
+> 로 읽어야 한다.
+

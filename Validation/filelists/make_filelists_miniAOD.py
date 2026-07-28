@@ -17,6 +17,33 @@ import re
 #   python make_filelists_miniAOD.py 2018 /pnfs/.../<다른_경로>
 import sys
 
+# -----------------------------------------------------------------------------
+# stdout encoding safety net (2026-07-27)
+# -----------------------------------------------------------------------------
+# lxplus runs with LANG=C, which makes sys.stdout's encoding ASCII. ANY print()
+# of a non-ASCII character then raises UnicodeEncodeError -- and this script does
+# real work (writes filelists sample by sample), so such a crash leaves a
+# HALF-FINISHED output directory. That is exactly what happened on 2026-07-27:
+# a box-drawing character in the "Split into folder" line killed the run right
+# after filelist_TTTo2L2Nu.txt was written, with 6 samples still to go.
+#
+# Two layers:
+#   1) every printed string in this file is now pure ASCII  <- the real fix
+#   2) this shim degrades a future stray non-ASCII to '?' instead of aborting
+# NOTE: making the SOURCE ascii-clean is not sufficient by itself -- a literal
+# "\u2514" escape is ascii in the file but still non-ascii at print() time.
+# py3.6-compatible (sys.stdout.reconfigure() is 3.7+).
+try:
+    import io as _io
+    _enc = (getattr(sys.stdout, "encoding", None) or "").lower().replace("-", "_")
+    if _enc in ("ascii", "us_ascii", "ansi_x3.4_1968"):
+        sys.stdout = _io.TextIOWrapper(sys.stdout.buffer, encoding="ascii",
+                                       errors="replace", line_buffering=True)
+        sys.stderr = _io.TextIOWrapper(sys.stderr.buffer, encoding="ascii",
+                                       errors="replace", line_buffering=True)
+except Exception:
+    pass        # never let the safety net itself break the script
+
 SAMPLE_DIR_BY_ERA = {
     # 2017: rename 이전 경로에 실데이터가 그대로 있음 (위 NOTE 참조)
     "2017": "/pnfs/knu.ac.kr/data/cms/store/user/junghyun/ExtendedTtbarId/sidecar/2017",
@@ -95,20 +122,22 @@ def check_single_crab_submission(short_name, paths):
         return stamps
     print("")
     print("=" * 78)
-    print(f"[FATAL] {short_name}: CRAB timestamp 디렉토리가 {len(stamps)}개 발견됐다 -> {stamps}")
-    print("        같은 dataset 을 두 번 제출한 상태다. 이 목록을 그대로 쓰면 event 가")
-    print("        중복되어 matchTtbarId 가 exit 7 (3-key duplicate) 로 죽는다.")
-    print("        조치: 필요 없는 timestamp 디렉토리를 지운 뒤 다시 실행할 것. 예)")
+    print(f"[FATAL] {short_name}: found {len(stamps)} CRAB timestamp dir(s) -> {stamps}")
+    print("        The same dataset was submitted twice. Using this list would give")
+    print("        duplicate events -> matchTtbarId dies with exit 7 (3-key duplicate).")
+    print("        ACTION: delete the unwanted timestamp dir(s), then re-run. e.g.")
     for st in stamps:
         ex = next(p for p in paths if f"/{st}/" in p)
         root = ex.split(f"/{st}/")[0]
         n = sum(1 for p in paths if f"/{st}/" in p)
         print(f"          rm -rf {root}/{st}     # files={n}")
-    print("        의도적이라면: ALLOW_MULTI_CRAB_SUBMISSION=1 을 붙여 재실행")
+    print("        Keep exactly ONE timestamp dir per sample.")
+    print("        If the overlap is intentional, re-run with")
+    print("          ALLOW_MULTI_CRAB_SUBMISSION=1 python3 make_filelists_miniAOD.py ...")
     print("=" * 78)
     if os.environ.get("ALLOW_MULTI_CRAB_SUBMISSION") != "1":
         sys.exit(3)
-    print("[WARN] ALLOW_MULTI_CRAB_SUBMISSION=1 -> 중복 위험을 감수하고 계속한다")
+    print("[WARN] ALLOW_MULTI_CRAB_SUBMISSION=1 -> continuing despite duplicate risk")
     return stamps
 
 
@@ -142,7 +171,7 @@ def create_split_files(filename, paths):
 def write_and_split(filename, paths):
     """Master List 작성 후 바로 Split 수행"""
     if not paths:
-        print(f"    [WARNING] '{filename}' 생성을 건너뜁니다. (파일 0개)")
+        print(f"    [WARNING] skipping '{filename}': 0 files found")
         return
 
     # 1. Master List 작성
@@ -155,7 +184,7 @@ def write_and_split(filename, paths):
     core_name, count = create_split_files(filename, paths)
 
     print(f"    [SUCCESS] {filename} ({count} files)")
-    print(f"       └─ Split into folder: {OUTPUT_DIR}/{core_name}/ (file_{core_name}_0.txt ...)")
+    print(f"       \\_ Split into folder: {OUTPUT_DIR}/{core_name}/ (file_{core_name}_0.txt ...)")
 
 
 def main():
@@ -165,7 +194,7 @@ def main():
     print("=" * 60)
 
     if not os.path.exists(SAMPLE_DIR):
-        print(f"[CRITICAL ERROR] '{SAMPLE_DIR}' 경로가 없습니다.")
+        print(f"[CRITICAL ERROR] SAMPLE_DIR does not exist: '{SAMPLE_DIR}'")
         return
 
     if not os.path.exists(OUTPUT_DIR):
@@ -200,7 +229,7 @@ def main():
                         data_found = True
 
             if not data_found:
-                print(f"    [WARNING] {dirname} 내부에서 유효한 Data 폴더를 찾지 못했습니다.")
+                print(f"    [WARNING] {dirname}: no valid Data subfolder found")
 
         # MC: 단일 filelist
         else:

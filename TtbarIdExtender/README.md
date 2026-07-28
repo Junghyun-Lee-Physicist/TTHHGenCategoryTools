@@ -158,7 +158,10 @@ python3 crab/submit_ttbarIdExtend.py --era 2018 \
 #   조치: site_config 의 units_per_job 을 1 -> 10, max_memory_mb 2000 -> 2500 으로 올리고
 #   2018 전량을 처음부터 재제출했다 (절차 = 아래 2.2c, 근거 = units_per_job 절).
 #   --preflight --check-das 가 이제 task 당 job 수를 미리 계산해 상한 초과면 FAIL 시킨다.
-#   재제출 후: 7 tasks / 2,097 jobs (20,953 -> 10배 감소).
+#   재제출 실측: 7 tasks / 11,946 jobs / failed 0, 전부 COMPLETED (2026-07-27).
+#   혼합 설정이었다 — SemiLep 만 upj=10(1,003), 나머지 6개는 upj=1. site_config 기본값을
+#   10 으로 올린 시점이 제출 이후라서. 무해하며(D15) 재생산 안 함. 2,097 은 '전부 upj=10'
+#   이었다면 나왔을 값 = 다음 제출부터 기대치.
 #         outLFN <out_lfn_base>/2018
 
 # ── (5) 상태 — 정렬된 표 한 장 (컬럼 설명은 §2.3)
@@ -232,7 +235,7 @@ waste 50~58%).
 | | 이전 | 이후 |
 |---|---|---|
 | `units_per_job` | 1 | **10** |
-| 2018 총 job 수 | 20,953 (SemiLep 이 상한 초과) | **2,097** (10배 감소) |
+| 2018 총 job 수 | 20,953 (SemiLep 이 상한 초과) | **다음 제출부터 2,097** (실제 완료된 캠페인은 혼합 설정 **11,946**, 아래 주 참조) |
 | `max_memory_mb` | 2000 | **2500** |
 
 > ⚠️ **이 값을 바꾸려면 반드시 전량 재생산이다.** kill → **EOS 산출물 삭제** → project dir 삭제
@@ -313,6 +316,9 @@ python3 crab/submit_ttbarIdExtend.py --era 2018 --report
 | TTbb_Hadronic | 169 | 17 |
 | TTbb_DiLep | 103 | 11 |
 | **합계** | **20,953** | **2,097** |
+
+> **실제로 완료된 캠페인은 이 표가 아니다.** 실측 결과(2026-07-27 완료): **7 tasks / 11,946 jobs / failed 0, 전부 COMPLETED**. 설정이 **혼합**으로 돌았다 — `TTbar_SemiLep` 만 upj=10(1,003 jobs; 1,001 + CRAB block 경계로 +2), 나머지 6개는 upj=1(= MiniAOD 파일 수). 재제출이 `site_config.yaml` 기본값을 10 으로 올리기 **전에** 이뤄져 `datasets.yaml` per-entry override 만 적용된 상태였다. **무해하다**(D15: packing 은 물리에 무관) → 재생산하지 않는다. upj=10 기본값은 **다음 제출부터** 적용된다.
+> 즉 위 표는 **다음 제출**의 기대치다.
 
 ### 2.3 진행 확인 / 재제출 / kill
 

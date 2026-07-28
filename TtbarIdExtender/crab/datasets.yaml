@@ -141,7 +141,12 @@ eras:
   #        2026-07-27 submission ran at 1 (= 20,953 jobs) and TTbar_SemiLep was
   #        SUBMITREFUSED for exceeding CRAB's 10,000 jobs/task limit (T-19); the
   #        campaign was then re-submitted in full at units_per_job 10
-  #        (= 2,097 jobs). See docs/04_decisions.md D15.
+  #        Actual completed campaign (2026-07-27): 11,946 jobs, failed 0 -- MIXED
+  #        settings, because the resubmission happened BEFORE site_config's default
+  #        was raised to 10: TTbar_SemiLep ran at 10 (1,003 jobs, = 1,001 + 2 from
+  #        CRAB block boundaries) via the per-entry override below, the other six at
+  #        1. Harmless (packing is physics-neutral, D15) -- NOT re-run. The upj=10
+  #        default applies from the NEXT submission on. See docs/04_decisions.md D15.
   #        Asymmetric -vN suffixes are real and must NOT be "corrected":
   #          2018 TTbar_SemiLep : MiniAOD -v2 vs Nano -v1
   #          2017 TTbar_Hadronic: MiniAOD -v2 vs Nano -v1

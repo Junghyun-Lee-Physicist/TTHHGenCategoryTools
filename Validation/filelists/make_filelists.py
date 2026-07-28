@@ -1,6 +1,33 @@
 import os
 import sys
 
+# -----------------------------------------------------------------------------
+# stdout encoding safety net (2026-07-27)
+# -----------------------------------------------------------------------------
+# lxplus runs with LANG=C, which makes sys.stdout's encoding ASCII. ANY print()
+# of a non-ASCII character then raises UnicodeEncodeError -- and this script does
+# real work (writes filelists sample by sample), so such a crash leaves a
+# HALF-FINISHED output directory. That is exactly what happened on 2026-07-27:
+# a box-drawing character in the "Split into folder" line killed the run right
+# after filelist_TTTo2L2Nu.txt was written, with 6 samples still to go.
+#
+# Two layers:
+#   1) every printed string in this file is now pure ASCII  <- the real fix
+#   2) this shim degrades a future stray non-ASCII to '?' instead of aborting
+# NOTE: making the SOURCE ascii-clean is not sufficient by itself -- a literal
+# "\u2514" escape is ascii in the file but still non-ascii at print() time.
+# py3.6-compatible (sys.stdout.reconfigure() is 3.7+).
+try:
+    import io as _io
+    _enc = (getattr(sys.stdout, "encoding", None) or "").lower().replace("-", "_")
+    if _enc in ("ascii", "us_ascii", "ansi_x3.4_1968"):
+        sys.stdout = _io.TextIOWrapper(sys.stdout.buffer, encoding="ascii",
+                                       errors="replace", line_buffering=True)
+        sys.stderr = _io.TextIOWrapper(sys.stderr.buffer, encoding="ascii",
+                                       errors="replace", line_buffering=True)
+except Exception:
+    pass        # never let the safety net itself break the script
+
 # ==============================================================================
 # [설정] 경로  —  2026-07-26: era(연도) 인자 추가
 # ==============================================================================
@@ -32,7 +59,7 @@ if ERA not in SAMPLE_DIR_BY_ERA:
 
 SAMPLE_DIR = sys.argv[2] if len(sys.argv) > 2 else SAMPLE_DIR_BY_ERA[ERA]
 if not SAMPLE_DIR:
-    sys.exit("FATAL: no SAMPLE_DIR for era %s — pass it as the 2nd argument "
+    sys.exit("FATAL: no SAMPLE_DIR for era %s -- pass it as the 2nd argument "
              "(python make_filelists.py %s /pnfs/.../<dir>)" % (ERA, ERA))
 OUTPUT_DIR = "nano" if ERA == "2017" else "nano%s" % ERA
 print("[make_filelists] era=%s  SAMPLE_DIR=%s  OUTPUT_DIR=%s" % (ERA, SAMPLE_DIR, OUTPUT_DIR))
@@ -106,7 +133,7 @@ def create_split_files(filename, paths):
 def write_and_split(filename, paths):
     """Master List 작성 후 바로 Split 수행"""
     if not paths:
-        print(f"    [WARNING] '{filename}' 생성을 건너뜁니다. (파일 0개)")
+        print(f"    [WARNING] skipping '{filename}': 0 files found")
         return
 
     # 1. Master List 작성
@@ -119,7 +146,7 @@ def write_and_split(filename, paths):
     core_name, count = create_split_files(filename, paths)
 
     print(f"    [SUCCESS] {filename} ({count} files)")
-    print(f"       └─ Split into folder: {OUTPUT_DIR}/{core_name}/ (file_{core_name}_0.txt ...)")
+    print(f"       \\_ Split into folder: {OUTPUT_DIR}/{core_name}/ (file_{core_name}_0.txt ...)")
 
 
 def main():
@@ -129,7 +156,7 @@ def main():
     print("=" * 60)
 
     if not os.path.exists(SAMPLE_DIR):
-        print(f"[CRITICAL ERROR] '{SAMPLE_DIR}' 경로가 없습니다.")
+        print(f"[CRITICAL ERROR] SAMPLE_DIR does not exist: '{SAMPLE_DIR}'")
         return
 
     if not os.path.exists(OUTPUT_DIR):
@@ -164,7 +191,7 @@ def main():
                         data_found = True
 
             if not data_found:
-                print(f"    [WARNING] {dirname} 내부에서 유효한 Data 폴더를 찾지 못했습니다.")
+                print(f"    [WARNING] {dirname}: no valid Data subfolder found")
 
         # MC: 단일 filelist
         else:

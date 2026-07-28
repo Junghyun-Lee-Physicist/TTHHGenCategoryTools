@@ -57,6 +57,12 @@ EXTEND_PSET = str(PKG_ROOT / "test" / "run_ttbarIdExtend_cfg.py")
 # successful submit -- see the T-19 note in the --check-das block below.
 CRAB_MAX_JOBS_PER_TASK = 10000
 
+# requestName -> where its unitsPerJob came from, filled by build_config() and
+# echoed by submit_one(). A plain dict rather than an attribute on the CRAB
+# Configuration object, because that object is validated by CRABClient and does
+# not want stray fields. See T-20.
+_UPJ_SOURCE = {}
+
 # =============================================================================
 # Job-state buckets for --report
 # =============================================================================
@@ -336,9 +342,14 @@ def build_config(*, process_name, era, dataset_entry, site_cfg, era_block,
     # event) across the whole filelist and never looks at file->job packing.
     # The only upward constraint is maxJobRuntimeMin (1440 min vs ~11 min/job at
     # units_per_job=10, i.e. ~130x headroom).
-    cfg.Data.unitsPerJob     = int(
-        dataset_entry.get("units_per_job", res.get("units_per_job", 1))
-    )
+    if "units_per_job" in dataset_entry:
+        _upj, _upj_src = int(dataset_entry["units_per_job"]), "datasets.yaml per-entry"
+    elif "units_per_job" in res:
+        _upj, _upj_src = int(res["units_per_job"]), "site_config resources.extend"
+    else:
+        _upj, _upj_src = 1, "hardcoded fallback (1) -- site_config key MISSING"
+    cfg.Data.unitsPerJob = _upj
+    _UPJ_SOURCE[cfg.General.requestName] = _upj_src
     if max_files is not None:
         cfg.Data.totalUnits  = int(max_files)
     cfg.Data.publication     = False
@@ -361,6 +372,19 @@ def submit_one(cfg, *, dry_run):
     print(f"  dataset    : {cfg.Data.inputDataset}")
     print(f"  storage    : {cfg.Site.storageSite} -> {cfg.Data.outLFNDirBase}")
     print(f"  pyCfgParams: {','.join(cfg.JobType.pyCfgParams) or '(none)'}")
+    # ---- effective resource settings, echoed per task (added 2026-07-27) ------
+    # WHY: these were NOT in the submit log before, and that cost three rounds of
+    # forensics. The 2026-07-27 18:50 resubmission ran 6 of 7 samples at
+    # unitsPerJob=1 (only TTbar_SemiLep at 10) because the checkout had the
+    # datasets.yaml per-entry override but not yet the site_config default bump;
+    # the only surviving evidence was `config.Data.unitsPerJob` buried in each
+    # crab_projects/*/crab.log. Printing it here makes "what settings did this
+    # campaign actually use?" answerable from the tee'd submit log alone.
+    # See docs/08_troubleshooting.md T-20.
+    print(f"  splitting  : {cfg.Data.splitting}  unitsPerJob={cfg.Data.unitsPerJob}"
+          f"  (source: {_UPJ_SOURCE.get(cfg.General.requestName, 'unknown')})")
+    print(f"  resources  : maxMemoryMB={cfg.JobType.maxMemoryMB}"
+          f"  maxJobRuntimeMin={cfg.JobType.maxJobRuntimeMin}")
     if hasattr(cfg.Data, "totalUnits"):
         print(f"  totalUnits : {cfg.Data.totalUnits}  (capped via --max-files)")
 
