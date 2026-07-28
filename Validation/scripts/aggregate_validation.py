@@ -79,8 +79,10 @@ def parse_args():
                    help="Used to know how many chunks were EXPECTED. "
                         "Default: <Validation>/filelists/nano<era>")
     p.add_argument("--xsec-db", default=None,
-                   help="samples_<era>UL.json for the DAS nevents cross-check. "
-                        "Default: ../../tempTTHH/data/samples_<era>UL.json")
+                   help="DAS nevents reference for the completeness check. "
+                        "Default: the in-repo data/das_nevents_<era>.json "
+                        "(falls back to $TTHH_XSEC_DB, then tempTTHH's "
+                        "samples_<era>UL.json).")
     p.add_argument("--json-out", default=None,
                    help="Also write the aggregated summary as JSON.")
     p.add_argument("--no-das-check", action="store_true",
@@ -91,17 +93,18 @@ def parse_args():
 
 
 def find_xsec_db(explicit, era):
-    """Locate samples_<era>UL.json. Returns (path, tried_list).
+    """Locate the DAS-nevents reference. Returns (path, tried_list).
 
-    WHY THE SEARCH (2026-07-28): the naive guess
-    <Validation>/../../tempTTHH/data/ assumes TTHHGenCategoryTools and tempTTHH
-    live in the SAME CMSSW release. On lxplus they do not -- the categorizer is
-    in CMSSW_10_6_32_patch1 and tempTTHH in CMSSW_14_2_1 -- so the guess missed
-    and the DAS check was silently skipped while the sample still said PASS.
-    That is the exact class of silently-degrading safety check this tool exists
-    to prevent, so now we search, and a miss is a FAILURE (see verdict()).
+    ORDER: --xsec-db (authoritative) -> $TTHH_XSEC_DB -> IN-REPO
+    data/das_nevents_<era>.json -> tempTTHH/data/samples_<era>UL.json.
+
+    WHY THE IN-REPO FILE EXISTS (2026-07-28, docs/08 T-23 (7))
+      This originally read only tempTTHH/data/samples_<era>UL.json. That is a
+      DIFFERENT repository, and it is not checked out on lxplus at all -- so the
+      completeness criterion silently degraded to SKIP while samples still said
+      PASS. A validation tool must carry its own reference data; the tempTTHH
+      path is kept only as a convenience fallback.
     """
-    name = "samples_%sUL.json" % era
     tried = []
     # An EXPLICIT --xsec-db is authoritative: if it does not exist, fail. Falling
     # back to a guessed path would silently substitute a different file for the
@@ -109,23 +112,44 @@ def find_xsec_db(explicit, era):
     if explicit:
         tried.append(str(explicit))
         return (Path(explicit) if Path(explicit).is_file() else None), tried
+
     cands = []
     if os.environ.get("TTHH_XSEC_DB"):
         cands.append(Path(os.environ["TTHH_XSEC_DB"]))
-    # same release (workspace layout: tempTTHH is a sibling of this repo)
+    # in-repo, always present, committed
+    cands.append(VAL_ROOT / "data" / ("das_nevents_%s.json" % era))
+    # optional cross-repo fallbacks (same release, then sibling CMSSW releases)
+    name = "samples_%sUL.json" % era
     cands.append(VAL_ROOT.parent.parent / "tempTTHH" / "data" / name)
-    # sibling CMSSW releases (lxplus layout)
     for up in (3, 4, 5):
         try:
             base = VAL_ROOT.parents[up]
         except IndexError:
             continue
         cands.extend(sorted(base.glob("CMSSW_*/src/tempTTHH/data/" + name)))
+
     for c in cands:
         tried.append(str(c))
         if c.is_file():
             return c, tried
     return None, tried
+
+
+def das_nevents(db, short):
+    """Look up nevents, accepting either key scheme.
+
+    The in-repo file is keyed by the Validation SHORT name; tempTTHH's
+    samples_<era>UL.json is keyed by the project sample KEY and nests the count
+    under 'nevents'. Support both so either source works.
+    """
+    if short in db:                                  # in-repo: short -> int
+        v = db[short]
+        return v.get("nevents") if isinstance(v, dict) else v
+    key = SHORT_TO_XSECKEY.get(short)                # tempTTHH: KEY -> {nevents}
+    if key and key in db:
+        v = db[key]
+        return v.get("nevents") if isinstance(v, dict) else v
+    return None
 
 
 def load_xsec_db(path):
@@ -305,13 +329,11 @@ def main():
         elif db is None:
             das = None                      # -> FAIL in verdict()
         else:
-            key = SHORT_TO_XSECKEY.get(short)
-            if key and key in db:
-                das = db[key].get("nevents")
-            else:
-                das = None
-                problems.append("no xsec-db key for short name %r (looked for %r)"
-                                % (short, key))
+            das = das_nevents(db, short)
+            if das is None:
+                problems.append(
+                    "no DAS nevents entry for %r (tried key %r too)"
+                    % (short, SHORT_TO_XSECKEY.get(short)))
 
         crit = verdict(short, agg, problems, das)
         ok = all(c[1] is not False for c in crit)

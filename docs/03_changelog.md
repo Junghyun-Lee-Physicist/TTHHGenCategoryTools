@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.25).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.26).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -981,4 +981,29 @@ XRootD 는 host 와 절대경로 사이에 **슬래시 2개**를 요구하는데
 ⑤(payload 실패가 transfer 에러로 위장)와 같은 부류라 "은폐형" 으로 함께 묶었다.
 
 단위검증 4가지: db 없음 → FAIL / 정상 → PASS / 값 불일치 → FAIL / `--no-das-check` → SKIP.
+
+---
+
+## 2026-07-28 — v13.26: DAS 기준값을 이 repo 로 (cross-repo 런타임 의존 제거)
+
+v13.25 에서 "db 를 못 찾으면 FAIL" 로 고쳤는데, 실제로 lxplus 에서 돌리니 **경로를 고치는 문제가
+아니었다** — tempTTHH 가 lxplus 에 **아예 체크아웃돼 있지 않다**. 사용자 지적: *"이건 lxplus에
+똑같은게 없다. 직접 validation 같은 곳에 파일 옮겨줘야해."*
+
+**맞는 지적이고, 원래 설계가 틀렸다.** 완결성 검증의 기준값을 **다른 repo 에서 런타임에** 끌어오고
+있었다. 검증 도구는 자기 기준 데이터를 들고 있어야 한다.
+
+**신설**: `Validation/data/das_nevents_{2017,2018}.json` — 7샘플의 DAS nevents, **Validation 짧은
+이름으로 키잉**(filelist 이름과 동일), `_meta` 에 출처·생성일·**갱신 규칙**을 명시:
+
+> *"불일치가 나면 이 파일을 고쳐서 '해결'하지 말 것. 검증 실행이 불완전하다는 뜻이다."*
+
+탐색 순서: `--xsec-db`(명시 시 그것만, fallback 없음) → `$TTHH_XSEC_DB` → **in-repo** →
+tempTTHH(편의 fallback). 두 키 형식(짧은 이름 / 프로젝트 키 + `nevents` 중첩)을 모두 지원해
+어느 쪽 파일이든 쓸 수 있다.
+
+이제 `python3 scripts/aggregate_validation.py --era 2018` 만으로 DAS 대조가 동작한다 — 추가 인자
+불필요. 실제 스모크 JSON 으로 확인: `nano total == DAS nevents 4,792,850 vs 4,792,850` **PASS**.
+
+[08](08_troubleshooting.md) **T-23 ⑦** 갱신.
 

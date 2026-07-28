@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "purpose": "DAS nevents for the 7 ttbar stitching samples, used by scripts/aggregate_validation.py as the completeness criterion (sum of per-chunk nano_entries must equal this).",
+    "why_in_this_repo": "Previously read from tempTTHH/data/samples_<era>UL.json. That is a DIFFERENT repository and is not checked out on lxplus, so the check silently degraded (docs/08 T-23 (7)). A validation tool must carry its own reference data.",
+    "source": "tempTTHH/data/samples_2017UL.json, field 'nevents' (originally from DAS)",
+    "era": "2017",
+    "generated": "2026-07-28",
+    "keys": "Validation short sample names (same as filelists/*<era>/filelist_<short>.txt)",
+    "update_rule": "Only change these if the DAS dataset itself changes. A mismatch against a validation run means the run is INCOMPLETE -- do not 'fix' it by editing this file."
+  },
+  "tt4b": 9502000,
+  "ttbb_Hadronic": 5694656,
+  "ttbb_SemiLeptonic": 7318891,
+  "ttbb_2L2Nu": 3472503,
+  "TTToHadronic": 232999999,
+  "TTToSemiLeptonic": 346052000,
+  "TTTo2L2Nu": 106724000
+}

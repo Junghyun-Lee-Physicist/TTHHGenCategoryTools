@@ -325,12 +325,8 @@ grep -E "os=|root-config|parts in index|part loads|matched|unmatched|disagree|ex
 ls /eos/user/j/junghyun/TTHHGenCategoryTools/valout2018/results/
 
 # 합산 + 판정 (샘플별 PASS/FAIL 1장)
-# ★ --xsec-db 는 명시하는 편이 안전하다: TTHHGenCategoryTools(10_6_32)와
-#   tempTTHH(14_2_1)가 다른 릴리스에 있어 자동 탐색이 실패할 수 있다.
-#   못 찾으면 DAS 대조가 FAIL 로 나온다(조용히 넘어가지 않는다).
-python3 scripts/aggregate_validation.py --era 2018 \
-    --xsec-db /afs/cern.ch/user/j/junghyun/CMSSW_14_2_1/src/tempTTHH/data/samples_2018UL.json \
-    --json-out ~/val_summary_2018.json
+# DAS nevents 기준은 이 repo 안에 있다 (data/das_nevents_<era>.json) — 추가 인자 불필요.
+python3 scripts/aggregate_validation.py --era 2018 --json-out ~/val_summary_2018.json
 ```
 
 > **판정 기준 (전부 통과해야 PASS)**: `all chunks present` · **`nano total == DAS nevents`** ·
@@ -342,6 +338,8 @@ python3 scripts/aggregate_validation.py --era 2018 \
 > 1급 기준이고, chunk JSON 이 하나라도 없으면 `all chunks present` 에서 FAIL 한다.
 >
 > 2017 수치(tt+nb 1,882,170)는 2018 의 기준이 **아니다** — event 수가 다르다.
+>
+> **DAS 기준값은 `data/das_nevents_<era>.json` 에 이 repo 안에 커밋돼 있다.** 처음엔 다른 repo(`tempTTHH/data/samples_<era>UL.json`)에서 읽었는데, 그건 lxplus 에 체크아웃돼 있지도 않아서 **기준이 조용히 SKIP 되고 PASS 가 났다**(T-23 ⑦). 검증 도구는 자기 기준 데이터를 들고 있어야 한다. `--xsec-db` 로 다른 파일을 줄 수 있지만, **주면 그 파일만 쓴다**(없으면 fallback 없이 FAIL). 불일치가 나면 **그 파일을 고치지 말고** 검증 실행이 불완전한 것으로 봐야 한다.
 
 #### 진단 — exit code 로 원인을 안다
 
