@@ -51,7 +51,26 @@ if (_stitch.inPlan()) {
 
 `--mode prescan`에서 같은 `resolve()`로 event의 **generator weight 합(ΣgenW)** 을 라우팅: tt+nb event의 무게가 53/54/55 bin에서 **61/62/71/72 bin으로 이동**하므로, 이후 53/54/55는 순수 tt+2b 잔여가 된다. prescan tree에 `sumGenW_id_{61,62,71,72}`, `n_id_{61,62,71,72}` 8개 branch 추가. per-event branch(선택 통과 event의 분자)와 prescan 합(무선택 전량의 분모)은 **역할이 다르며 서로 대체 불가** — 이 구분의 상세 논의는 tempTTHH `docs/ttbarCategorization.md` §9.5.
 
-## 4. PROPOSED — 명명 rename의 analyzer측 좌표 변경 (D12 후속)
+## 4. OPEN — 명명 rename의 analyzer측 반영 (D12 후속) · **다음 업데이트 항목**
+
+> **2026-07-28 결정**: 지금은 **구규약 `ttnb_<KEY>.root` / tree `TtNb` 를 유지**한다. 2018 patch 도
+> `extractTtbarIdPatch --out ttnb_<KEY>.root --out-tree TtNb` 로 뽑는다. 즉 이 플래그는 임시
+> 우회가 아니라 **현행 정식 규약**이다. 아래는 **다음 정리 작업**으로 남긴다.
+>
+> **권장 방식은 기본값 교체가 아니라 fallback 추가다.** 2017 patch 7편(`Validation/lookup/`)은
+> **파일 안의 tree 이름이 `TtNb`** 이므로 파일명을 바꿔도 해결되지 않는다 — loader 기본값을
+> `TtbarIdPatch` 로 뒤집으면 2017 을 못 읽고 KNU Tier3 에서 **재추출**해야 한다. 대신 loader 가
+> `TtbarIdPatch` 를 먼저 시도하고 없으면 `TtNb` 로 **fallback** 하게 하면, flag day 없이
+> 마이그레이션되고 2017·2018 모두 동작한다.
+>
+> **지금 하지 않는 이유**: (1) 2018 control plots 의 크리티컬 패스가 아니다 — tempTTHH 는 별도
+> repo·별도 릴리스(CMSSW_14_2_1)이고 C++ 수정 + 재빌드 + 테스트가 병목이 된다. (2) era 별 규약
+> 혼재가 플래그 하나보다 나쁜 함정이다. (3) 틀렸을 때의 실패가 **조용하다** — loader 가 INACTIVE 로
+> 떨어져 fatal 없이 NanoAOD 원값을 쓰므로, 확장 id 가 적용 안 된 플롯이 나온다.
+>
+> 상대편 기록: `tempTTHH/docs/STATUS.md` "Pending / next steps (OPEN)".
+
+### 4.1 (참고) 기본값을 교체하는 경우의 4개 토큰
 
 도구측 기본값은 `ttbarIdPatch_*` / `TtbarIdPatch`로 변경 완료(2026-07-05). analyzer가 신규 규약을 읽게 하려면 tempTTHH에서 **정확히 아래 4개 토큰**을 바꾸면 된다 (로직 무변경):
 

@@ -147,3 +147,62 @@ lxplus 배치(별도 CMSSW 릴리스)와 맞지 않아서다. 완결성의 유�
 | TTbar_SemiLep | 476,408,000 |
 | TTbar_DiLep | 145,020,000 |
 
+---
+
+## 2018 UL — patch 추출 (extractTtbarIdPatch), **7/7 완료** 2026-07-28
+
+전부 `exit 0`, 전부 도구 자체 교차검사 `selected == nAddBJets>=3` 통과. 구규약으로 뽑았다
+(`ttnb_<KEY>.root` / tree `TtNb` — 현행 analyzer 계약, [07](07_analyzer_integration.md) §4).
+
+| sample (short → KEY) | extend rows | tt+nb rows | tt+bbb (61+62) | tt+4b (71+72) | 61 / 62 | 71 / 72 |
+|---|---|---|---|---|---|---|
+| tt4b → TT4b | 9,844,000 | **1,950,601** | 1,643,462 | 307,139 | 1,237,381 / 406,081 | 273,348 / 33,791 |
+| ttbb_Hadronic → TTbb_Hadronic | 8,049,064 | **33,072** | 29,165 | 3,907 | 19,629 / 9,536 | 3,478 / 429 |
+| ttbb_SemiLeptonic → TTbb_SemiLep | 10,378,681 | **37,420** | 33,157 | 4,263 | 22,173 / 10,984 | 3,806 / 457 |
+| ttbb_2L2Nu → TTbb_DiLep | 4,858,850 | **15,766** | 13,978 | 1,788 | 9,271 / 4,707 | 1,588 / 200 |
+| TTTo2L2Nu → TTbar_DiLep | 146,010,000 | **11,790** | 10,541 | 1,249 | 7,311 / 3,230 | 1,146 / 103 |
+| TTToSemiLeptonic → TTbar_SemiLep | 478,982,000 | **44,851** | 40,155 | 4,696 | 27,991 / 12,164 | 4,358 / 338 |
+| TTToHadronic → TTbar_Hadronic | 343,248,000 | **36,835** | 32,822 | 4,013 | 22,844 / 9,978 | 3,702 / 311 |
+| **7샘플 합계** | | **2,130,335** | 1,803,280 | 327,055 | | |
+
+(2017 전체 참고값: tt+nb 1,882,170 = 1,585,810 + 296,360 — **2018 의 기준이 아니다**.)
+
+### extract 수치와 validation 수치의 관계 (중요 — 오해 방지)
+
+`extractTtbarIdPatch` 는 **extend 전체**를 훑고, validation 의 `nAddBJets>=3` 은 **matched(=nano)
+event 위에서만** 센다. extend 는 nano 의 상위집합이므로 **extract ≥ validation** 이고, 차이는
+extend-only event 안의 tt+nb 개수다. 그래서:
+
+> **extend rows == DAS nevents 인 샘플은 두 값이 정확히 일치해야 한다.**
+
+`ttbb_Hadronic` 이 그것을 실증한다 — extend 8,049,064 == DAS 8,049,064 이고 extract **33,072** =
+validation **33,072** (완전 일치). `ttbb_2L2Nu` 는 extend 가 66,000 event 더 많아 차이 **193** 이
+났고, 그 193 이 sub-code 분해(61/62/71/72)와 원 sub-code 분해(53/54/55) **양쪽에서 모두 193 으로
+합**했다 — 정합성의 증거다(기대값 66,000 × 0.3245% ≈ 214).
+
+**condor 결과 대조용 예측** (extra = extend − DAS nevents):
+
+| sample | extra events | 예측 validation `nAddBJets>=3` |
+|---|---|---|
+| tt4b | 0 | **1,950,601** (정확히 일치) |
+| ttbb_Hadronic | 0 | **33,072** ✅ 이미 확인 |
+| ttbb_SemiLeptonic | 0 | **37,420** (정확히 일치) |
+| ttbb_2L2Nu | 66,000 | **15,573** ✅ 이미 확인 (예측 ~15,552) |
+| TTTo2L2Nu | 990,000 | ~11,710 |
+| TTToSemiLeptonic | 2,574,000 | ~44,610 |
+| TTToHadronic | 9,042,000 | ~35,865 |
+
+extra == 0 인 세 샘플은 **정확한 등식**이므로 가장 강한 검사다.
+
+### 물리적 타당성 (tt+nb 비율)
+
+| sample | tt+nb / extend |
+|---|---|
+| tt4b (전용 tt+4b) | **19.82%** |
+| ttbb_Hadronic / SemiLep / DiLep | 0.41% / 0.36% / 0.32% |
+| TTToHadronic / TTToSemiLeptonic / TTTo2L2Nu (inclusive) | 0.0107% / 0.0094% / 0.0081% |
+
+전용 ≫ ttbb ≫ inclusive 순서가 맞고, tt4b 가 tt+4b(71+72) 비중도 가장 높다(15.7% vs 다른 샘플
+~11%) — 진짜 b 4개가 더 자주 나오는 샘플이므로 예상대로다. 2017 에서도 `ttnb_tt4b.root` 가 전체
+11.5 MB 중 10.5 MB 였다(같은 구조).
+

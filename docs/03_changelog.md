@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.28).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.31).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1061,4 +1061,85 @@ chunk 이름과 exit code 를 그대로 보여주고, 재제출 명령을 출력
 
 단위검증: A=[ok, exit 4, missing] · B=[ok, 스텁 exit 123] fixture 로 report 표·합계·재제출 args
 3줄(정확히 실패한 것만)을 확인. 전부 성공 시 "Nothing to resubmit" 도 확인.
+
+---
+
+## 2026-07-28 — v13.29: patch 명명 규약 결정 + 양쪽 repo 에 다음 작업 등록
+
+사용자 질문: *"`--out-tree TtNb` … 이거 나중에 tempTTHH를 업데이트 하면 되는거 아니냐?"* → 맞다.
+다만 **지금은 구규약을 유지**하기로 결정하고, 다음 작업으로 양쪽에 기록했다.
+
+**결정**: 2018 patch 도 `ttnb_<KEY>.root` / tree `TtNb` 로 뽑는다. 이 플래그는 임시 우회가 아니라
+**현행 정식 규약**이다.
+
+**중요한 기술적 사실** (기본값을 그냥 뒤집으면 안 되는 이유): 2017 patch 7편
+(`Validation/lookup/`)은 **파일 안의 tree 이름이 `TtNb`** 다 — 파일 바이너리에서 확인했다. 즉
+파일명 rename 으로 해결되지 않고, loader 기본값을 `TtbarIdPatch` 로 뒤집으면 2017 을 못 읽어
+**KNU Tier3 에서 재추출**해야 한다. 그래서 권장 방식은 기본값 교체가 아니라 **fallback 추가**
+(`TtbarIdPatch` 시도 → 없으면 `TtNb`) 다. flag day 없이 마이그레이션되고 2017·2018 모두 동작한다.
+
+**지금 하지 않는 이유 3개**: ① 2018 control plots 의 크리티컬 패스가 아니다(tempTTHH 는 별도
+repo·별도 릴리스, C++ 수정+재빌드+테스트가 병목). ② era 별 규약 혼재가 플래그 하나보다 나쁜
+함정이다. ③ **틀렸을 때 실패가 조용하다** — loader 가 INACTIVE(fatal 아님)로 떨어져 확장 id 가
+적용 안 된 플롯이 나온다.
+
+기록 위치:
+- `docs/07_analyzer_integration.md` §4 — PROPOSED → **OPEN**, 결정·권장 방식·기각 이유
+- `docs/01_status.md` **O2** — 위 요약 + 상대편 포인터
+- `tempTTHH/docs/STATUS.md` OPEN **항목 2** (신설) + `tempTTHH/docs/CHANGELOG.md`
+  — 상대 repo 에도 남겨야 그쪽을 만지는 사람이 본다. 검증 방법(`active()` true, `size()` ==
+  patch row 수)까지 적었다
+
+---
+
+## 2026-07-28 — v13.30: patch 추출 6/7 완료 + extract↔validation 관계 확립
+
+6샘플 추출 완료(전부 exit 0, 전부 도구 교차검사 통과). 수치는 [06](06_validation_results.md).
+`TTToHadronic` 1개 진행 중.
+
+**구조적 확인 — extract 와 validation 수치가 다른 이유가 확정됐다.** extract 는 **extend 전체**를,
+validation 은 **matched(=nano)** 만 센다. extend ⊇ nano 이므로 extract ≥ validation 이고 차이는
+extend-only event 의 tt+nb 다. 따라서:
+
+> **extend rows == DAS nevents 인 샘플은 두 값이 정확히 같아야 한다.**
+
+`ttbb_Hadronic` 이 실증했다 — extend 8,049,064 == DAS 8,049,064, extract 33,072 = validation
+33,072. 그리고 `ttbb_2L2Nu` 의 차이 193 은 **두 가지 독립 분해**(61/62/71/72 와 53/54/55)에서
+모두 193 으로 합했다. 이것이 이 관계가 우연이 아니라는 증거다.
+
+이 관계는 **검사 도구**가 된다: `tt4b`(0), `ttbb_Hadronic`(0), `ttbb_SemiLeptonic`(0) 은 extra 가
+0 이므로 condor 결과와 **정확한 등식**을 요구할 수 있다 — 06 에 예측값 표를 넣었다.
+
+**물리적 타당성도 확인**: tt+nb 비율이 전용 tt4b **19.8%** ≫ ttbb 0.32–0.41% ≫ inclusive
+0.008–0.009% 순이고, tt4b 가 tt+4b(71+72) 비중도 최고(15.7% vs ~11%)다. 2017 에서 `ttnb_tt4b.root`
+가 전체 용량의 91%였던 것과 같은 구조다.
+
+---
+
+## 2026-07-28 — v13.31: patch 추출 7/7 완료 + `lookup2018/` 을 커밋 대상으로
+
+`TTToHadronic` 완료 (36,835 rows, exit 0, 교차검사 OK). **7샘플 전부 완료**:
+
+| | tt+nb rows |
+|---|---|
+| 7샘플 합계 | **2,130,335** = tt+bbb 1,803,280 + tt+4b 327,055 |
+| (2017 참고) | 1,882,170 = 1,585,810 + 296,360 |
+
+**`lookup2018/` 을 커밋한다 (2026-07-28 결정, 2017 선례와 동일).** analyzer 는 **KNU 에서** 돌고
+patch 는 **lxplus 에서** 생산되며, 7개 합쳐 ~12 MB 다. 커밋이 곧 환경 간 전송 수단이다.
+
+`.gitignore` 를 두 군데 고쳐야 했다 — 그냥 `lookup20*/` 규칙을 지우는 것으로는 부족했다:
+
+1. `Validation/lookup20*/` 디렉토리 규칙 제거 (대신 `lookup20*/_tmp*/` 만 무시)
+2. **전역 `ttnb_*.root` 규칙에 예외** — 이것이 실제로 막고 있었다. 2017 파일은 이 규칙이 추가되기
+   *전에* 추적됐기 때문에 영향을 안 받았을 뿐이다(gitignore 는 이미 추적 중인 파일에 무효).
+   `!Validation/lookup/ttnb_*.root` + `!Validation/lookup20*/ttnb_*.root` 로 예외를 명시했고,
+   장래를 위해 `ttbarIdPatch_*.root` 에도 같은 예외를 넣었다.
+
+검증: `git check-ignore` 로 ① `lookup2018/ttnb_*.root` **추적됨** ② `Validation/ttnb_STRAY.root`
+(작업 디렉토리의 유실물) **무시됨** ③ `logs2018/` **무시됨** ④ 2017 파일 8개 계속 추적됨.
+"유실 재생산물은 막고 큐레이션된 산출물만 커밋" 이라는 원래 의도가 유지된다.
+
+`Validation/lookup2018/README.txt` 신설 — 2017 `lookup/README.txt` 관례를 따라 출처·구규약을 쓴
+이유·**short→projectKey 매핑표**·재생산 명령·커밋하는 이유를 적었다.
 
