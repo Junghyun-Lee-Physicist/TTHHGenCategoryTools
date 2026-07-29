@@ -1,0 +1,186 @@
+--- kill  era=2018  process=TT4b ---
+  request    : TT4b_2018_extend
+  project    : crab_projects/crab_TT4b_2018_extend
+    | Kill request successfully sent
+  [kill ok]
+
+--- kill  era=2018  process=TTbar_SemiLep ---
+  request    : TTbar_SemiLep_2018_extend
+  project    : crab_projects/crab_TTbar_SemiLep_2018_extend
+    | Fatal error trying to connect to https://cmsweb.cern.ch:8443/crabserver/prod/workflow using workflow=260727_123353%3Ajunghyun_crab_TTbar_SemiLep_2018_extend.
+    | exit code from curl = 0
+    | HTTP code/reason = 400/Bad Request .  stdout:
+    | <!DOCTYPE html PUBLIC
+    | "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    | "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    | <html>
+    | <head>
+    |     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"></meta>
+    |     <title>400 Bad Request</title>
+    |     <style type="text/css">
+    |     #powered_by {
+    |         margin-top: 20px;
+    |         border-top: 2px solid black;
+    |         font-style: italic;
+    |     }
+    |     #traceback {
+    |         color: red;
+    |     }
+    |     </style>
+    | </head>
+    |     <body>
+    |         <h2>400 Bad Request</h2>
+    |         <p>This request are invalid.</p>
+    |         <pre id="traceback"></pre>
+    |     <div id="powered_by">
+    |       <span>
+    |         Powered by <a href="http://www.cherrypy.dev">CherryPy 18.10.0</a>
+    |       </span>
+    |     </div>
+    |     </body>
+    | </html>
+  [kill FAILED]   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 188.184.75.82...
+* TCP_NODELAY set
+* Connected to cmsweb.cern.ch (188.184.75.82) port 8443 (#0)
+* ALPN, offering http/1.1
+* Cipher selection: ALL:!EXPORT:!EXPORT40:!EXPORT56:!aNULL:!LOW:!RC4:@STRENGTH
+* successfully set certificate verify locations:
+  CAfile: /etc/pki/tls/certs/ca-bundle.crt
+  CApath: /etc/grid-security/certificates/
+* TLSv1.2 (OUT), TLS header, Certificate Status (22):
+} [5 bytes data]
+* TLSv1.2 (OUT), TLS handshake, Client hello (1):
+} [512 bytes data]
+* TLSv1.2 (IN), TLS handshake, Server hello (2):
+{ [74 bytes data]
+* TLSv1.2 (IN), TLS handshake, Certificate (11):
+{ [2061 bytes data]
+* TLSv1.2 (IN), TLS handshake, Server key exchange (12):
+{ [333 bytes data]
+* TLSv1.2 (IN), TLS handshake, Request CERT (13):
+{ [8632 bytes data]
+* TLSv1.2 (IN), TLS handshake, Server finished (14):
+{ [4 bytes data]
+* TLSv1.2 (OUT), TLS handshake, Certificate (11):
+} [6261 bytes data]
+* TLSv1.2 (OUT), TLS handshake, Client key exchange (16):
+} [70 bytes data]
+* TLSv1.2 (OUT), TLS handshake, CERT verify (15):
+} [264 bytes data]
+* TLSv1.2 (OUT), TLS change cipher, Client hello (1):
+} [1 bytes data]
+* TLSv1.2 (OUT), TLS handshake, Finished (20):
+} [16 bytes data]
+* TLSv1.2 (IN), TLS change cipher, Client hello (1):
+{ [1 bytes data]
+* TLSv1.2 (IN), TLS handshake, Finished (20):
+{ [16 bytes data]
+* SSL connection using TLSv1.2 / ECDHE-RSA-AES128-GCM-SHA256
+* ALPN, server accepted to use http/1.1
+* Server certificate:
+*  subject: DC=ch; DC=cern; OU=computers; CN=cmsweb.cern.ch
+*  start date: Jun  3 17:33:25 2026 GMT
+*  expire date: Jul  8 17:33:25 2027 GMT
+*  subjectAltName: host "cmsweb.cern.ch" matched cert's "cmsweb.cern.ch"
+*  issuer: DC=ch; DC=cern; CN=CERN Grid Certification Authority
+*  SSL certificate verify ok.
+} [5 bytes data]
+> DELETE /crabserver/prod/workflow HTTP/1.1
+> Host: cmsweb.cern.ch:8443
+> User-Agent: CRABClient/v3.260630
+> Accept: */*
+> Content-Length: 64
+> Content-Type: application/x-www-form-urlencoded
+> 
+} [64 bytes data]
+* upload completely sent off: 64 out of 64 bytes
+{ [5 bytes data]
+< HTTP/1.1 400 Bad Request
+< Content-Length: 736
+< Content-Type: text/html;charset=utf-8
+< Date: Mon, 27 Jul 2026 16:40:27 GMT
+< Response-Proto: HTTP/1.1
+< Response-Status: 400 Bad Request
+< Response-Status-Code: 400
+< Response-Time: 8.591031ms
+< Response-Time-Seconds: 0.008591711
+< X-Content-Type-Options: bla
+< X-Error-Detail: This request are invalid.
+< X-Error-Http: 400
+< X-Error-Id: fc9bccd37db574d926b772f2781a0b79
+< X-Rest-Status: 40001
+< X-Rest-Time: 5927.801 us
+< 
+{ [719 bytes data]
+100   800  100   736  100    64  19891   1729 --:--:-- --:--:-- --:--:-- 21621
+* Connection #0 to host cmsweb.cern.ch left intact
+<!DOCTYPE html PUBLIC
+"-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"></meta>
+    <title>400 Bad Request</title>
+    <style type="text/css">
+    #powered_by {
+        margin-top: 20px;
+        border-top: 2px solid black;
+        font-style: italic;
+    }
+
+    #traceback {
+        color: red;
+    }
+    </style>
+</head>
+    <body>
+        <h2>400 Bad Request</h2>
+        <p>This request are invalid.</p>
+        <pre id="traceback"></pre>
+    <div id="powered_by">
+      <span>
+        Powered by <a href="http://www.cherrypy.dev">CherryPy 18.10.0</a>
+      </span>
+    </div>
+    </body>
+</html>
+
+
+--- kill  era=2018  process=TTbar_Hadronic ---
+  request    : TTbar_Hadronic_2018_extend
+  project    : crab_projects/crab_TTbar_Hadronic_2018_extend
+    | Kill request successfully sent
+  [kill ok]
+
+--- kill  era=2018  process=TTbar_DiLep ---
+  request    : TTbar_DiLep_2018_extend
+  project    : crab_projects/crab_TTbar_DiLep_2018_extend
+    | Kill request successfully sent
+  [kill ok]
+
+--- kill  era=2018  process=TTbb_SemiLep ---
+  request    : TTbb_SemiLep_2018_extend
+  project    : crab_projects/crab_TTbb_SemiLep_2018_extend
+    | Kill request successfully sent
+  [kill ok]
+
+--- kill  era=2018  process=TTbb_Hadronic ---
+  request    : TTbb_Hadronic_2018_extend
+  project    : crab_projects/crab_TTbb_Hadronic_2018_extend
+    | Kill request successfully sent
+  [kill ok]
+
+--- kill  era=2018  process=TTbb_DiLep ---
+  request    : TTbb_DiLep_2018_extend
+  project    : crab_projects/crab_TTbb_DiLep_2018_extend
+    | Kill request successfully sent
+  [kill ok]
+
+=================================================================
+  mode      : kill
+  scanned   : 7
+  attempted : 7
+  killed    : 6
+  outcomes  : error=1, ok=6
