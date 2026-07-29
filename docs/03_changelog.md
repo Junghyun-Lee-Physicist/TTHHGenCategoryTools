@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.31).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.32).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1142,4 +1142,28 @@ patch 는 **lxplus 에서** 생산되며, 7개 합쳐 ~12 MB 다. 커밋이 곧 
 
 `Validation/lookup2018/README.txt` 신설 — 2017 `lookup/README.txt` 관례를 따라 출처·구규약을 쓴
 이유·**short→projectKey 매핑표**·재생산 명령·커밋하는 이유를 적었다.
+
+---
+
+## 2026-07-28 — v13.32: 전량 검증 6/7 PASS + **가장 위험한 버그를 잡았다** (`GetEntry` 미검사)
+
+condor 49 job **배관 100% 성공**(49/49 ok). 물리 **6/7 PASS**. 수치는 [06](06_validation_results.md).
+
+**`TTToSemiLeptonic` FAIL 은 진짜이고, 원인은 내 코드였다.** `GetEntry()` 는 실패 시 `<=0` 을
+돌려주는데 **반환값을 검사하지 않았다**. 실패한 읽기는 브랜치 버퍼에 **직전 event 값을 남기고**,
+루프는 조용히 중복 event 를 처리한다 — matched 도 늘고 agree 도 되고 **모든 카운터가 깨끗하다**.
+실제로 `matched` 가 DAS 와 정확히 일치해 통과처럼 보였다, nano entry 의 **1.87%** 가 읽기에
+실패했는데도.
+
+두 독립 경로로 발각됐다: 루프 후 `GetEntries()` 가 8,910,000 작았고, extract 와의 차이가 다른
+6샘플은 기대 대비 0.90–1.12배인데 이 샘플만 4.23배였다. **두 결손 비율 1.87% vs 1.74% 일치**로
+확정.
+
+**수정 3가지**: ① 모든 `GetEntry()` → `checkRead()`, `<=0` 이면 **exit 10** (4곳)
+② JSON 에 `nano_entries`(루프 실행 수)와 `nano_entries_postloop`(루프 후 재조회) **분리 기록** →
+실행 중 열화가 **FAIL** 로 표시 ③ 합산기가 **모든** problem 출력(`problems[0]` 만 찍어 추적이
+지연됐다).
+
+[08](08_troubleshooting.md) **T-23 ⑧** 등록(8대 함정). **교훈: 반환값을 버리는 I/O 는 확신에 찬
+오답을 만든다.**
 

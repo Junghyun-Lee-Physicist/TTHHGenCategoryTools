@@ -206,3 +206,46 @@ extra == 0 인 세 샘플은 **정확한 등식**이므로 가장 강한 검사�
 ~11%) — 진짜 b 4개가 더 자주 나오는 샘플이므로 예상대로다. 2017 에서도 `ttnb_tt4b.root` 가 전체
 11.5 MB 중 10.5 MB 였다(같은 구조).
 
+---
+
+## 2018 UL — condor 전량 검증 결과 (49 job, 2026-07-28)
+
+배관은 완전 성공: `--report` 기준 **49/49 ok, fail 0, miss 0**. 물리 판정은 **6/7 PASS, 1 FAIL**.
+
+| sample | 판정 | nano total == DAS | unmatched | disagree | `nAddBJets≥3` | 불변식 |
+|---|---|---|---|---|---|---|
+| tt4b | **PASS** | 9,844,000 ✓ | 0 | 0 | 1,950,601 | 0 |
+| ttbb_Hadronic | **PASS** | 8,049,064 ✓ | 0 | 0 | 33,072 | 0 |
+| ttbb_SemiLeptonic | **PASS** | 10,378,681 ✓ | 0 | 0 | 37,420 | 0 |
+| ttbb_2L2Nu | **PASS** | 4,792,850 ✓ | 0 | 0 | 15,573 | 0 |
+| TTToHadronic | **PASS** | 334,206,000 ✓ | 0 | 0 | 35,849 | 0 |
+| TTTo2L2Nu | **PASS** | 145,020,000 ✓ | 0 | 0 | 11,700 | 0 |
+| **TTToSemiLeptonic** | **FAIL** | **467,498,000 vs 476,408,000** | 0 | 0 | 43,832 | 0 |
+
+### TTToSemiLeptonic 이 왜 FAIL 인가 — 두 독립 증거
+
+**① 합산기의 결손**: 루프 후 재조회한 `GetEntries()` 합이 DAS 보다 **8,910,000 (1.87%)** 작다.
+`matched` 는 DAS 와 정확히 일치했지만 **그것이 가짜 신호였다** — `GetEntry()` 반환값을 검사하지
+않아 실패한 읽기가 직전 event 를 재사용했기 때문이다([08](08_troubleshooting.md) T-23 ⑧).
+
+**② extract 와의 차이가 유일하게 어긋난다.**
+
+| sample | 관측차 | 기대차 | 관측/기대 |
+|---|---|---|---|
+| tt4b / ttbb_Hadronic / ttbb_SemiLeptonic | 0 | 0 | **정확 일치** |
+| ttbb_2L2Nu | 193 | 214 | 0.90 |
+| TTToHadronic | 986 | 970 | **1.02** |
+| TTTo2L2Nu | 90 | 80 | 1.12 |
+| **TTToSemiLeptonic** | **1,019** | 241 | **4.23** ★ |
+
+**두 결손이 정량적으로 일치한다**: entry 결손 **1.87%** vs tt+nb 결손 **1.74%**. 우연이 아니다.
+
+**조치**: `checkRead()` 추가 후 `TTToSemiLeptonic` **재실행 필요**. 나머지 6샘플 patch 는 유효하고,
+`ttnb_TTbar_SemiLep.root` 만 재검증 통과 전까지 **사용 보류**.
+
+### `part_loads` 실측
+
+chunk 당 4,000–8,000 회. event 수에 비례하고 part 총개수와 무관하다는 예측이 맞았다
+(TTToHadronic 687 parts → 7,380/chunk, TTToSemiLeptonic 958 parts → 7,906/chunk,
+TTTo2L2Nu 293 parts → 4,371/chunk). 전량이 ~1.7시간에 끝나 최적화는 불필요하다.
+

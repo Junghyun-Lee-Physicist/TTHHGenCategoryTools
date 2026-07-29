@@ -217,6 +217,28 @@ struct Row {
 // change. (The "libXrdSecztn.so" line in the log is a harmless warning from the
 // 4.8.5 client whenever a server advertises token auth; it appears on successful
 // opens too and is NOT the cause.)
+// ---------------------------------------------------------------------------
+// Every TTree/TChain read must be checked.
+//
+// WHY (2026-07-28, TTToSemiLeptonic 2018): GetEntry() returns bytes read, or
+// <=0 on failure. Unchecked, a failed read leaves the branch buffers holding
+// the PREVIOUS event -- so the loop silently processes a duplicate. It still
+// "matches", still "agrees", and the counters look perfect. In that run ~1.87%
+// of nano entries failed to read and ~1.74% of tt+nb events went missing, while
+// every correctness counter reported clean. This is the single most dangerous
+// failure mode in this tooling: it produces a confident wrong answer.
+// Exit 10 = read failure.
+// ---------------------------------------------------------------------------
+static inline void checkRead(Int_t nbytes, Long64_t entry, const char* tag) {
+  if (nbytes > 0) return;
+  std::fprintf(stderr,
+    "\nFATAL: %s GetEntry(%lld) returned %d (<=0) -- the read FAILED.\n"
+    "  Continuing would reuse the previous event's values and silently\n"
+    "  fabricate a duplicate. Aborting. Exit 10.\n", tag, entry, (int)nbytes);
+  std::exit(10);
+}
+
+
 long long assertAllFilesOpen(const std::vector<std::string>& files,
                              const std::string& treeName,
                              const char* tag, bool allowMissing,
@@ -353,7 +375,7 @@ int main(int argc, char** argv) {
   Long64_t nDup = 0;
   int dupDumped = 0;
   for (Long64_t i = 0; i < nS; ++i) {
-    sChain->GetEntry(i);
+    checkRead(sChain->GetEntry(i), i, "extend");
     if (sRun != 1) {
       std::cerr << "[matchTtbarId] FATAL: extend file run=" << sRun
                 << " != 1 at entry " << i
@@ -452,7 +474,7 @@ int main(int argc, char** argv) {
 
   const Long64_t nN = nChain->GetEntries();
   for (Long64_t i = 0; i < nN; ++i) {
-    nChain->GetEntry(i);
+    checkRead(nChain->GetEntry(i), i, "nano");
     if (nRun != 1) {
       std::cerr << "[matchTtbarId] FATAL: nano run=" << nRun
                 << " != 1 at entry " << i

@@ -226,13 +226,23 @@ def aggregate_sample(short, jsondir, expected):
             problems.append(
                 "chunk %s: JOB FAILED (exit %d, no counters) -- %s"
                 % (tag, ec, d.get("note", "see condor logs")))
-        # A chunk that opened fewer entries than its own open-check saw means the
-        # chain lost a file between check and read; the C++ side aborts on that,
-        # but if an older binary produced the JSON we still want to notice.
+        # nano_entries is what the loop iterated; opencheck is the independent
+        # pre-flight count. They must agree -- the C++ side aborts (exit 4) if
+        # not, so a mismatch here means an OLD binary produced this JSON.
         if d.get("nano_entries") != d.get("nano_entries_opencheck"):
             problems.append(
-                "chunk %s: nano_entries %s != open-check %s"
+                "chunk %s: looped %s != open-check %s  (stale binary? re-run)"
                 % (tag, d.get("nano_entries"), d.get("nano_entries_opencheck")))
+        # postloop < looped means a file handle went bad DURING the run. The
+        # counters for this chunk cannot be trusted: without a GetEntry() return
+        # check (added 2026-07-28, exit 10) a failed read silently reuses the
+        # previous event. Treat it as a hard problem, not a note.
+        pl = d.get("nano_entries_postloop")
+        if pl is not None and pl != d.get("nano_entries"):
+            problems.append(
+                "chunk %s: chain DEGRADED during the run (post-loop %s < looped "
+                "%s) -- reads may have silently reused stale events; RE-RUN"
+                % (tag, pl, d.get("nano_entries")))
     return agg, problems
 
 
@@ -281,8 +291,17 @@ def verdict(short, agg, problems, das_nevents):
                  "ok" if not bad_exits
                  else ", ".join("%s->%d" % (t, e)
                                 for t, e in list(bad_exits.items())[:6])))
-    crit.append(("no per-chunk anomalies", not problems,
-                 "ok" if not problems else problems[0]))
+    # Show EVERY problem, not just the first. On 2026-07-28 only problems[0]
+    # was printed, so a sample with several bad chunks looked like it had one --
+    # and the displayed deficit did not match the totals, which cost a round of
+    # detective work.
+    if not problems:
+        crit.append(("no per-chunk anomalies", True, "ok"))
+    else:
+        head = "%d problem(s): %s" % (len(problems), problems[0])
+        crit.append(("no per-chunk anomalies", False, head))
+        for extra in problems[1:]:
+            crit.append(("", False, "  " + extra))
     return crit
 
 

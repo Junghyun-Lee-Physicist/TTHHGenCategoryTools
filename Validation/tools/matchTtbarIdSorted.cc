@@ -133,6 +133,28 @@ std::vector<std::string> readFilelist(const std::string& path) {
 // `unmatched` can only get SMALLER -- a false pass. The 2026-07-27 case was a
 // TRANSIENT AAA failure (the same files opened fine minutes later in the same
 // environment), so retry is the right response, backed by a hard assertion.
+// ---------------------------------------------------------------------------
+// Every TTree/TChain read must be checked.
+//
+// WHY (2026-07-28, TTToSemiLeptonic 2018): GetEntry() returns bytes read, or
+// <=0 on failure. Unchecked, a failed read leaves the branch buffers holding
+// the PREVIOUS event -- so the loop silently processes a duplicate. It still
+// "matches", still "agrees", and the counters look perfect. In that run ~1.87%
+// of nano entries failed to read and ~1.74% of tt+nb events went missing, while
+// every correctness counter reported clean. This is the single most dangerous
+// failure mode in this tooling: it produces a confident wrong answer.
+// Exit 10 = read failure.
+// ---------------------------------------------------------------------------
+static inline void checkRead(Int_t nbytes, Long64_t entry, const char* tag) {
+  if (nbytes > 0) return;
+  std::fprintf(stderr,
+    "\nFATAL: %s GetEntry(%lld) returned %d (<=0) -- the read FAILED.\n"
+    "  Continuing would reuse the previous event's values and silently\n"
+    "  fabricate a duplicate. Aborting. Exit 10.\n", tag, entry, (int)nbytes);
+  std::exit(10);
+}
+
+
 long long assertAllFilesOpen(const std::vector<std::string>& files,
                              const std::string& treeName, bool allowMissing,
                              int maxAttempts = 3) {
@@ -328,7 +350,10 @@ int main(int argc, char** argv) {
     t->SetBranchAddress("nAddBJetsMulti",      &r.nAddBJetsMulti);
     const Long64_t n = t->GetEntries();
     cache.clear(); cache.reserve(static_cast<size_t>(n));
-    for (Long64_t i = 0; i < n; ++i) { t->GetEntry(i); cache.push_back(r); }
+    for (Long64_t i = 0; i < n; ++i) {
+      checkRead(t->GetEntry(i), i, "sorted part");
+      cache.push_back(r);
+    }
     f->Close(); delete f;
     cachedPart = pidx;
     ++partLoads;
@@ -371,7 +396,7 @@ int main(int argc, char** argv) {
   auto isExt = [](int sub){ return sub==61||sub==62||sub==71||sub==72; };
 
   for (Long64_t i = 0; i < nN; ++i) {
-    nano.GetEntry(i);
+    checkRead(nano.GetEntry(i), i, "nano");
     if (nRun != 1) {
       std::fprintf(stderr,
         "[matchSorted] ERROR: nano run = %u != 1 at entry %lld. This tooling "
@@ -483,7 +508,13 @@ int main(int argc, char** argv) {
     std::fprintf(jf, "  \"nano_files\": %d,\n", (int)nanoFiles.size());
     std::fprintf(jf, "  \"parts_in_index\": %d,\n", (int)parts.size());
     std::fprintf(jf, "  \"part_loads\": %lld,\n", (long long)partLoads);
-    std::fprintf(jf, "  \"nano_entries\": %lld,\n", (long long)nano.GetEntries());
+    // nN = entries the loop actually iterated (captured BEFORE the loop).
+    // nano.GetEntries() re-queried AFTER the loop can be SMALLER if a file
+    // handle went bad mid-run -- that is a diagnostic, not the processed count,
+    // so both are recorded and the aggregator compares all three.
+    std::fprintf(jf, "  \"nano_entries\": %lld,\n", (long long)nN);
+    std::fprintf(jf, "  \"nano_entries_postloop\": %lld,\n",
+                 (long long)nano.GetEntries());
     std::fprintf(jf, "  \"nano_entries_opencheck\": %lld,\n", (long long)expNano);
     std::fprintf(jf, "  \"matched\": %lld,\n",   (long long)matched);
     std::fprintf(jf, "  \"unmatched\": %lld,\n", (long long)unmatched);
