@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-28** (v13.32).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-29** (v13.33).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1167,3 +1167,81 @@ condor 49 job **배관 100% 성공**(49/49 ok). 물리 **6/7 PASS**. 수치는 [
 [08](08_troubleshooting.md) **T-23 ⑧** 등록(8대 함정). **교훈: 반환값을 버리는 I/O 는 확신에 찬
 오답을 만든다.**
 
+
+---
+
+## 2026-07-29 — v13.33: 재시도를 **읽기 경로**로 옮겼다 (nano lazy open 제거)
+
+`checkRead()` 투입 후 첫 재실행에서 `TTToSemiLeptonic` 20 chunk 중 **10개가 exit 10**. 배관은
+정상(20/20 결과 도착)이고, 합산기는 `nano total 245,394,000 vs DAS 476,408,000` 으로 FAIL.
+
+**진단은 로그 한 줄로 끝났다 — 실패 지점이 전부 파일 경계였다.** FATAL entry 10개가 모두
+**2000 의 배수**(23406000, 22728000, 20528000, 12078000, 23352000, 24816000, 24230000, 23744000,
+22810000, 20692000)고, 에러는 `TNetXNGFile::Open: [ERROR] Operation expired` 17건이었다. 파일
+중간 손상이 아니라 **다음 파일을 여는 데 실패**한 것이다.
+
+`TChain::Add()` 는 등록만 하고 실제 open 은 루프 도중 경계에서 lazy 하게 일어나는데, **그
+open 에는 재시도가 없었다.** T-21 때 넣은 `assertAllFilesOpen()` 의 재시도는 물리 데이터를 한
+줄도 읽지 않는 경로를 지키고 있었다 — 방어막이 잘못된 자리에 있었고, 파일마다 open 이 2회라
+job 이 스스로 redirector 부하를 2배로 만들고 있었다.
+
+**수정 (`tools/matchTtbarIdSorted.cc`)**:
+
+| | 전 | 후 |
+|---|---|---|
+| nano 순회 | `TChain` (경계에서 lazy open, 재시도 없음) | 파일 단위 명시 루프, `openWithRetry()` 10회 · backoff 10/20/40/80/160 후 300 s 고정 · **총 예산 25분** |
+| 파일당 open | 2회 (사전 점검 + lazy) | 2회지만 **둘 다 재시도**, lazy 경로 제거 |
+| mid-file 읽기 실패 | 즉시 exit 10 | 재open + 재bind + 같은 local entry 재seek 3라운드 → 그래도 실패면 exit 10 |
+| 완결성 검사 | `assertChainComplete()` (체인 길이) | `assertReadComplete()` (**실제로 읽은 entry 수**) — 더 강함 |
+
+JSON 3키 의미 갱신: `nano_entries`=실제 읽은 수, `nano_entries_postloop`=읽기용으로 열었을 때 본
+`GetEntries()` 합(사전 점검과 독립된 2차 측정), `nano_entries_opencheck`=사전 점검 합. 셋이
+일치해야 한다는 합산기 계약은 그대로다.
+
+**exit 10 은 버그가 아니라 정상 동작이었다** — 같은 사건이 직전 캠페인에서는 조용한 중복
+event 로 1.87% 를 갉아먹었다(T-23 ⑧). 이번엔 소리내며 죽었을 뿐이다.
+
+미적용: `matchTtbarId`(비정렬, 인터랙티브 스팟체크용)에는 extend·nano 양쪽 TChain 에 **같은 잠재
+결함이 남아 있다**. condor 는 `matchTtbarIdSorted` 만 쓰므로 우선순위를 낮췄다 — [01](01_status.md) OPEN.
+
+남은 의문: 다른 6샘플 29 chunk 는 exit 0 인데 이 샘플만 50% 다. nano 가 `-v1` 비대칭이라 replica
+배치가 다를 가능성 → `dasgoclient -query="site dataset=..."` 로 비교할 것. 세부는
+[08](08_troubleshooting.md) **T-24**.
+
+### 재시도 예산은 관측으로 정했다 (같은 날 추가)
+
+처음엔 5회·총 150초로 잡았다가 **cluster 13293958 의 타임스탬프를 보고 25분으로 올렸다.**
+
+| | 종료 시각 (UTC) | 실행 시간 |
+|---|---|---|
+| 살아남은 10 chunk | 07:25–07:39 | 81–95분 |
+| 죽은 10 chunk | 07:16 하나, **07:44–08:05** 아홉 | 72분, 100–121분 |
+
+성공한 job 은 **전부 07:39 이전에 끝났고**, 실패는 **07:44 이후에만** 났다. 즉 나쁜 창이
+**최소 21분** 열려 있었다는 뜻이고, 150초짜리 재시도로는 어차피 다 죽었을 것이다. job flavour 가
+`workday`(8 h)이고 실제 작업이 1.5~2 h 이므로 open 당 25분 재시도는 감당 가능하다 — chunk 를
+통째로 잃는 것보다 싸다. 사전 open-check 는 **fail-fast 가 목적**이므로 반대로 짧게(3회·120초)
+분리했다.
+
+### `.err`/`.out` 로 확정한 것 (추정 아님)
+
+실패 job `.0` 전문:
+
+```
+Unable to load sec.protocol plugin libXrdSecztn.so        <- 무해 (T-21 에서 확인)
+Error in <TNetXNGFile::Open>: [ERROR] Operation expired   <- 단 1건
+FATAL: nano GetEntry(23406000) returned 0 ...  Exit 10
+```
+
+같은 job 의 `.out`:
+
+```
+>>> nano open-check 20/20 files OK, total entries = 24726000
+[matchSorted]   nano scanned 20000000 / 24726000
+```
+
+**20개 파일이 시작 시점에 전부 열렸고 tree 도 있었다** — 20 job 전원이 `20/20`(마지막 chunk 는
+`11/11`)이다. 따라서 "파일이 깨졌다 / 브랜치가 없다 / replica 가 없다"는 **전부 배제된다**.
+DAS 대조도 같은 결론이다: SemiLep 은 dataset 37 사이트·파일 21 replica 로 오히려 TTToHadronic
+(31 / 14)보다 넓게 퍼져 있다. 남은 설명은 **루프 도중의 lazy open 1건이 타임아웃했다** 뿐이고,
+`Operation expired` 가 정확히 그 자리에 1건만 있다. 성공 job 의 `.err` 에는 이 줄이 아예 없다.

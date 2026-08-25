@@ -392,8 +392,9 @@ python3 scripts/submit_validation_condor.py --era 2018 --resubmit-failed
 | exit | 의미 | 대응 |
 |---|---|---|
 | 0 | 정상 | — |
-| 4 | nano 파일을 재시도 후에도 못 읽음 | 해당 chunk 재제출 (transient AAA) |
+| 4 | nano 파일을 재시도 후에도 못 읽음 / 읽은 entry 수 ≠ open-check 합계 | 해당 chunk 재제출 (transient AAA) |
 | 6 / 8 | `genTtbarId` 불일치 / 확장 무결성 위반 | **실제 물리 문제** — 조사 필요 |
+| 10 | `GetEntry()` 가 `<=0` — 재시도(재open+재seek 3회)까지 실패 | 남아 있으면 그 파일의 replica 문제. `.err` 의 XRootD 에러 확인 후 chunk 재제출 ([../docs/08](../docs/08_troubleshooting.md) T-24) |
 | 122 | 계산은 정상, EOS 전송 3회 실패 | 숫자는 `.out` 의 `BEGIN/END JSON` 에 있음. 재제출 |
 | 123 | `root-config` 없음 (cvmfs/scram 세팅 실패) | `.err` 확인 |
 | 124–127 | CMSSW src / sorted `index.txt` / chunk / 바이너리 부재 | 해당 경로 확인 |
