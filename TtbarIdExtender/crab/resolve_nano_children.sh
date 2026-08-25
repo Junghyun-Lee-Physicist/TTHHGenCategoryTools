@@ -139,15 +139,38 @@ while IFS=$'\t' read -r NAME MINI REC; do
     echo "   this dataset; fall back to 'parent dataset=<nano>' for this sample)"
   fi
 
-  found_want=""
+  # Campaign substrings that mark a special reprocessing rather than the
+  # standard nano. Real UL18 v15 example: alongside the plain
+  #   RunIISummer20UL18NanoAODv15-150X_mc2018_realistic_v1-v2
+  # DAS also carries
+  #   RunIISummer20UL18NanoAODv15-BTVNanoV15_150X_mc2018_realistic_v1-v3
+  #   RunIISummer20UL18NanoAODv15-20UL18JMENano_150X_mc2018_realistic_v1-v1
+  # Those are POG-specific extended formats with different content. The verdict
+  # is the same either way (same parent), but the dataset path we PRINT gets
+  # copied into configs, so it must be the plain one.
+  FLAVOUR='JMENano|BTVNano|PFNano|MuonNano|TauNano|EGMNano|HIGNano|PUFor|PU35For|FSUL|BPH_'
+
+  found_want=""; found_plain=""; best_v=-1
   for k in "${kids[@]}"; do
     [[ -z "$k" ]] && continue
     camp=$(echo "$k" | cut -d/ -f3)
     vtok=$(echo "$camp" | grep -oE 'NanoAOD[A-Za-z]*v[0-9]+' | head -1)
     vtok=${vtok:-UNKNOWN}
-    echo "CHILD|${ERA}|${NAME}|${vtok}|${k}"
-    if [[ -n "$WANT" && "$vtok" == *"$WANT" ]]; then found_want="$k"; fi
+    flav=""
+    echo "$camp" | grep -qE "$FLAVOUR" && flav=" [flavour: $(echo "$camp" | grep -oE "$FLAVOUR" | head -1)]"
+    echo "CHILD|${ERA}|${NAME}|${vtok}|${k}${flav}"
+    # exact version-token match, not a suffix glob
+    if [[ -n "$WANT" && "$vtok" == "NanoAOD${WANT}" || ( -n "$WANT" && "$vtok" == "NanoAODAPV${WANT}" ) ]]; then
+      found_want="${found_want:-$k}"
+      if [[ -z "$flav" ]]; then
+        vn=$(echo "$camp" | grep -oE -- '-v[0-9]+$' | tr -dc '0-9')
+        vn=${vn:-0}
+        if (( vn > best_v )); then best_v=$vn; found_plain="$k"; fi
+      fi
+    fi
   done
+  # prefer the plain standard campaign as the representative
+  [[ -n "$found_plain" ]] && found_want="$found_plain"
 
   # consistency check on datasets.yaml itself: is the recorded nano_child really
   # a child of the recorded parent?
@@ -169,13 +192,30 @@ while IFS=$'\t' read -r NAME MINI REC; do
     echo "  -> ${WANT} descends from the SAME MiniAOD. No extend re-run needed."
   else
     # Does the wanted version exist at all for this primary, just from elsewhere?
+    #
+    # The query MUST anchor both the era and the version token. A loose
+    # '*NanoAOD*v15*' matched
+    #   RunIISummer20UL16NanoAODv2-106X_mcRun2_asymptotic_v15-v1
+    #   RunIISummer20UL18NanoAODv2-106X_upgrade2018_realistic_v15_L1v1-v1
+    # because the GLOBAL TAG contains "_v15" -- those are NanoAODv2, from a
+    # different era, and reporting them as "v15 from a different parent" was a
+    # false DIFFERENT_PARENT (observed on TT4b, 2026-08-25). The era prefix is
+    # taken from the MiniAOD campaign itself, so it cannot drift.
     prim=$(echo "$MINI" | cut -d/ -f2)
-    mapfile -t alt < <(dasgoclient -query="dataset=/${prim}/*NanoAOD*${WANT}*/NANOAODSIM" 2>/dev/null \
+    mini_camp=$(echo "$MINI" | cut -d/ -f3)
+    era_prefix="${mini_camp%%MiniAOD*}"        # e.g. RunIISummer20UL18
+    mapfile -t alt < <(dasgoclient -query="dataset=/${prim}/${era_prefix}NanoAOD${WANT}*/NANOAODSIM" 2>/dev/null \
                        | grep -E '/NANOAODSIM$' | sort -u)
+    # 2016preVFP uses the NanoAODAPV flavour of the same era prefix
+    if [[ ${#alt[@]} -eq 0 || -z "${alt[0]:-}" ]]; then
+      mapfile -t alt < <(dasgoclient -query="dataset=/${prim}/${era_prefix}NanoAODAPV${WANT}*/NANOAODSIM" 2>/dev/null \
+                         | grep -E '/NANOAODSIM$' | sort -u)
+    fi
     if [[ ${#alt[@]} -eq 0 || -z "${alt[0]:-}" ]]; then
       n_absent=$((n_absent+1))
-      echo "VERDICT|${ERA}|${NAME}|VERSION_ABSENT|no ${WANT} NANOAODSIM for primary ${prim}"
-      echo "  -> ${WANT} does not exist for this sample at all."
+      echo "VERDICT|${ERA}|${NAME}|VERSION_ABSENT|no ${era_prefix}NanoAOD${WANT} NANOAODSIM for primary ${prim}"
+      echo "  -> ${WANT} does not exist for this sample in era ${era_prefix}."
+      echo "     (queried /${prim}/${era_prefix}NanoAOD${WANT}*/NANOAODSIM -- zero hits)"
     else
       n_diff=$((n_diff+1))
       echo "VERDICT|${ERA}|${NAME}|DIFFERENT_PARENT|${alt[0]}"
