@@ -260,6 +260,90 @@ ExtendedTtbarId/NanoExtension/enrichedTtbarId_cff.customise
 NANO 내용은 같아야 하지만 **byte-identity 는 주장하지 말고 측정한다.** 릴리스 차이가
 차이를 만들면 10_6_26 으로 영역을 새로 세우는 것이 정답이다.
 
+### D17 gate 1 CLOSED / gate 2 스키마 통과 (2026-08-31, lxplus 실측)
+
+작업 영역: `~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src` (el7 container, cmsenv).
+추가 파일 1 개뿐: `TtbarIdExtender/python/ttbarIdTable_cff.py` (2,152 B). **새 C++ 없음.**
+
+#### gate 1 — customise 로 branch 가 실제로 나온다 · CLOSED
+
+```
+cmsDriver.py nano --python_filename enriched_v9_test_cfg.py \
+  --eventcontent NANOAODSIM --datatier NANOAODSIM \
+  --conditions 106X_mc2017_realistic_v9 \
+  --step NANO --era Run2_2017,run2_nanoAOD_106Xv2 \
+  --customise Configuration/DataProcessing/Utils.addMonitoring,\
+TTHHGenCategoryTools/TtbarIdExtender/ttbarIdTable_cff.customise \
+  --filein <MiniAODv2 LFN> --fileout file:enriched_v9_test.root --no_exec --mc -n 2000
+```
+
+cmsDriver 로그가 `customising the process with customise from
+TTHHGenCategoryTools/TtbarIdExtender/ttbarIdTable_cff` 를 찍고 exit=0.
+`GlobalVariablesTableProducer` 에 `name`/`extension` 을 주지 않으면 컬럼이
+**top-level Events branch** 로 나온다는 추론이 실측으로 확인됐다:
+`expandedGenTtbarId` / `nAddBJets` / `nAddBJetsMulti` 3 개 모두 top level.
+
+경고 3 종은 무해하며 중앙 생산에서도 같은 시퀀스라 동일하게 난다:
+`BTagSFProducer@ctor`, `HTXSRivetProducer@beginRun`,
+`GenWeightsTableProducer@beginRun` ×2 — 전부 `%MSG-w`.
+
+#### 확장값 검증 (gate 3 의 일부 선행) — 2000 event
+
+`nAddBJets` 분포: 0→1022, 1→800, 2→172, **3→6**, 4 이상 0.
+확장 발동 **6 / 2000**, 즉 `nAddBJets>=3` 인 event 와 정확히 일치.
+
+| row | `genTtbarId%100` | `expanded%100` | nAddBJets | Multi |
+|---|---|---|---|---|
+| 312 | 54 | **62** | 3 | 1 |
+| 423 | 54 | **62** | 3 | 1 |
+| 889 | 53 | **61** | 3 | 0 |
+| 1456 | 53 | **61** | 3 | 0 |
+| 1459 | 53 | **61** | 3 | 0 |
+| 1631 | 53 | **61** | 3 | 0 |
+
+`53 → 61`, `54 → 62` (둘 다 +8), 분기 기준은 `nAddBJetsMulti` — D4 의 의도대로다.
+그리고 **재분류가 총수를 보존한다**: 확장 후 census 가 53→166, 54→5, 61→4, 62→2 이므로
+표준값 53=170 · 54=7 에서 정확히 4 개와 2 개가 옮겨간 것이다. 순수 re-labelling 이라는
+뜻이고, 표준 categorizer 의 판정을 훼손하지 않는다.
+
+⚠ **71/72 는 이 2000 event 로 발동 불가** — `nAddBJets>=4` 가 0 이다. 71/72 는
+`TT4b` 에서 확인해야 한다. (v7.2 검증이 sub-code 56 시절이었으므로 61/62/71/72 중
+**61/62 만** 이제 enriched 경로에서 확인됐다.)
+
+#### gate 2 — 중앙과의 동일성 · 스키마 수준 통과
+
+같은 primary 의 중앙 v9 파일과 branch 이름 집합을 비교 (schema-only read, xrdcp 불필요):
+
+| | branch 수 |
+|---|---|
+| 중앙 `RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1` | **1666** |
+| 우리 enriched 출력 | **1669** |
+
+- `comm -23` (우리에만): `expandedGenTtbarId`, `nAddBJets`, `nAddBJetsMulti` — **정확히 3 개**
+- `comm -13` (중앙에만): **비어 있음**
+
+1666 은 `NtupleForge script/inventory/inv_2017UL_v9_MC*.tsv` 의 UL17 MC 값과도 일치한다.
+즉 customise 가 **아무것도 지우거나 이름을 바꾸지 않고 3 컬럼만 더한다**는 것이
+이름 집합 수준에서 증명됐다.
+
+#### gate 2 잔여 — 이름이 같다고 값이 같은 것은 아니다
+
+1. **값 비교 (event-matched)** 미완. 공통 1666 branch 를 3-key `(run, luminosityBlock,
+   event)` 로 join 해서 비교해야 한다. 우리 출력은 MiniAOD 파일
+   `04B35B8B-2D7E-DD4C-AA6A-FC6364606485.root` 의 앞 2000 event 이므로, 짝이 되는
+   중앙 nano 파일은 `dasgoclient -query="child file=<그 MiniAOD LFN>"` 로 찾는다
+   (lumi 페어링보다 정확하다 — 부모가 확정돼 있다).
+2. **branch type 비교** 미완. 이름 집합만 봤다.
+3. **릴리스 차이**가 여기서 판정된다: 중앙 v9 = **CMSSW_10_6_26**, 우리 = **10_6_32_patch1**.
+   D2 는 pin 근거를 "production 과 동일" 이라 적었지만 실제로는 같은 cycle 의 다른 patch 다.
+   값이 어긋나면 10_6_26 으로 영역을 새로 세우는 것이 정답이고, D2 문구도 고쳐야 한다.
+
+#### 처리율 실측 (D15 / A16 용)
+
+**2000 event / 5m13.7s ≈ 6.4 Hz** (WAN xrootd 입력 포함, 단일 프로세스).
+NanoAOD 재처리가 아니라 MiniAOD→NANO 전 과정이므로 sidecar 보다 훨씬 비싸다.
+TT4b·신호 전량은 CRAB 필수이며, `units_per_job` 은 이 값 기준으로 산정한다.
+
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 
 - 폐기 사유는 D1 참조. **검증됐던 사실**과 emit된 cfg 4편은 [10_enriched_nanoaod_archive.md](10_enriched_nanoaod_archive.md)와 `TtbarIdExtender/archive/enriched_nanoaod/`에 보존 — 지식은 버리지 않는다.
