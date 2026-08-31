@@ -15,7 +15,8 @@
 
 ## D2 — Release pin: CMSSW_10_6_32_patch1 · DECIDED (v7)
 
-- **근거**: UL Run2 NanoAODv9 공식 production cycle (PdmV 사설생산 가이드 명시). gen-level은 14_2_1에서도 일치했지만, byte-identity 주장의 환경을 production과 동일하게 고정.
+- **근거**: UL Run2 NanoAODv9 공식 production cycle (PdmV 사설생산 가이드 명시). gen-level은 14_2_1에서도 일치했지만, byte-identity 주장의 환경을 production과 같은 cycle로 고정.
+- **정정 2026-08-31**: 원래 "production과 동일하게 고정"이라고 적었는데 부정확했다. 중앙 v9 는 **CMSSW_10_6_26** 으로 생산됐고 이 pin 은 **10_6_32_patch1**, 즉 같은 cycle 의 다른 patch 다. 다만 그 차이는 **실측 0** 이다 — 2000 event × 1666 branch = 3,332,000 개 값을 `--ftol 0`(비트 동일 요구)으로 비교해 실질 불일치 0. 그래서 pin 자체는 유효하고 문구만 고친다. 근거는 D17 gate 2 절.
 - **대안**: CMSSW_14_2_1 (v6.1 검증 환경) — gen-level만 일치, reco-level(JEC/JER/tagger)은 원리상 불일치 → 기각.
 
 ## D3 — `genTtbarId`는 표준 producer를 그대로 호출 · DECIDED (v6)
@@ -343,6 +344,69 @@ TTHHGenCategoryTools/TtbarIdExtender/ttbarIdTable_cff` 를 찍고 exit=0.
 **2000 event / 5m13.7s ≈ 6.4 Hz** (WAN xrootd 입력 포함, 단일 프로세스).
 NanoAOD 재처리가 아니라 MiniAOD→NANO 전 과정이므로 sidecar 보다 훨씬 비싸다.
 TT4b·신호 전량은 CRAB 필수이며, `units_per_job` 은 이 값 기준으로 산정한다.
+
+### D17 gate 2 CLOSED — 값까지 동일 (2026-08-31)
+
+중앙본과 **event-matched** 로 값을 비교했다. 페어링은 lumi 추정이 아니라 부모로 확정했다:
+`dasgoclient -query="child file=<우리가 쓴 MiniAOD LFN>"` → v9 자식 2 개 중
+`2C5102B9-7027-3E4E-836C-06A981E74AF3.root` 가 우리 2000 event 를 **전부** 포함
+(overlap 2000/2000). 나머지 `653BA400-...` 는 overlap 0 이었으므로, 앞 절의 스키마 비교와
+이 절의 값 비교는 **서로 다른 파일에 근거한 독립 측정**이다.
+
+```
+python3 script/compare_v9_v15.py \
+    --v9 /tmp/central_ttbb_v9.root --v15 enriched_v9_test.root \
+    --prefix "" --ftol 0
+```
+
+| | 결과 |
+|---|---|
+| 비교 | 2000 event × 1666 branch = 3,332,000 개 값 |
+| only in v15 | `expandedGenTtbarId`, `nAddBJets`, `nAddBJetsMulti` — 3 개 (음성 대조군 역할) |
+| only in v9 | 없음 |
+| common event | 2000 / 2000 |
+| **실질 불일치** | **0** |
+| 정수 branch 불일치 | **0** |
+
+#### 보고된 "불일치" 는 전부 `nan` vs `nan` 이었다
+
+도구가 처음 보고한 것은 `HTXS_Higgs_y` 2000 건과 `PuppiMET_{pt,phi}JER{Up,Down}` 각 5 건,
+합쳐 2,020 개다. 값을 직접 찍어보니 **양쪽 모두 `nan`** 이다.
+
+- `HTXS_Higgs_y` — TTbb 는 Higgs 샘플이 아니라 `HTXSRivetProducer` 가 Higgs rapidity 를
+  정의할 수 없다. `cmsRun` 로그의 `LogicError HTXSRivetProducer:rivetProducerHTXS@beginRun`
+  경고가 바로 그것이고, 중앙본도 똑같이 `nan` 이다.
+- `PuppiMET_*JER*` — 5 event 에서만 JER 변주가 정의되지 않는다. 명목값
+  `PuppiMET_pt`/`_phi`, 그리고 `ptJESUp`·`ptUnclusteredUp`·`MET_pt`·`nJet`·`Jet_pt` 는
+  같은 event 에서 **diff 정확히 0** 이다.
+
+IEEE 754 에서 `nan != nan` 이므로 `==` 비교가 이것을 불일치로 잡은 것이다. 즉
+"events with >=1 disagreement: 100 %" 는 **전량 도구 인공물**이었고 실제 물리 불일치는 0 이다.
+
+`script/compare_v9_v15.py` 를 두 곳 고쳤다 (NtupleForge 쪽):
+1. `equalish` — 양쪽이 NaN 이면 agreement. 단 **건수를 branch 별로 세서 마지막에 출력**한다.
+   조용히 검사를 약화시키지 않기 위한 조건이다 (D16 의 "입력이 없으면 통과가 아니라 실패" 정신).
+   NaN 대 숫자는 여전히 불일치다.
+2. `index_by_eventid` — key 3 개 branch 만 켜고 인덱싱한 뒤 `finally` 로 항상 복원.
+   640k entry × 1666 branch 를 전부 읽고 있어서 **20m46s 중 거의 전부가 여기**였다.
+
+#### 이것이 D2 에 대해 말해주는 것
+
+중앙 v9 = **CMSSW_10_6_26**, 우리 = **CMSSW_10_6_32_patch1**. 같은 cycle 의 다른 patch 인데
+**관측 가능한 차이가 0** 이다 (3,332,000 개 값, `--ftol 0` = 비트 동일 요구). 따라서 D2 의
+release pin 은 유효하다. 다만 D2 본문의 "production 과 동일" 이라는 표현은 부정확하다 —
+정확히는 **"같은 production cycle 의 patch release, 차이는 실측 0"** 이다.
+
+#### 남은 gate
+
+- **gate 3** — 71/72 (tt+4b) 는 아직 미검증. `TTbb_4f_TTToHadronic` 2000 event 에
+  `nAddBJets>=4` 가 0 건이다. `TT4b` 에서 확인해야 한다.
+- **gate 4** — CRAB `units_per_job`. 실측 처리율 **6.4 Hz** (2000 event / 5m13.7s, WAN
+  xrootd 입력 포함) 를 기준으로 산정. MiniAOD 는 파일 수가 많아 D15 의 10,000 job 상한이
+  NanoAOD 재처리보다 먼저 물린다.
+- **gate 5** — v15 적용. 같은 명령에서 릴리스를 `CMSSW_15_0_18`, `--conditions` 를
+  `150X_mc2017_realistic_v1` 로 바꾸면 된다 (`--era` 는 동일). 중앙본이 있는 샘플에서
+  같은 비교를 한 번 더 돌려 확인한 뒤 6 개 부재 샘플에 적용한다.
 
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 
