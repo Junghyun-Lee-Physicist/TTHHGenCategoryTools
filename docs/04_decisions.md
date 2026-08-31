@@ -147,9 +147,62 @@
 - **상태**: DECIDED. 값을 바꾸려면 이 항목을 먼저 갱신하고, `--preflight --check-das` 로 검증한
   job 수를 근거로 남긴다.
 
+## D17 — v15 에 중앙본이 없는 샘플에 한해 enriched NanoAOD 부활 (D-DEP1 부분 번복) · PROPOSED 2026-08-31
+
+- **선택**: 생산 방식을 **혼합**한다.
+  - 중앙 v15 가 **있는** 샘플(ttbar 3 종 등) → **sidecar 유지** (D1 그대로).
+  - 중앙 v15 가 **없는** 6 샘플 → **enriched 사설 생산**: MiniAODv2 를 입력으로
+    중앙과 동일한 NANO step 을 돌리면서 `ExtendedTtbarIdProducer` 를 customise 로
+    얹어 `Expanded_genTtbarId` 를 branch 로 함께 만든다.
+    대상: `TT4b`, `TTHHto4b`(신호), `TTZHTo4b`, `TTZZTo4b`, `tHW`, `TTZToBB`.
+
+- **근거**:
+  1. **v15 전수 조사 (2026-08-31)**: registry 64 개 중 중앙 v15 가 없는 것은 위
+     6 개뿐이다. 나머지는 Data 포함 전부 존재한다
+     (NtupleForge `docs/09` 10 절). 즉 이 6 개는 v15 로 가려면 **사설 생산이
+     선택이 아니라 유일한 경로**다.
+  2. **D-DEP1 의 기각 사유가 이 6 개에는 성립하지 않는다.** D1 은 "storage 비용의
+     99.99 % 가 **중앙 복제**"라고 적었다. v15 에는 복제할 중앙본이 자체가 없으므로
+     그 비용은 **중복이 아니라 유일본의 비용**이다.
+     ⚠ 절대량이 작아서가 아니다 — TT4b 만 봐도 enriched 약 27 GB 대 sidecar 약
+     0.3 GB 로 상대 배율은 여전히 ~90 배다. 바뀐 것은 배율이 아니라 **비교 대상**이다.
+  3. **작업이 어차피 필요하다면 확장 branch 는 덤이다.** customise 는 추가만 하므로
+     표준 branch 는 동일 코드 경로로 생산된다.
+  4. **TT4b 가 sidecar 복잡도의 대부분이다** — tt+nb patch 행 약 200 만 중
+     1,882,170 개(94 %)를 공급한다. TT4b 가 enriched 로 넘어가면 3-key 해시 키잉·
+     patch 파일·규약(D12)·join 부담의 대부분이 사라진다.
+  5. **기술적 실현 가능성은 이미 실증됐다**: v7.2 (2026-05-28) 에서 공통 1,665
+     branch 전부 sum-ratio 1.000 ([10](10_enriched_nanoaod_archive.md) §2).
+
+- **기각 대안**:
+  - **전면 enriched 복귀** — ttbar 3 종은 중앙 v15 가 있고 355 M event 규모라
+    D1 의 중앙-복제 논거가 그대로 유효하다. 기각.
+  - **6 개를 v9 로 남기고 나머지만 v15** — 한 분석 안에서 스키마가 갈리면
+    `Jet_jetId` 처리부터 샘플마다 달라진다. 기각.
+  - **v15 마이그레이션 포기** — v9 NanoAOD 가 parent 대비 2.61 % 결손이고
+    (`docs/09` 5 절) v15 는 100 % 덮는다. 기각.
+
+- **상태**: **PROPOSED**. DECIDED 로 올리려면 아래가 필요하다.
+  1. 아카이브 cfg 는 그대로 실행 불가다 (`TtbbStudies.NanoExtension` 경로가 v10 에서
+     제거됨, [10](10_enriched_nanoaod_archive.md) §3.3). 현행 패키지 기준으로
+     **FlatTable producer 를 새로 작성**해야 한다 — `ExtendedTtbarIdProducer` 는
+     그대로 쓰고 table 컬럼만 붙인다.
+  2. **byte-identity 재검증**. v7.2 결과는 재사용할 수 없다(§4). 중앙본이 존재하는
+     샘플(예: `TTbb_4f_TTToHadronic` v9)에서 레시피를 먼저 증명한 뒤, 중앙본이 없는
+     TT4b·신호에 적용한다. 도구는 NtupleForge `script/compare_v9_v15.py` +
+     `script/pair_v9_v15.py`.
+  3. v7.2 검증 당시 split 조건이 sub-code 56 기반(D4 이전의 버그)이었으므로
+     **확장값 자체는 enriched 경로에서 검증된 적이 없다**. 물리는 sidecar 경로에서
+     입증됐으니([06](06_validation_results.md)) 포장만 새로 검증하면 된다.
+  4. **CRAB job 상한 (D15)**. MiniAOD 는 NanoAOD 보다 파일 수가 훨씬 많다.
+     `units_per_job` 을 NanoAOD config 에서 그대로 가져오면 안 된다.
+  5. v15 는 CMSSW_15_0_X 가 필요하다 (D2 의 release pin 은 v9 용).
+
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 
 - 폐기 사유는 D1 참조. **검증됐던 사실**과 emit된 cfg 4편은 [10_enriched_nanoaod_archive.md](10_enriched_nanoaod_archive.md)와 `TtbarIdExtender/archive/enriched_nanoaod/`에 보존 — 지식은 버리지 않는다.
+
+> **2026-08-31**: 중앙 v15 가 없는 6 샘플에 한해 **D17 로 부분 번복**되었다 (PROPOSED).
 
 ## D16 — 검증 기준 데이터는 이 repo 가 소유한다 (cross-repo 런타임 읽기 금지)
 
