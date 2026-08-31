@@ -198,6 +198,68 @@
      `units_per_job` 을 NanoAOD config 에서 그대로 가져오면 안 된다.
   5. v15 는 CMSSW_15_0_X 가 필요하다 (D2 의 release pin 은 v9 용).
 
+### D17 진행 — gate 1 재평가 (2026-08-31, lxplus 실측)
+
+**중앙 생산 레시피를 DAS config cache 에서 원문으로 확보했다.**
+`dasgoclient -query="config dataset=<DS>" -json` → `ids[0]` 해시 →
+`https://cmsweb.cern.ch:8443/couchdb/reqmgr_config_cache/<hash>/configFile`
+(grid proxy 로 `curl --cert/--key`). 기준 샘플 `TTbb_4f_TTToHadronic` UL17:
+
+| | v9 | v15 |
+|---|---|---|
+| release | **CMSSW_10_6_26** | **CMSSW_15_0_18** |
+| `--conditions` | `106X_mc2017_realistic_v9` | `150X_mc2017_realistic_v1` |
+| `--era` | `Run2_2017,run2_nanoAOD_106Xv2` | **동일** |
+| `--step` / `--eventcontent` | `NANO` / `NANOEDMAODSIM` | 동일 |
+| `--customise` | `Configuration/DataProcessing/Utils.addMonitoring` | 동일 |
+| MiniAOD 부모 | `RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9-v1` | **동일** |
+| config hash | `086c69c1b826c78c43be2aa70d7f23ab` | `f8c6f9a4395a3065a2aa683b1fdbf932` |
+
+두 가지가 결정적이다. **era 와 부모 MiniAOD 가 v9/v15 완전히 동일**하고 차이는
+릴리스와 GT 둘뿐이다. 그리고 **`--customise` 슬롯이 이미 쓰이고 있다** — 즉 우리 것은
+쉼표로 덧붙이는 것이 중앙과 같은 사용법이지 편법이 아니다.
+
+**gate 1 의 비용 추정이 틀렸다 (전제는 맞았다).**
+`grep -rn "nanoaod::FlatTable" ExtendedTtbarId --include=*.cc` → **0 건**. 현행 패키지는
+전부 sidecar 경로다 (`TtbarIdSidecarAnalyzer.cc`, `ttbarIdSidecar_cff.py`,
+`crab/submit_sidecar.py`, `bin/compareSidecarToCentral.cc`). 그러니 "table 컬럼을 붙이는
+물건이 없다"는 전제는 옳았다. 그러나 **새 C++ 은 필요 없다**:
+
+1. 릴리스가 이미 같은 일을 한다 —
+   `PhysicsTools/NanoAOD/python/ttbarCategorization_cff.py:42` 이
+   `genTtbarId = ExtVar(cms.InputTag("categorizeGenTtbar:genTtbarId"), "int", ...)` 로
+   `GlobalVariablesTableProducer` 에 넣어 top-level branch 를 만든다. 우리가 원하는
+   것과 **형태가 같다** (event 당 scalar int).
+2. `ExtendedTtbarIdProducer` 가 consume 하는 4 개가 **전부 중앙 시퀀스의 산출물**이다:
+   `categorizeGenTtbar:genTtbarId`, `slimmedGenJets`,
+   `matchGenBHadron:genBHadJetIndex`, `matchGenBHadron:genBHadFromTopWeakDecay`.
+   앞의 셋째·넷째는 `ttbarCatMCProducers`, 표는 `ttbarCategoryTable` 로 이미
+   `nanoSequence*` 안에 있다 (`nano_cff.py:127`). **상위 모듈을 추가·제거·재설정하지
+   않는다** — 이것이 "센트럴과 동일" 주장의 근거다.
+3. 따라서 gate 1 = python customise 파일 1 개(약 30 줄):
+   `ExtendedTtbarId/NanoExtension/python/enrichedTtbarId_cff.py`.
+   `extendedTtbarId` + `GlobalVariablesTableProducer` 를 `cms.Task` 로 묶어
+   `process.nanoAOD_step.associate()`. Task 이므로 실행 순서는 데이터 의존성으로
+   자동 결정되어 `categorizeGenTtbar` 뒤가 보장된다.
+
+호출 형태:
+
+```
+--customise Configuration/DataProcessing/Utils.addMonitoring,\
+ExtendedTtbarId/NanoExtension/enrichedTtbarId_cff.customise
+```
+
+**현재 상태**: 파일 작성 완료, `scram b` 통과, `dumpPython()` 으로 3 개 컬럼
+(`expandedGenTtbarId` / `nAddBJets` / `nAddBJetsMulti`, 전부 `type='int'`) 확인.
+**10-event `cmsRun` 으로 branch 가 실제로 top-level 에 나오는지는 아직 미검증** —
+`name`/`extension` 인자를 생략했을 때 top-level 이 되는 것은 릴리스 관용구에서 추론한
+것이고 실측이 아니다. 이것이 확인돼야 gate 1 을 닫는다.
+
+**gate 2 에 새 위험 항목**: 중앙 v9 는 **CMSSW_10_6_26** 으로 생산됐고 우리가 가진
+작업 영역은 **CMSSW_10_6_32_patch1** 이다. 같은 106X · 같은 era modifier · 같은 GT 면
+NANO 내용은 같아야 하지만 **byte-identity 는 주장하지 말고 측정한다.** 릴리스 차이가
+차이를 만들면 10_6_26 으로 영역을 새로 세우는 것이 정답이다.
+
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 
 - 폐기 사유는 D1 참조. **검증됐던 사실**과 emit된 cfg 4편은 [10_enriched_nanoaod_archive.md](10_enriched_nanoaod_archive.md)와 `TtbarIdExtender/archive/enriched_nanoaod/`에 보존 — 지식은 버리지 않는다.
