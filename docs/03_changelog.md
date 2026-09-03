@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-07-29** (v13.33).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-02** (v14.0).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1245,3 +1245,50 @@ FATAL: nano GetEntry(23406000) returned 0 ...  Exit 10
 DAS 대조도 같은 결론이다: SemiLep 은 dataset 37 사이트·파일 21 replica 로 오히려 TTToHadronic
 (31 / 14)보다 넓게 퍼져 있다. 남은 설명은 **루프 도중의 lazy open 1건이 타임아웃했다** 뿐이고,
 `Operation expired` 가 정확히 그 자리에 1건만 있다. 성공 job 의 `.err` 에는 이 줄이 아예 없다.
+
+## 2026-08-31 ~ 09-02 — v14.0: enriched NanoAOD 경로 부활 (D17) — python 파일 하나, 새 C++ 0
+
+**왜.** NtupleForge 의 v15 마이그레이션 전수 조사에서 registry 64 개 중 6 개(`TTHHto4b`·`TT4b`·`TTZHTo4b`·
+`TTZZTo4b`·`tHW`·`TTZToBB`)에 **중앙 NanoAODv15 가 없다**는 것이 확정됐다. 이 6 개는 어차피 사설 생산이라
+D1 의 기각 사유("중앙 복제 비용")가 성립하지 않는다 → D-DEP1 을 이 6 개에 한해 부분 번복(D17, PROPOSED).
+
+**무엇을 추가했나 — 딱 하나.** `TtbarIdExtender/python/ttbarIdTable_cff.py` (71 줄, 커밋 `a438485`):
+`ExtendedTtbarIdProducer` 의 세 int 프로덕트를 `GlobalVariablesTableProducer` 로 top-level branch
+`expandedGenTtbarId` / `nAddBJets` / `nAddBJetsMulti` 로 내보내는 `customise(process)`. 릴리스가
+`genTtbarId` 를 내보내는 `ttbarCategorization_cff.py` 와 같은 꼴이다. `try/except ImportError` 로 10_6_X
+(`cms.EDProducer(...)`)와 15_0_X(생성 cfi `.clone()`)를 한 파일이 커버하고, 어느 분기를 탔는지 로그에 찍는다.
+C++ 은 무수정 — `edm::global::EDProducer<>` 라 15_0_18 에서 그대로 컴파일됐다.
+
+**D17 원문의 비용 추정이 틀렸다.** "FlatTable producer 를 새로 작성" 이라 적었는데, 전제(table 컬럼을 붙이는
+물건이 없다 — `grep nanoaod::FlatTable` 0 건)는 맞았지만 해법이 릴리스 안에 있었다. producer 가 consume 하는
+4 개(`categorizeGenTtbar:genTtbarId`, `matchGenBHadron:genBHadJetIndex`/`genBHadFromTopWeakDecay`,
+`slimmedGenJets`)가 **전부 중앙 시퀀스 산출물**이라 상위 모듈을 하나도 건드리지 않는다 — 이것이 "중앙과
+동일" 주장의 근거다.
+
+**검증 (기준 샘플 `TTbb_4f_TTToHadronic` UL17, 중앙본이 있는 샘플에서 먼저).**
+
+| gate | 결과 |
+|:---:|---|
+| 1 | v9 2000 event: 3 컬럼 top-level. branch **1669 = 중앙 1666 + 3** |
+| 2 | 중앙 v9(`2C5102B9`, 우리 event 2000/2000 포함)와 event-matched: **3,332,000 값 `--ftol 0` 실질 불일치 0**, 정수 불일치 0, 중앙에만 있는 branch 0, 공통 1666 타입 동일. 중앙은 CMSSW_10_6_26, 우리는 10_6_32_patch1 → 차이 0 (D2 문구 정정) |
+| 3 | 61/62 확인: `nAddBJets==3` 6 event 가 53→61 ×4, 54→62 ×2 (Multi 기준, 총수 보존). **71/72 는 미확인** — `nAddBJets>=4` 0 건, `TT4b` 필요 |
+| 5 | 15_0_18 무수정 빌드. 200 ev smoke: **1906 = 중앙 v15 1903 + 3**, 타입 불일치 0, `PFMET_pt`/`Rho_*` 존재(진짜 v15 스키마), 앞 10 ev 의 gen 값이 v9 와 동일. **값 비교 대기** |
+| 4 | 미착수. 처리율 v9 6.4 Hz(WAN) / v15 2.4 Hz(200 ev, 로컬) — v15 는 ParticleNetAK4 재계산으로 훨씬 비쌈 |
+
+**중앙 레시피는 DAS 에서 원문으로 받았다.** `dasgoclient -query="config dataset=..."` 의 해시로
+ReqMgr config cache 에서 PSet 을 내려받으면 5 행에 cmsDriver 원문이 있다. v9(`086c69c1...`)와 v15(`f8c6f9a4...`)의
+`--era Run2_2017,run2_nanoAOD_106Xv2` 와 부모 MiniAODv2 가 **완전히 같고**, 차이는 릴리스·GT 둘뿐.
+
+**비교기 수정 (NtupleForge `compare_v9_v15.py`, 커밋 `c0eab1e`).** 첫 실행이 100 % 불일치를 보고했는데 전부
+`nan` vs `nan`(`HTXS_Higgs_y`, `PuppiMET_*JER*`)이었다. 양쪽 NaN 은 agreement 로 처리하되 **건수를 세어 출력**;
+인덱싱은 key 3 branch 만 읽어 20m46s → 수 분.
+
+**사고.** v15 첫 실행이 proxy 만료 + WAN 직독으로 `exit=84` / 18m53s 소모(T-28). 파일을 stale 영역
+(`~/MiniAODExtension/.../ExtendedTtbarId/NanoExtension`, v10 이름)에 먼저 만들었다가 정본으로 옮김(T-32).
+
+**문서.** [11_enriched_nanoaod.md](11_enriched_nanoaod.md) 신설(이론·레시피·gate·검증 방법론·환경). 04 의 D17
+진행 절 4 개를 gate 표 하나로 압축하고 상세를 11 로 이관. D2 문구 정정. 09 §4(15_0_18 실측표) 신설.
+08 T-25~T-32. 10 에 SUPERSEDED 배너. 01 O7 · README 색인 11.
+
+**열린 결정.** NanoAOD 컬럼 이름 `expandedGenTtbarId`(현재, camelCase) vs sidecar 계약 `Expanded_genTtbarId`.
+혼합 생산이라 analyzer 가 둘 다 다뤄야 한다 — 결정 후 D17 에 기록.

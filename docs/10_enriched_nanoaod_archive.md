@@ -5,6 +5,11 @@
 > **상태**: **DEPRECATED** (Approach 자체; [04](04_decisions.md) D-DEP1). 파일은 무수정 동결. 이 문서는 legacy 기록 — 읽기 순서상 마지막.
 > **관련**: 폐기 사유는 D1, 디버깅 역사 원문은 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md) §§10–11.
 
+> ### ⚠️ 2026-09-02 — 이 접근은 D17 로 **부분 부활**했다. 실행 가능한 현행 레시피는 [11_enriched_nanoaod.md](11_enriched_nanoaod.md) 다.
+>
+> 이 문서는 **첫 시도(v7.2, 2026-05)의 역사 기록**으로만 유효하다. 특히 §4 "되살리려면" 의 ②(FlatTable producer 재작성)·③(IntColumn 확인)은
+> **실측으로 불필요함이 드러났다** — 릴리스의 `GlobalVariablesTableProducer` 관용구를 쓰면 새 C++ 이 없다. §1–§3 의 사실 기록은 그대로 유효하다.
+
 ## 결론 먼저 (BLUF)
 
 Approach 2 = "중앙 NanoAODv9와 동일한 사설 NanoAOD를 만들되 `Custom_*` branch 4개를 추가"하는 방식. **v7.2(2026-05-28)에서 소규모 byte-identity가 실증**되었으나(공통 1,665개 branch 전부 ratio=1.000), storage 100배·NANO-step fragility 때문에 sidecar로 대체·폐기되었다. 아카이브의 cfg 4편은 **현 패키지에서 실행 불가능**하며(pre-v10 import 경로 + v10에서 제거된 모듈 의존) 실행이 아니라 **provenance 기록**으로 보존한다.
@@ -50,6 +55,6 @@ cmsDriver.py nano --step NANO --mc -n 10 --no_exec
 3. **현재 실행 가능성**: 네 cfg 모두 `from TtbbStudies.NanoExtension.ttbarCategorySequence_cff import addCustomTtbar`를 참조 — (a) 패키지 경로가 pre-v10 (`TtbbStudies`), (b) `ttbarCategorySequence_cff.py`·`TtbarCategoryTableProducer.cc` 자체가 v10에서 패키지에서 제거됨. 따라서 **현 저장소에 대고 cmsRun 하면 ImportError로 실패하는 것이 정상**이다. 아카이브는 무수정 원칙 — "고쳐서 돌아가게" 만들면 그건 검증된 적 없는 새 구성이 된다.
 4. 당시 존재했던 emit 자동화 스크립트(`gen_official_cfg.sh`: EL7 컨테이너에서 emit→inject 2-step)는 v10 정리에서 제거되어 **이 아카이브에 없다** — 위 §1의 cmsDriver 명령 원문이 그 대체 기록이다.
 
-## 4. 되살리려면 (참고 절차 — 지금 할 일 아님)
+## 4. 되살리려면 (참고 절차 — **2026-09-02 SUPERSEDED**: 실제 부활 절차는 [11](11_enriched_nanoaod.md) §2; 아래는 당시의 추정이며 ②·③은 불필요했다)
 
 sidecar가 요구를 못 채우는 상황(예: 확장 id를 branch로 품은 완전한 NanoAOD 파일 자체가 필요)이 오면: ① §1의 cmsDriver 명령으로 해당 era의 cfg를 **새로 emit**, ② 현행 패키지 기준의 attach 함수(현재는 sidecar용 `addTtbarIdExtend`뿐이므로 FlatTable producer를 재작성)를 inject, ③ [09](09_environment.md) §2의 FlatTable 항목(IntColumn 명시) 확인, ④ `compareEnrichedToCentral` 계열로 byte-identity 재검증. — 전부 새 검증 대상이며 v7.2 결과를 재사용할 수 없다.

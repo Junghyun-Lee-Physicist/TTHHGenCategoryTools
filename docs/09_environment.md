@@ -2,12 +2,13 @@
 
 > **목적**: release-cycle 차이로 인한 함정의 일반화 표와, Run3(14_X+) 이행 시 따라갈 체크리스트.
 > **대상 독자**: 새 환경에서 빌드하는 사람; Run3 migration 담당.
-> **상태**: 10_6_X 표는 DECIDED (v7.1–v7.2에서 전부 실측). migration은 **미실행** ([01](01_status.md) O5) — 체크리스트만 준비됨.
+> **상태**: 10_6_X 표는 DECIDED (v7.1–v7.2에서 전부 실측). **15_0_18 실측 완료 (2026-09-02)** — 패키지가 무수정으로 빌드·실행됐고,
+> §3 체크리스트의 2·3 은 실측으로 닫혔다. §4 에 15_0_X 에서 새로 확인된 사실을 둔다. Run3(GT/era 교체, §3 의 4–6)은 여전히 미실행.
 > **관련**: 각 함정의 발생 맥락은 [08_troubleshooting.md](08_troubleshooting.md) T-4·T-5, 원 기록(전체 표)은 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md) §13.
 
 ## 결론 먼저 (BLUF)
 
-이 패키지는 **CMSSW_10_6_32_patch1** (UL NanoAODv9 production cycle: Python 2.7, gcc 7, ROOT 6.14, `slc7_amd64_gcc700`, lxplus에서는 `cmssw-el7` 컨테이너)에 pin 되어 있다 (근거: [04](04_decisions.md) D2). 코드는 v7.1–v7.2에서 10_6_X 함정을 전부 통과하도록 **방어적으로** 작성되어 있어, 14_X에서도 대부분 그대로 import/컴파일될 것으로 예상되지만 — **추정 금지**: 이행은 §3 체크리스트로 검증한다.
+이 패키지는 **CMSSW_10_6_32_patch1** (UL NanoAODv9 production cycle: Python 2.7, gcc 7, ROOT 6.14, `slc7_amd64_gcc700`, lxplus에서는 `cmssw-el7` 컨테이너)에 pin 되어 있다 (근거: [04](04_decisions.md) D2). 코드는 v7.1–v7.2에서 10_6_X 함정을 전부 통과하도록 **방어적으로** 작성되어 있고, **15_0_18 에서 무수정으로 빌드·실행됨이 2026-09-02 에 실측됐다**(§4). Run3 입력(era/GT 교체)은 아직이므로 그 부분은 §3 체크리스트로 검증한다.
 
 ## 1. 10_6_X에서 지켜야 할 것 (현행 규약)
 
@@ -45,16 +46,34 @@ Makefile로 어느 ROOT 6.x에서든 빌드. `Validation/scripts/*.C`(ROOT 매�
 | `ULong64_t`/`BuildIndex`/`SetBranchAddress` 엄격성 | ROOT 6.14 | 6.26+ 동일 | 무변경 |
 | FlatTable `IntColumn` 4번째 인자 명시 | **필수** (`defaultColumnType<int>` 없음) | 생략 가능하나 명시도 OK | archive의 enriched 계열에만 해당 |
 
-주의가 필요한 단 하나의 축: **NanoAOD python 모듈 재배치**. `PhysicsTools.NanoAOD.ttbarCategorization_cff`의 위치는 cycle마다 바뀔 수 있다 — §3의 2번이 첫 관문.
+주의가 필요했던 단 하나의 축은 **NanoAOD python 모듈 재배치**였는데, 15_0_18 에서 실측한 결과 `PhysicsTools.NanoAOD.ttbarCategorization_cff` 의
+**import 경로도, 모듈 라벨(`categorizeGenTtbar`/`matchGenBHadron`/`matchGenCHadron`)도 그대로**다. 바뀐 것은 §4 참조.
 
-## 3. 14_X / 15_X (Run3) migration 체크리스트 — 미실행, 순서대로
+## 3. 14_X / 15_X migration 체크리스트 — 1–3 은 15_0_18 실측 통과(2026-09-02), 4–6 은 Run3 입력이 생기면
 
 1. `cmsrel CMSSW_14_X_Y` + `cmsenv` → 패키지 unpack → `scram b` (컴파일 에러부터).
-2. `python3 -c "from PhysicsTools.NanoAOD.ttbarCategorization_cff import categorizeGenTtbar, matchGenBHadron, matchGenCHadron"` — 실패 시 cmssdt LXR에서 새 경로 확인 후 `python/ttbarIdExtend_cff.py`의 import 교체. **가정 말고 실측**.
-3. `python3 -c "from TTHHGenCategoryTools.TtbarIdExtender.extendedTtbarId_cfi import extendedTtbarId"` — 우리 모듈 등록 확인.
+2. `python3 -c "from PhysicsTools.NanoAOD.ttbarCategorization_cff import categorizeGenTtbar, matchGenBHadron, matchGenCHadron"` — 실패 시 cmssdt LXR에서 새 경로 확인 후 `python/ttbarIdExtend_cff.py`의 import 교체. **가정 말고 실측**. **→ 15_0_18 실측 통과 (2026-09-02): 경로·라벨 무변경.**
+3. `python3 -c "from TTHHGenCategoryTools.TtbarIdExtender.extendedTtbarId_cfi import extendedTtbarId"` — 우리 모듈 등록 확인. **→ 15_0_18 실측 통과.** `scram b` 도 무수정 통과(plugins 2 + bin 1).
 4. 입력 갱신: `crab/datasets.yaml`에 Run3 MiniAOD dataset + GlobalTag(`124X_mcRun3_...` 계열), `test/run_ttbarIdExtend_cfg.py`의 era modifier `Run2_2017,run2_nanoAOD_106Xv2` → Run3 대응으로 교체.
 5. gen-only 스모크: `cmsRun run_ttbarIdExtend_cfg.py inputFiles=<Run3 MiniAOD> maxEvents=10`.
 6. `bin/compareExtendToCentral`로 Run3 central NanoAOD(v12+)와 `genTtbarId` byte-identity **재검증** — `genTtbarId` 의미는 NanoAOD 버전 무관(`categorizeGenTtbar`가 원천)이지만, 검증 없이 주장하지 않는다.
-7. (enriched를 되살릴 경우에만) FlatTable 헤더 경로 + column API 재확인 — [10](10_enriched_nanoaod_archive.md).
+7. ~~(enriched를 되살릴 경우에만) FlatTable 헤더 경로 + column API 재확인~~ **→ 불필요 (2026-09-02)**: 되살린 enriched 경로는 FlatTable C++ 을 쓰지 않는다. [11](11_enriched_nanoaod.md) §2.2.
 
 **ttbarId-extend 설계의 이행 비용이 낮은 이유**: NanoAOD step을 거치지 않으므로 NanoAOD가 v9→v15로 바뀌어도 ttbarId-extend 코드는 영향이 없고, 바뀌는 것은 입력 MiniAOD의 era/GT와 (재)검증 대상 central 파일뿐이다 ([05](05_architecture.md) §4).
+
+## 4. 15_0_18 에서 실측으로 확인된 것 (2026-09-02)
+
+| 항목 | 10_6_32_patch1 | 15_0_18 | 우리 코드에 미친 영향 |
+|---|---|---|---|
+| 평탄화 python 트리 `$CMSSW_RELEASE_BASE/python/<Sub>/<Pkg>/` | 채워져 있음 | **`__init__.py` 만** — 실제 파일은 `src/<Sub>/<Pkg>/python/` | import 는 정상. **grep 위치만 다르다** — `python/` 아래를 찾고 "없다" 고 결론내면 오판 |
+| `GlobalVariablesTableProducer` python 손잡이 | `cms.EDProducer("GlobalVariablesTableProducer", ...)` | `PhysicsTools.NanoAOD.globalVariablesTableProducer_cfi` 의 **생성 cfi 를 `.clone()`** (릴리스의 `ttbarCategoryTable` 이 그렇게 한다) | `ttbarIdTable_cff.py` 가 `try/except ImportError` 로 양쪽 지원. 생성 cfi 는 `extension=False`, `name=''` 을 명시해 준다 |
+| nano 시퀀스 구조 | `ttbarCatMCProducers`(Sequence), `ttbarCategoryTable` | `ttbarCatMCProducersTask`, `ttbarCategoryTableTask`, `nanoTableTaskCommon`, `nanoTableTaskFS` — **Task 기반** | 없음. 우리는 `nanoAOD_step.associate(Task)` 라 시퀀스 이름에 의존하지 않는다 |
+| `ExtVar` 시그니처 | `(tag, valtype, compression, doc, mcOnly, precision)` | `compression`/`mcOnly` 사라짐 | 없음 (`doc` 만 넘긴다) |
+| `ExtendedTtbarIdProducer` (`edm::global::EDProducer<>`, `fillDescriptions`) | OK | **무수정 컴파일** | 없음 |
+| `bin/compareExtendToCentral.cc` (ROOT 6.14 기준 작성) | OK | **ROOT 6.32 에서도 컴파일** | 없음 |
+| python | 2.7 (+3.6.4) | 3.9 | `python` 대신 `python3` |
+| PyROOT | python2 빌드; `TFile.Open(p).Get()` 은 GC 로 파일이 닫혀 **segfault** | 최신 PyROOT 는 넘어감 | 어느 환경에서든 `f=TFile.Open(p); t=f.Get(..)` 로 파일 객체를 잡아둘 것 |
+| NANO step 비용 | ~6.4 Hz (WAN 입력 포함) | **~2.4 Hz** (로컬 입력, 200 ev) — **ParticleNetAK4 를 MiniAOD 에서 재계산** | CRAB `units_per_job` 산정을 v9 값으로 하면 안 된다 ([11](11_enriched_nanoaod.md) §3.4) |
+
+> 여기 적힌 15_0_18 값은 **UL17 MiniAODv2 + `--era Run2_2017,run2_nanoAOD_106Xv2` + `150X_mc2017_realistic_v1`** 로 확인한 것이다.
+> Run3 는 era·GT 가 다르므로 §3 의 4–6 을 따로 밟아야 한다.
