@@ -57,12 +57,26 @@ $TTHH_EOS/logs/<TAG>/<task>.cmsRun.log    cmsRun 원문 로그
 $TTHH_EOS/logs/<TAG>/<task>_cfg.py        실제로 돈 cfg (provenance)
 $TTHH_EOS/json/<TAG>/*.json               compare_v9_v15.py 요약 (문서 11 §3 의 증거로 붙일 것)
 $TTHH_EOS/enriched/<TAG>/*.root           출력 NanoAOD
-submissions/<TAG>/logs/<task>.*.out       condor stdout (stream_output 이라 실행 중에도 tail -f 가능)
+submissions/<TAG>/logs/<task>.*.out       condor stdout — job 이 끝난 뒤에 쓰인다 (아래 '주의')
 ```
 
 exit code: 0 = 전부 PASS, 1 = 어떤 검사 FAIL, 2 = 인프라 오류(staging·cmsenv 실패 등).
 gate 4 숫자는 `timing_v15_2k.log` 의 `Event Throughput` / `Total loop` / `loop rate` 줄이다
 (startup 을 뺀 event-loop 처리율; `units_per_job` 산정에 이것을 쓴다).
+
+## 주의 — CERN batch (2026-09-07 실측, docs/08 T-33)
+
+- **stdout/err 스트리밍 금지.** `stream_output`/`stream_error = True` 는 2025-11 말부터 `condor_submit` 이
+  거부한다 (schedd·파일시스템 부하). 다른 repo 의 JDL 을 복사하기 전에
+  [batchdocs changelog](https://batchdocs.web.cern.ch/changelog/index.html) 를 본다.
+  실행 중 진행 상황은 condor `.out` 이 아니라 worker 가 EOS 로 복사하는 로그로 본다.
+- OS 는 `MY.WantOS = "el8" | "el9"`. el7 이 필요한 v9 job 은 el9 호스트로 보내고 job 안에서
+  `/cvmfs/cms.cern.ch/common/cmssw-el7 --command-to-run` 으로 자기를 다시 실행한다.
+- `submit.sh -n` 은 JDL 렌더까지만 검사한다 — schedd 정책 위반은 `condor_submit` 이 되어서야 드러나고,
+  submit.sh 는 첫 JDL 이 거부되면 멈추므로 뒤 OS 그룹도 제출되지 않는다. 고친 뒤 그대로 재실행하면
+  새 TAG 로 다시 렌더한다 (선복사는 캐시).
+- 로그·JDL 은 AFS(`submissions/<TAG>/`)에, 데이터·결과는 EOS 에. EOS 쓰기는 proxy 로 `xrdcp`(eosuser),
+  실패하면 fuse `cp` 로 넘어간다.
 
 ## 태스크 추가
 
