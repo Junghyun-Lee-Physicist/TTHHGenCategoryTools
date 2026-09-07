@@ -125,7 +125,8 @@ finish() {
   echo "================================================================ SUMMARY $TASK ($TAG)"
   printf '%s\n' "${RESULTS[@]:-"(no checks recorded)"}"
   local verdict
-  if   [[ $FAILED -eq 0 && $rc -eq 0 ]]; then verdict="ALL PASS";         rc=0
+  if   [[ ${#RESULTS[@]} -eq 0 && $rc -ne 0 ]]; then verdict="INFRASTRUCTURE ERROR (died before any check, rc=$rc)"; rc=2
+  elif [[ $FAILED -eq 0 && $rc -eq 0 ]]; then verdict="ALL PASS";         rc=0
   elif [[ $FAILED -eq 2 || $rc -ge 2 ]];  then verdict="INFRASTRUCTURE ERROR (rc=$rc)"; rc=2
   else                                         verdict="CHECK FAILED";     rc=1
   fi
@@ -158,10 +159,12 @@ else
   log "WARN         X509_USER_PROXY not set -- xrootd reads will fail"
 fi
 
+set +u   # CMS site scripts read unset variables (CVS_RSH) -- docs/08 T-34
 source /cvmfs/cms.cern.ch/cmsset_default.sh
 pushd "$AREA/src" >/dev/null || die "cannot cd to $AREA/src"
 eval "$(scramv1 runtime -sh)" || die "cmsenv failed in $AREA"
 popd >/dev/null
+set -u
 log "CMSSW        $CMSSW_VERSION  SCRAM_ARCH=$SCRAM_ARCH"
 log "python       $(python3 --version 2>&1 || python --version 2>&1)"
 log "ROOT         $(root-config --version 2>/dev/null || echo '?')"

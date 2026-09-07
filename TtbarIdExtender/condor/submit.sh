@@ -138,8 +138,6 @@ MY.JobBatchName         = "enriched_$TAG"
 output                  = $SUBDIR/logs/\$(task).\$(ClusterId).\$(ProcId).out
 error                   = $SUBDIR/logs/\$(task).\$(ClusterId).\$(ProcId).err
 log                     = $SUBDIR/logs/\$(task).\$(ClusterId).\$(ProcId).log
-stream_output           = True
-stream_error            = True
 
 request_cpus            = $REQUEST_CPUS
 request_memory          = $REQUEST_MEMORY
