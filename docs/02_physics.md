@@ -2,7 +2,7 @@
 
 > **목적**: 이 프로젝트가 왜 존재하는지, 그리고 `genTtbarId` / `Expanded_genTtbarId` 인코딩의 **저장소 내 단일 출처**.
 > **대상 독자**: 물리적 의미를 알아야 하는 모든 사람; 코드를 읽기 전의 필독.
-> **상태**: DECIDED (내용은 CMSSW 소스·TWiki·AN2022_122로 확정) — 2026-07-05 병합 시 재구성.
+> **상태**: DECIDED (내용은 CMSSW 소스·TWiki·AN2022_122로 확정) — 2026-07-05 병합 시 재구성; 2026-09-07 §3 에 TT4b 2000 ev 실측 전이표 추가.
 > **관련**: 개념의 확장 논의는 tempTTHH `docs/ttbarCategorization.md` §1–§3·§9 (분석 저장소 측 문서), 구현은 [05_architecture.md](05_architecture.md), 검증 수치는 [06_validation_results.md](06_validation_results.md).
 
 ## 결론 먼저 (BLUF)
@@ -57,6 +57,19 @@ Expanded_genTtbarId = genTtbarId                              (nAddBJets <= 2)
 - 앞자리 prefix(100/1000/10000 자리)는 **항상 보존**된다 (예: 253 → 261).
 - `nAddBJetsMulti` = 추가 b-jet 중 b-hadron ≥2개를 담은 jet 수. multi 구분(61 vs 62 등)은 AN보다 한 단계 세분(g→bb 연구용)이며, 분석에서는 **61+62 → tt+bbb, 71+72 → tt+4b**로 합친다.
 - EDM product instance 이름은 `expandedGenTtbarId`(camelCase — EDM은 instance 이름에 underscore 금지)이고, ttbarId-extend TTree의 최종 branch 이름은 `Expanded_genTtbarId`다. 분석에서 읽는 이름은 후자다.
+
+**실측 (TT4b 2000 event, 2026-09-07, enriched NanoAOD 경로 — [11](11_enriched_nanoaod.md) §3.5).** 규칙을 event 마다 검사해 위반 0, 그리고 **v9(10_6_32_patch1)와 v15(15_0_18)의 표가 동일**:
+
+```
+nAddBJets            0:180  1:677  2:741  3:351  4:48  5:3
+genTtbarId%100 -> Expanded%100
+  53->53 528   53->61 268   53->71 43        (multi 0)
+  54->54 195   54->62  79   54->72  8        (multi >=1)
+  55->55  22   55->62   4                    (중앙 55 에 세 번째 추가 b-jet)
+  0/41-44/51/52 는 전부 자기 자신 (nAddBJets <= 2)
+```
+
+61 ← 53, 62 ← 54·55, 71 ← 53, 72 ← 54 — 표의 정의 그대로다. tt+4b(71/72)는 TT4b 샘플에서도 2.5 % 로 드물고, tt+bbb(61/62)가 17 %.
 
 ## 4. 왜 이 분할이 stitching에 정합한가
 

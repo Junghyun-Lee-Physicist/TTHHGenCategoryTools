@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-02** (v14.0).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-07** (v14.1).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1292,3 +1292,37 @@ ReqMgr config cache 에서 PSet 을 내려받으면 5 행에 cmsDriver 원문이
 
 **열린 결정.** NanoAOD 컬럼 이름 `expandedGenTtbarId`(현재, camelCase) vs sidecar 계약 `Expanded_genTtbarId`.
 혼합 생산이라 analyzer 가 둘 다 다뤄야 한다 — 결정 후 D17 에 기록.
+
+## 2026-09-07 — v14.1: D17 gate 3·4·5 닫힘 + HTCondor 검증 배치 (`TtbarIdExtender/condor/`)
+
+**무엇이 닫혔나** ([11](11_enriched_nanoaod.md) §3, [04](04_decisions.md) D17 표).
+
+| gate | 결과 |
+|:---:|---|
+| 3 | TT4b 2017 MiniAOD 2000 ev 를 v9(10_6_32_patch1)·v15(15_0_18)로 처리 — 규칙 위반 0, 71/72 51 건, **두 릴리스의 전이표 동일** (61←53, 62←54·55, 71←53, 72←54). 표는 [02](02_physics.md) §3 에도. |
+| 4 | 처리율 batch 실측: v15 **1.26 ev/s**, v9 **6.12 ev/s** (4.9×). 부재 6 샘플 × 2 era 의 MiniAOD = 3,525 파일 / 125.4M ev → `FileBased` 1 파일/job, 3,525 job / 16 task, task 당 ≤ 486. 메모리(job report, `cmsRun -j`): 1 스레드 `PeakValueRss` **2,977 MB**, plain 과 ours 차 0.6 MB — 1 코어 CRAB 기본(2,000 MB) 초과 → 1 차 안 `numCores=1`/`maxMemoryMB≈3500`(cfg 는 중앙 원문 그대로, 스레드 옵션 없음), 서버 거부 시에만 2 코어·2 스레드 ([11](11_enriched_nanoaod.md) §6). |
+| 5 | v15 2000 ev 대 중앙 `--ftol 0`: **정수 불일치 0**; float 차이는 `*_area`(ghost 난수, event 이력), `HTXS_*`(0 vs 3e-5 잔차), DeepTau raw(NN 추론의 하드웨어 의존 마지막 비트, 저장 정밀도 한 칸) 세 부류만. customise 를 뺀 중앙 cfg 를 같은 event 에 돌린 **음성 대조군이 같은 부류·같은 값을 재현**하고, 같은 노드에서 연달아 돌린 plain vs ours 는 **`--zero` 비트 동일**(`control_v15_200` ALL PASS, TAG 1128) → customise 는 3 컬럼 외 아무것도 바꾸지 않는다. |
+
+**"동일" 의 정의가 셋으로 갈렸다** ([11](11_enriched_nanoaod.md) §4.7, T-35): 같은 노드·같은 job = 비트 동일(예외 없음) /
+다른 머신 = NN 출력의 마지막 ULP 만 / 다른 job 이력(중앙) = 세 부류. 정수 branch 와 우리 3 컬럼은 어디서도 달라선 안 된다.
+처음 대조군은 batch 의 plain 과 lxplus 의 ours 를 비교해 DeepTau 한 값에서 깨졌다 — 하드웨어 변수를 대조군에 섞은 설계
+실수. 대조군은 같은 job 에서 plain·ours 를 연달아 돌리도록 재설계.
+
+**새 코드 — `TtbarIdExtender/condor/`** (`submit.sh`, `runTask.sh`, `config.sh`, `check_expanded.py`, `judge_compare.py`,
+README). 4 task(`control_v15_200`, `timing_v15_2k`, `tt4b_v9_2k`, `tt4b_v15_2k`)를 HTCondor 로 돌려 EOS
+`/eos/user/j/junghyun/ttHH/{enriched,json,logs}/<TAG>/` 에 출력·비교 JSON·전체 로그·cfg·job report·PASS/FAIL 요약을 남긴다.
+판정은 기계가 한다 (`judge_compare.py` 허용 부류 3분법, `check_expanded.py` 규칙 검사, `%MSG-e` 는 `JetPtMismatch|MissingJetConstituent`
+만 허용). v15 는 `MY.WantOS="el8"`, v9 는 el9 호스트에서 `cmssw-el7` 로 자기 재실행 — 둘 다 실측 동작.
+
+**CERN batch 에서 배운 것** ([08](08_troubleshooting.md) T-33~T-35): stdout 스트리밍 금지(2025-11) → 첫 제출 거부;
+`set -u` 아래에서 `cmsset_default.sh` → `CVS_RSH: unbound variable` 즉사; 하드웨어 의존 NN 추론.
+
+**운영 규칙 변경.** 임시 파일은 lxplus `/tmp`(노드별) 가 아니라 EOS `ttHH/{miniaod,central,enriched,json,logs}` 에.
+
+**부수 관찰.** MiniAOD 부모가 중앙 NanoAOD v9 보다 1–4 % 많은 event 를 가진 dataset 이 있다(`tHW` 2017, `TTZToBB` 2018,
+`TTZZTo4b_ext1` 2018) — enriched 가 그만큼 더 온전하다. cmsRun `%MSG-e` 14 건은 전부 `JetPtMismatch`
+(`JetFlavourClustering:genJetAK8FlavourAssociation`, 중앙 시퀀스, T-1 부류).
+
+**문서.** 11 (§2.3 EOS 규칙, §2.4 배치, §3 gate 표, §3.3 값 비교 표 + 파일 LFN, §3.4 처리율·MiniAOD 표·job 산정, §3.5 gate 3,
+§4.7, §5, §6), 02 §3 실측 전이표, 04 D17 표·상태, 08 T-33~T-35 + HTCondor 절 머리, 01 O7, README.
+**열린 결정** 은 그대로 컬럼 이름 하나 — 결정 시 D17 을 DECIDED 로.

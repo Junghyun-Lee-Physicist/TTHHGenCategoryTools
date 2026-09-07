@@ -2,7 +2,7 @@
 
 > **한 줄 목적**: 표준 NanoAODv9 `genTtbarId`가 구분하지 못하는 **tt+bbb(추가 b-jet 정확히 3개) / tt+4b(4개 이상)** 를 MiniAODv2 gen 정보로부터 복원(`Expanded_genTtbarId`)하여, ttHH(4b) 분석의 ttbar stitching에 공급한다.
 > **대상 독자**: 이 코드를 이어받는 모든 사람/AI.
-> **상태**: 2017 UL 7개 샘플 전량 검증 완료 (2026-06) · 병합·rename v12 (2026-07-05) · era 파라미터화 + 2018UL 7샘플 CRAB v13.x (2026-07-27) · **enriched NanoAOD 경로 부활 v14.0 (2026-09-02, D17): 중앙 v15 가 없는 6 샘플용, v9 에서 값 단위 검증 완료** — 세부는 [`docs/01_status.md`](docs/01_status.md) O6·O7, [`docs/11_enriched_nanoaod.md`](docs/11_enriched_nanoaod.md).
+> **상태**: 2017 UL 7개 샘플 전량 검증 완료 (2026-06) · 병합·rename v12 (2026-07-05) · era 파라미터화 + 2018UL 7샘플 CRAB v13.x (2026-07-27) · **enriched NanoAOD 경로 부활 v14.0 (2026-09-02, D17) → v14.1 (2026-09-07): gate 3·4·5 닫힘 — TT4b 71/72, v15 2000 ev 값 비교, batch 처리율; HTCondor 검증 배치 `TtbarIdExtender/condor/`** — 세부는 [`docs/01_status.md`](docs/01_status.md) O6·O7, [`docs/11_enriched_nanoaod.md`](docs/11_enriched_nanoaod.md).
 > **정본 규칙**: 저장소의 문서화 계약은 `DOCUMENTATION_GUIDELINE`(프로젝트 무관 계약)을 따르며, AI 작업 계약은 [`00_PROMPT.md`](00_PROMPT.md)에 있다.
 
 이 저장소(`TTHHGenCategoryTools`)는 세 부분으로 구성된다:
@@ -34,7 +34,7 @@
 | 10 | [`docs/10_enriched_nanoaod_archive.md`](docs/10_enriched_nanoaod_archive.md) | (legacy) 폐기된 Approach 2 — enriched NanoAOD 의 사실 기록과 검증 경계 |
 | 11 | [`docs/11_enriched_nanoaod.md`](docs/11_enriched_nanoaod.md) | **(D17) 부활한 enriched NanoAOD** — 왜 중앙과 동일한지(이론), 정확한 cmsDriver/customise(레시피), gate 별 증거, 검증 방법론, 환경 함정 |
 
-하위 디렉토리 `TtbarIdExtender/`와 `Validation/`은 각자 **지역 README**(사용법 중심)를 가진다. `docs/legacy/`에는 병합 이전의 원본 문서 4편이 **동결(frozen) 상태로** 보존되어 있다 — 갱신 금지, 역사적 세부 참조용.
+하위 디렉토리 `TtbarIdExtender/`와 `Validation/`은 각자 **지역 README**(사용법 중심)를 가진다. `TtbarIdExtender/condor/README.md` 는 D17 검증 배치(4 task, 판정 기준, CERN batch 주의). `docs/legacy/`에는 병합 이전의 원본 문서 4편이 **동결(frozen) 상태로** 보존되어 있다 — 갱신 금지, 역사적 세부 참조용.
 
 > **여러 저장소를 함께 쓰는 순서**는 이 저장소 밖에 있다: 워크스페이스 루트의
 > **`RUNBOOK_UL18_to_controlplots.md`** 가 ntuple 생산(NtupleForge) · ttbarId-extend(이 저장소) ·

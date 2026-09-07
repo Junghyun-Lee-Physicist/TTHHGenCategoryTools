@@ -148,7 +148,7 @@
 - **상태**: DECIDED. 값을 바꾸려면 이 항목을 먼저 갱신하고, `--preflight --check-das` 로 검증한
   job 수를 근거로 남긴다.
 
-## D17 — v15 에 중앙본이 없는 샘플에 한해 enriched NanoAOD 부활 (D-DEP1 부분 번복) · PROPOSED 2026-08-31
+## D17 — v15 에 중앙본이 없는 샘플에 한해 enriched NanoAOD 부활 (D-DEP1 부분 번복) · PROPOSED 2026-08-31 → **gate 전부 충족 2026-09-07** (DECIDED 는 컬럼 이름 결정과 함께 기록)
 
 - **선택**: 생산 방식을 **혼합**한다.
   - 중앙 v15 가 **있는** 샘플(ttbar 3 종 등) → **sidecar 유지** (D1 그대로).
@@ -202,20 +202,25 @@
      `units_per_job` 을 NanoAOD config 에서 그대로 가져오면 안 된다.
   5. v15 는 CMSSW_15_0_X 가 필요하다 (D2 의 release pin 은 v9 용).
 
-### D17 진행 상황 (2026-09-02 기준) — 상세·증거·명령은 [11](11_enriched_nanoaod.md)
+### D17 진행 상황 (2026-09-07 기준) — 상세·증거·명령은 [11](11_enriched_nanoaod.md)
 
 | gate | 조건 | 상태 | 한 줄 근거 |
 |:---:|---|:---:|---|
 | 1 | customise 로 컬럼이 top-level branch 로 나온다 | **CLOSED** 08-31 | v9 2000 event, 3 컬럼 존재, branch 1669 = 중앙 1666 + 3 |
 | 2 | 중앙 v9 와 이름·타입·값 동일 | **CLOSED** 08-31 | 3,332,000 값 `--ftol 0` 실질 불일치 **0**, 정수 불일치 0, 중앙에만 있는 branch 0 |
-| 3 | 확장값 61/62/71/72 | 61/62 만 | 6 event: 53→61 ×4, 54→62 ×2, 총수 보존. 71/72 는 `TT4b` 필요 |
-| 4 | CRAB `units_per_job` (D15) | 미착수 | 처리율 v9 6.4 Hz / v15 2.4 Hz(200 ev, 과소평가) |
-| 5 | 15_0_18 에서 동일 절차 | 스키마 통과 · 값 대기 | 무수정 빌드, 1906 = 1903 + 3, 타입 불일치 0 |
+| 3 | 확장값 61/62/71/72 | **CLOSED** 09-07 | TT4b 2000 ev: 규칙 위반 0, 71/72 51 건, **v9·v15 전이표 동일** ([11](11_enriched_nanoaod.md) §3.5) |
+| 4 | CRAB `units_per_job` (D15) | **수치 확보** 09-07 | v15 1.26 ev/s(batch; 정상 상태 ≈ 1.32) → `FileBased` 1 파일/job, 3,525 job / 16 task, task 당 ≤ 486. 메모리: 1 스레드 `PeakValueRss` **2,977 MB**(200 ev; customise 비용 +0.6 MB) → 1 코어 기본 2,000 MB 초과. cfg 는 중앙 원문 그대로(스레드 옵션 없음) 두고 **`numCores=1`, `maxMemoryMB≈3500` 을 1 차 안**으로 제출 시 CRAB 서버 판정에 맡긴다; 거부 시에만 2 코어·2 스레드(확인 run 선행). 2000 ev RSS 는 `timing_v15_2k` 재실행으로 ([11](11_enriched_nanoaod.md) §3.4, §6) |
+| 5 | 15_0_18 에서 동일 절차 | **CLOSED** 09-07 | 2000 ev 정수 불일치 0; float 차이는 재생산의 세 부류(area·HTXS·NN 하드웨어)만이고 customise 없는 음성 대조군이 같은 부류를 재현; 같은 노드 plain vs ours **`--zero` 비트 동일**(`control_v15_200` ALL PASS) ([11](11_enriched_nanoaod.md) §3.3, §4.7) |
 
 **원문 조건 대비.** ①은 충족됐지만 **비용 추정이 틀렸다** — "FlatTable producer 를 새로 작성" 이 아니라
 릴리스의 `GlobalVariablesTableProducer` 관용구를 그대로 쓴 python 파일 하나(`ttbarIdTable_cff.py`, 커밋
-`a438485`)로 끝났고 새 C++ 은 없다. ②·⑤ 충족. ③은 61/62 까지. ④ 미착수. **D2 에 대한 부수 결론**: 중앙
+`a438485`)로 끝났고 새 C++ 은 없다. ②·③·⑤ 충족, ④ 는 수치로 충족(상한의 5 %). **D2 에 대한 부수 결론**: 중앙
 v9 = CMSSW_10_6_26, 우리 = 10_6_32_patch1 인데 값 차이 0 → pin 유효(D2 정정 문단 참조).
+**"동일" 의 정의가 정교해졌다** (09-07): 같은 릴리스·cfg·event 라도 두 job 은 jet ghost-area 난수(event 이력),
+HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳에서 다를 수 있다. 판정은 비교 상대에 따라
+"같은 노드·같은 job = 비트 동일 / 다른 머신 = NN 출력만 / 다른 job 이력 = 세 부류" 로 갈리고, 정수 branch 와 우리
+3 컬럼은 어디서도 달라선 안 된다([11](11_enriched_nanoaod.md) §4.7, [08](08_troubleshooting.md) T-35).
+검증은 `TtbarIdExtender/condor/` 배치로 재현된다.
 
 **열린 결정 — 컬럼 이름.** NanoAOD 컬럼은 `expandedGenTtbarId`(camelCase, EDM instance 와 동일)로
 만들어졌다. sidecar TTree·analyzer 계약은 `Expanded_genTtbarId` 다. 혼합 생산이므로 analyzer 는 두 이름을
