@@ -180,7 +180,7 @@ cat <<EOF
 
 === submitted. tag=$TAG
   follow   : condor_q -constraint 'JobBatchName=="enriched_$TAG"' ; condor_q -nobatch
-  live log : tail -f $SUBDIR/logs/<task>.*.out
+  condor   : $SUBDIR/logs/<task>.*.out  (written when a job ends -- CERN batch no longer streams stdout)
   results  : $TTHH_EOS/logs/$TAG/<task>.summary.txt   (PASS/FAIL per check)
              $TTHH_EOS/logs/$TAG/<task>.log            (full worker log)
              $TTHH_EOS/logs/$TAG/<task>.cmsRun.log, <task>_cfg.py

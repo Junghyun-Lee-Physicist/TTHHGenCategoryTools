@@ -31,6 +31,19 @@ CUSTOMISE_CENTRAL="Configuration/DataProcessing/Utils.addMonitoring"
 CUSTOMISE_OURS="TTHHGenCategoryTools/TtbarIdExtender/ttbarIdTable_cff.customise"
 OUR_COLUMNS="expandedGenTtbarId,nAddBJets,nAddBJetsMulti"
 
+# --- disagreement classes judge_compare.py may accept (docs/11 section 4; docs/08 T-35) ---
+#   _area$              FastJet ghost-area RNG: follows the job's event history, not the code
+#   ^HTXS_              float residual of a mathematically-zero Rivet quantity (0 vs 3e-5)
+#   raw(Boosted)?DeepTau  NN inference differs in the last bit between CPU types; visible
+#                       only where it straddles a storage-precision step (10-bit mantissa)
+# Same cfg + same events + same node must be bit-identical (--zero); nothing is allowed there.
+ALLOW_REPRO='(_area$|^HTXS_|raw(Boosted)?DeepTau)'   # vs a file produced elsewhere (central, other node)
+ALLOW_XMACHINE='raw(Boosted)?DeepTau'                # same cfg + same events, different machine
+# cmsRun %MSG-e categories the central NANO sequence itself emits (docs/08 T-1):
+# JetFlavourClustering on MiniAOD gen jets whose constituents were pruned. Any
+# other error category fails the produce step even when cmsRun exits 0.
+ALLOW_MSGE='JetPtMismatch|MissingJetConstituent'
+
 # --- inputs ------------------------------------------------------------------
 # TTbb (2017): the MiniAOD file processed so far, and the central v15 file whose
 # events contain ours (docs/11 section 3.3, e10ceebb = value reference).

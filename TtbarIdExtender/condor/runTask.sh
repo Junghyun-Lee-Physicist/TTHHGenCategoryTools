@@ -203,49 +203,71 @@ esac
 [[ -f "$WORK/ours_ref.root" ]] && ls -la "$WORK/ours_ref.root"
 
 # ----------------------------------------------------------------------------- 2. cmsDriver + cmsRun
-CFG="${TASK}_cfg.py"
-step cmsDriver cmsDriver.py nano --python_filename "$CFG" \
-  --eventcontent NANOAODSIM --datatier NANOAODSIM \
-  --conditions "$COND" --step NANO --era "$ERA" \
-  --customise "$CUSTOMISE" \
-  --filein "file:$WORK/mini.root" --fileout "file:$WORK/$OUT" --no_exec --mc -n "$NEV" \
-  || die "cmsDriver failed"
-log "cfg threads  $(grep -E 'numberOfThreads|numberOfStreams' "$CFG" | tr -s ' ' | tr '\n' ' ')"
+# produce <label> <customise> <output.root>
+#   cmsDriver (docs/11 section 2.3) + cmsRun on $WORK/mini.root, then: exit code,
+#   %MSG-e/%MSG-w census, Timing summary (gate 4), event count, schema (our three
+#   columns present iff our customise is in the list). cfg, cmsRun log and output
+#   go to EOS. Sets PRODUCED_RC; a cmsRun failure ends the task.
+produce() {
+  local label="$1" customise="$2" out="$3"
+  local cfg="${TASK}_${label}_cfg.py" clog="$WORK/${TASK}.${label}.cmsRun.log" fjr="$WORK/${TASK}.${label}.fjr.xml"
+  echo
+  echo "======== produce: $label  (customise: $customise)"
+  step "cmsDriver_$label" cmsDriver.py nano --python_filename "$cfg" \
+    --eventcontent NANOAODSIM --datatier NANOAODSIM \
+    --conditions "$COND" --step NANO --era "$ERA" \
+    --customise "$customise" \
+    --filein "file:$WORK/mini.root" --fileout "file:$WORK/$out" --no_exec --mc -n "$NEV" \
+    || die "cmsDriver failed ($label)"
+  log "cfg threads  $(grep -E 'numberOfThreads|numberOfStreams' "$cfg" | tr -s ' ' | tr '\n' ' ' | grep . || echo 'cmsDriver default (1 thread)')"
 
-CMSRUN_LOG="$WORK/${TASK}.cmsRun.log"
-T0=$(date +%s)
-step cmsRun bash -c "cmsRun '$CFG' > '$CMSRUN_LOG' 2>&1"
-RC=$?
-WALL=$(( $(date +%s) - T0 ))
-log "cmsRun exit=$RC wall=${WALL}s  (log: $(wc -l < "$CMSRUN_LOG") lines)"
-echo "---- cmsRun log: table style / errors / warnings"
-grep -n 'ttbarIdTable_cff\|Updating process to run' "$CMSRUN_LOG" | head -5
-NERR=$(grep -c '%MSG-e' "$CMSRUN_LOG"); NWARN=$(grep -c '%MSG-w' "$CMSRUN_LOG")
-log "messages     %MSG-e=$NERR  %MSG-w=$NWARN"
-grep '%MSG-w' "$CMSRUN_LOG" | awk '{print $2}' | sort | uniq -c | sort -rn | head -10
-[[ $NERR -gt 0 ]] && { echo "---- first %MSG-e blocks:"; grep -n -A3 '%MSG-e' "$CMSRUN_LOG" | head -40; }
-echo "---- cmsRun log: tail"
-tail -n 25 "$CMSRUN_LOG"
-if [[ $RC -ne 0 ]]; then fail "cmsRun exit=$RC"; eos_put "$CMSRUN_LOG" "$EOS_LOGS/${TASK}.cmsRun.log"; eos_put "$CFG" "$EOS_LOGS/$CFG"; exit 1; fi
-pass "cmsRun exit=0 (${WALL}s wall, %MSG-e=$NERR)"
+  local t0 rc wall nerr nwarn nout loop
+  t0=$(date +%s)
+  step "cmsRun_$label" bash -c "cmsRun -j '$fjr' '$cfg' > '$clog' 2>&1"
+  rc=$?
+  wall=$(( $(date +%s) - t0 ))
+  log "cmsRun exit=$rc wall=${wall}s  (log: $(wc -l < "$clog") lines)"
+  echo "---- cmsRun log: table style / errors / warnings"
+  grep -n 'ttbarIdTable_cff\|Updating process to run' "$clog" | head -5
+  nerr=$(grep -c '%MSG-e' "$clog"); nwarn=$(grep -c '%MSG-w' "$clog")
+  log "messages     %MSG-e=$nerr  %MSG-w=$nwarn"
+  echo "---- %MSG-w categories:"; grep '%MSG-w' "$clog" | awk '{print $2}' | sort | uniq -c | sort -rn | head -10
+  echo "---- %MSG-e categories:"; grep '%MSG-e' "$clog" | awk '{print $2}' | sort | uniq -c | sort -rn | head -10
+  # error categories the central sequence itself emits are tolerated (config ALLOW_MSGE); anything else is a finding
+  local badcat; badcat=$(grep '%MSG-e' "$clog" | awk '{print $2}' | sed 's/:$//' | grep -Ev "^(${ALLOW_MSGE})$" | sort -u | tr '\n' ' ')
+  [[ -n "$badcat" ]] && { echo "---- first blocks of unexpected %MSG-e categories:"; grep -n -A3 '%MSG-e' "$clog" | grep -Ev "$ALLOW_MSGE" | head -40; }
+  echo "---- cmsRun log: tail"
+  tail -n 25 "$clog"
+  eos_put "$cfg" "$EOS_LOGS/$cfg"
+  eos_put "$clog" "$EOS_LOGS/${TASK}.${label}.cmsRun.log"
+  if [[ $rc -ne 0 ]]; then fail "cmsRun $label exit=$rc"; exit 1; fi
+  pass "cmsRun $label exit=0 (${wall}s wall, %MSG-e=$nerr$([[ $nerr -gt 0 && -z "$badcat" ]] && echo " all in {$ALLOW_MSGE}"))"
+  [[ -n "$badcat" ]] && fail "$label: unexpected %MSG-e categories: $badcat"
+  # memory (gate 4: CRAB maxMemoryMB). addMonitoring's SimpleMemoryCheck writes only to the job report.
+  if [[ -f "$fjr" ]]; then
+    log "memory       $(grep -oE 'Name="(PeakValueRss|PeakValueVsize|AvgEventTime|TotalJobCPU)" Value="[^"]+"' "$fjr" | sed -E 's/Name="([^"]+)" Value="([^"]+)"/\1=\2/' | tr '\n' ' ')  (MB; from the framework job report)"
+    eos_put "$fjr" "$EOS_LOGS/${TASK}.${label}.fjr.xml"
+  else
+    log "WARN         no framework job report -- memory unknown"
+  fi
 
-# timing (gate 4 input): the Timing service summary + our wall clock
-echo "---- timing"
-grep -E 'Event Throughput|Total loop|Total init|Total job|Avg event' "$CMSRUN_LOG" | head -12
-NOUT=$($PY - "$WORK/$OUT" <<'EOF'
+  # timing (gate 4 input): the Timing service summary + our wall clock
+  echo "---- timing ($label)"
+  grep -E 'Event Throughput|Total loop|Total init|Total job|Avg event' "$clog" | head -12
+  nout=$($PY - "$WORK/$out" <<'PYEOF'
 import sys, ROOT
 f = ROOT.TFile.Open(sys.argv[1]); t = f.Get("Events")
 print(t.GetEntries() if t else -1)
-EOF
+PYEOF
 )
-log "events out   $NOUT (requested $NEV)   wall-clock rate $(awk -v n="$NOUT" -v w="$WALL" 'BEGIN{printf "%.2f", (w>0? n/w : 0)}') ev/s incl. startup"
-LOOP=$(grep -m1 -E '^ *- Total loop:' "$CMSRUN_LOG" | awk '{print $NF}')
-[[ -n "$LOOP" ]] && log "loop rate    $(awk -v n="$NOUT" -v l="$LOOP" 'BEGIN{printf "%.2f", (l>0? n/l : 0)}') ev/s (Timing service, event loop only)"
-[[ "$NOUT" == "$NEV" ]] && pass "output has $NOUT events" || fail "output has $NOUT events, expected $NEV"
+  log "events out   $nout (requested $NEV)   wall-clock rate $(awk -v n="$nout" -v w="$wall" 'BEGIN{printf "%.2f", (w>0? n/w : 0)}') ev/s incl. startup"
+  loop=$(grep -m1 -E '^ *- Total loop:' "$clog" | awk '{print $NF}')
+  [[ -n "$loop" ]] && log "loop rate    $(awk -v n="$nout" -v l="$loop" 'BEGIN{printf "%.2f", (l>0? n/l : 0)}') ev/s (Timing service, event loop only)"
+  [[ "$nout" == "$NEV" ]] && pass "$label: output has $nout events" || fail "$label: output has $nout events, expected $NEV"
 
-# schema: branch count and our three columns
-echo "---- schema"
-$PY - "$WORK/$OUT" "$OUR_COLUMNS" "$CUSTOMISE" <<'EOF'
+  # schema: branch count and our three columns
+  echo "---- schema ($label)"
+  $PY - "$WORK/$out" "$OUR_COLUMNS" "$customise" <<'PYEOF'
 import sys, ROOT
 f = ROOT.TFile.Open(sys.argv[1]); t = f.Get("Events")
 names = set(b.GetName() for b in t.GetListOfBranches())
@@ -257,15 +279,13 @@ for c in present:
 ok = (len(present) == len(ours)) if expect_ours else (len(present) == 0)
 print("SCHEMA_OK" if ok else "SCHEMA_BAD")
 sys.exit(0 if ok else 1)
-EOF
-if [[ $? -eq 0 ]]; then pass "schema (our columns $([[ "$CUSTOMISE" == *ttbarIdTable_cff* ]] && echo present || echo absent) as intended)"; else fail "schema check"; fi
+PYEOF
+  if [[ $? -eq 0 ]]; then pass "$label: schema (our columns $([[ "$customise" == *ttbarIdTable_cff* ]] && echo present || echo absent) as intended)"; else fail "$label: schema check"; fi
+  eos_put "$WORK/$out" "$EOS_OUT/$out" || fail "could not copy $out to EOS"
+}
 
-eos_put "$CFG" "$EOS_LOGS/$CFG"
-eos_put "$CMSRUN_LOG" "$EOS_LOGS/${TASK}.cmsRun.log"
-eos_put "$WORK/$OUT" "$EOS_OUT/$OUT" || fail "could not copy $OUT to EOS"
-
-# ----------------------------------------------------------------------------- 3. checks per task
-compare() {  # compare <label> <fileA(--v9)> <fileB(--v15)> <json> <judge args...>
+# compare <label> <fileA(--v9)> <fileB(--v15)> <json> <judge args...>
+compare() {
   local label="$1" a="$2" b="$3" js="$4"; shift 4
   echo
   echo "======== compare: $label"
@@ -276,28 +296,39 @@ compare() {  # compare <label> <fileA(--v9)> <fileB(--v15)> <json> <judge args..
   if step "judge_$label" $PY "$HERE/judge_compare.py" "$WORK/$js" --label "$label" "$@"; then pass "$label"; else fail "$label"; fi
 }
 
+# ----------------------------------------------------------------------------- 3. per task
+# Allowed disagreement classes (config.sh): ALLOW_REPRO for a file produced
+# elsewhere (central, or another node), ALLOW_XMACHINE for the same cfg and
+# events on another machine. Same cfg + same events + same node -> --zero.
 case "$TASK" in
   control_v15_200)
-    # (a) the central cfg re-run vs the central file: identical schema; value
-    #     differences may appear only in the reproduction-artifact classes
-    #     (jet ghost-area RNG, HTXS float residuals) -- the same classes seen
-    #     between OUR output and central on 2026-09-03.
-    compare plain_vs_central "$WORK/central.root" "$WORK/$OUT" "control_plain_vs_central.json" \
-            --only-v15 "" --only-v9 "" --min-common "$NEV" --allow '(_area$|^HTXS_)'
-    # (b) plain re-run vs our customised run of the same events: bit identity
-    #     except our three extra columns -> the customise changes nothing else.
-    compare plain_vs_ours "$WORK/$OUT" "$WORK/ours_ref.root" "control_plain_vs_ours.json" \
+    produce plain "$CUSTOMISE_CENTRAL"                    "$OUT"
+    OUT2="ours_v15_${N_CONTROL}_samenode.root"
+    produce ours  "$CUSTOMISE_CENTRAL,$CUSTOMISE_OURS"    "$OUT2"
+    # (b) THE negative control: plain vs ours, same node, same events -> bit
+    #     identity except our three columns. No hardware excuse possible.
+    compare plain_vs_ours_samenode "$WORK/$OUT" "$WORK/$OUT2" "control_plain_vs_ours_samenode.json" \
             --only-v15 "$OUR_COLUMNS" --only-v9 "" --min-common "$NEV" --zero
+    # (a) plain re-run vs the central file: the reproduction-artifact classes only
+    compare plain_vs_central "$WORK/central.root" "$WORK/$OUT" "control_plain_vs_central.json" \
+            --only-v15 "" --only-v9 "" --min-common "$NEV" --allow "$ALLOW_REPRO"
+    # (c) plain (this node) vs our lxplus smoke: same events, other machine ->
+    #     only the machine-dependent NN outputs may differ; area/HTXS must agree
+    #     (they follow the event history, not the hardware)
+    compare plain_vs_ours_lxplus "$WORK/$OUT" "$WORK/ours_ref.root" "control_plain_vs_ours_lxplus.json" \
+            --only-v15 "$OUR_COLUMNS" --only-v9 "" --min-common "$NEV" --allow "$ALLOW_XMACHINE"
     ;;
   timing_v15_2k)
-    # machine independence: same cfg, same events, different node -> bit identity
+    produce ours "$CUSTOMISE" "$OUT"
+    # same cfg, same events, other machine (lxplus 2026-09-02) -> NN last-bit only
     compare ours2k_vs_ref2k "$WORK/ours_ref.root" "$WORK/$OUT" "timing_ours2k_vs_ref2k.json" \
-            --only-v15 "" --only-v9 "" --min-common "$NEV" --zero
+            --only-v15 "" --only-v9 "" --min-common "$NEV" --allow "$ALLOW_XMACHINE"
     # gate 5 at 2000 events against central v15
     compare ours2k_vs_central "$WORK/central.root" "$WORK/$OUT" "gate5_values_2k.json" \
-            --only-v15 "$OUR_COLUMNS" --only-v9 "" --min-common "$NEV" --allow '(_area$|^HTXS_)'
+            --only-v15 "$OUR_COLUMNS" --only-v9 "" --min-common "$NEV" --allow "$ALLOW_REPRO"
     ;;
   tt4b_v9_2k|tt4b_v15_2k)
+    produce ours "$CUSTOMISE" "$OUT"
     echo
     echo "======== gate 3: expanded rule and 71/72 on TT4b"
     if step check_expanded $PY "$HERE/check_expanded.py" "$WORK/$OUT" --expect-4b; then
