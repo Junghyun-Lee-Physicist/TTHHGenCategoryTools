@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-07** (v14.1).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-11 (밤)** (D17 대상 5 샘플 × 4 era-half).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1326,3 +1326,30 @@ README). 4 task(`control_v15_200`, `timing_v15_2k`, `tt4b_v9_2k`, `tt4b_v15_2k`)
 **문서.** 11 (§2.3 EOS 규칙, §2.4 배치, §3 gate 표, §3.3 값 비교 표 + 파일 LFN, §3.4 처리율·MiniAOD 표·job 산정, §3.5 gate 3,
 §4.7, §5, §6), 02 §3 실측 전이표, 04 D17 표·상태, 08 T-33~T-35 + HTCondor 절 머리, 01 O7, README.
 **열린 결정** 은 그대로 컬럼 이름 하나 — 결정 시 D17 을 DECIDED 로.
+
+## 2026-09-11 — D17 대상 6 → 5 샘플 (`TTZToBB` 제외)
+
+**결정(NtupleForge 쪽, 사용자).** Run 2 v15 분석은 ttZ(hadronic Z) 를 v15 에 이미 있는 inclusive
+`TTZToQQ_TuneCP5_13TeV-amcatnlo-pythia8`(UL17 13.98M / UL18 19.82M, VALID) 에서 취한다 — Run 3 의 `TTZ-ZtoQQ-1Jets` 와
+같은 처리이고 hadronic 채널에는 bb 전용보다 완전하다(cc/light 가 mistag 로 들어옴). 근거·대안은 NtupleForge
+`docs/03_DECISIONS.md` D-2026-09-11-ttz-hadronic-from-ttzqq.
+
+**이 저장소에의 영향.** enriched 생산 대상은 `TT4b`, `TTHHto4b`, `TTZHTo4b`, `TTZZTo4b`, `tHW` 의 **5 샘플 / 14 dataset**:
+3,192 파일 / 108,323,000 ev / ≈ 23,900 core-h / 14 task / ≈ 0.31 TB(§3.4 표에서 `TTZToBB` 2017·2018 두 행 제외).
+코드·cfg 변경 없음. `json/miniaod_parents_absent6.txt` 는 그대로 두고 `TTZToBB` 행을 쓰지 않는다.
+
+**문서.** 01(상태 줄·BLUF 정정·DECIDED 표), 04(D17 정정 문단, D-DEP1 주석), 11(§3.4 정정 블록, 작업 3·6).
+
+## 2026-09-11 (밤) — D17 범위가 full Run 2 로 (5 샘플 × 4 era-half)
+
+**결정(NtupleForge 쪽, 사용자).** 2016 preVFP/postVFP 를 점검한 결과 네 Run 2 v15 캠페인의 부재 목록이 **완전히 같았다**
+(`das_inventory_ul16{pre,post}_{v15,v9}`; NtupleForge D-2026-09-11-run2-scope-2016). 중앙 요청을 5 종 × 4 era-half =
+**28 dataset / 약 162M ev** 로 넓혔다.
+
+**이 저장소에의 영향.** 중앙 요청이 거절될 때의 enriched 대체 생산 범위도 2016 을 포함한다. 2016 은 half 당 7 dataset ·
+27.1M ev(v9 기준) → 전체 약 162M ev, **≈ 36,000 core-h, 28 task**(2017/2018 의 23,900 core-h 를 event 수로 환산).
+2016 MiniAOD 부모의 파일 수는 미조회라 job 수·TB(≈ 0.47 TB 예상)는 확정값이 아니다. 2016 레시피는 2018 과 마찬가지로
+중앙 cmsDriver 원문(era `Run2_2016[_HIPM]`, 2016 GT)을 받아 옮겨야 한다 — 코드 변경은 없다.
+
+**문서.** 04(D17 범위 확대 문단), 01(상태 줄).
+

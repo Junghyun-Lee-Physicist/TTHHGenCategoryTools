@@ -261,6 +261,18 @@ v15 가 v9 의 **4.9 배** 비싸다. 원인은 로그에 있다: 15_0_X NANO �
 
 **부재 6 샘플의 MiniAOD 부모** (DAS, 2026-09-07; `json/miniaod_parents_absent6.txt`):
 
+> **2026-09-11 정정 — 생산 대상은 5 샘플.** `TTZToBB` 두 행은 기록으로만 남긴다: Run 2 v15 는 ttZ(hadronic Z) 를 v15 에
+> 있는 inclusive `TTZToQQ` 에서 취하기로 했다(NtupleForge D-2026-09-11-ttz-hadronic-from-ttzqq). `TTZToBB` 를 빼면
+> 합계는 **3,192 파일 / 108,323,000 ev / ≈ 23,900 core-h / 14 task / ≈ 0.31 TB**(2017: 144 파일 7,074,000 ev, 2018: 189 파일
+> 9,965,000 ev 감소). `json/miniaod_parents_absent6.txt` 의 `TTZToBB` 행도 쓰지 않는다.
+>
+> **2026-09-11(밤) 범위 확대 — 2016 도 같다.** UL16 preVFP/postVFP NanoAODv15 에도 정확히 같은 5 종이 없다(네 Run 2 v15
+> 캠페인의 NOT_FOUND 집합 diff 0; NtupleForge `09_v15_migration_log.md` 16 절). 중앙 요청은 28 dataset / 약 162M ev 이고,
+> 중앙이 거절될 때의 enriched 대체 생산도 같은 범위다: 2016 은 half 당 7 dataset · 27.1M ev(v9 기준) → 전체 약 162M ev,
+> event 수 비례로 **≈ 36,000 core-h, 28 task**. 아래 표는 2017/2018 만의 실측이고, **2016 의 MiniAOD 부모 파일 수·event 수는
+> 아직 조회하지 않았다** — job 수와 TB(≈ 0.47 TB 예상)는 그 조회 뒤에 확정한다. 2016 레시피는 §2.1 절차로 중앙
+> `RunIISummer20UL16NanoAODAPVv15` / `…NanoAODv15` 의 cmsDriver 원문(era `Run2_2016_HIPM` / `Run2_2016`, 2016 GT)을 받아 옮긴다.
+
 | era | 샘플 | 파일 | event | 파일당 ev | 1 파일/job 소요 (1.26 ev/s) |
 |---|---|---:|---:|---:|---:|
 | 2017 | `TTHHto4b` | 199 | 9,934,000 | 49.9k | 11.0 h |
@@ -379,10 +391,10 @@ branch 이름·타입은 TTree 헤더만 읽으므로 xrootd 직독으로 몇 �
 
 1. **CRAB 메모리 (제출 시 결정)** — 실측 1 스레드 `PeakValueRss` **2,977 MB**(§3.4; 200 ev 라 하한). 순서: ① `timing_v15_2k` 를 현행 스크립트로 재실행해 2000 ev 의 RSS(성장 기울기)를 얻는다(코드 변경 없음, `./submit.sh -T timing_v15_2k`). ② 1 차 안 **`numCores = 1`, `maxMemoryMB = 3500`**(2000 ev RSS 를 보고 4,000 으로 올릴 수 있음) 으로 첫 task(`TT4b`)를 제출 — cfg 는 중앙 원문 그대로(스레드 옵션 없음), 검증한 것과 1:1. ③ 서버가 단일 코어 메모리 상한으로 거부하면 그때 `numCores = 2` + `--nThreads 2` + `maxMemoryMB = 4000` 으로 바꾸되, 먼저 `condor/` 에 2 스레드 task 를 추가해 같은 노드 2T plain vs 2T ours `--zero`, 2T ours vs 1T ours 2000 ev(`*_area` 만 예상 — ghost 난수가 프로세스 이력을 따르므로), 2T 의 RSS 를 확인한다. 참고로 중앙 요청의 스레드·메모리는 ReqMgr 에서 읽는다: `curl -sL --capath /etc/grid-security/certificates --cert $PROXY --key $PROXY "https://cmsweb.cern.ch/reqmgr2/data/request?outputdataset=$DS"` 의 `Multicore` / `Memory`. 결정은 D17 표에.
 2. **생산 글루** — 이 cmsDriver cfg 를 CRAB 에 태우는 것. 두 갈래: NtupleForge `job_type: cmsrun`(D17 원안; registry·das_scan·preflight·submit/status/report 재사용) 또는 이미 MiniAOD 위에서 cmsRun 을 CRAB 으로 돌려 본 `TtbarIdExtender/crab/` 의 pset 교체. 선택은 NtupleForge `01_STATUS` A1.
-3. **적용 순서** — `TT4b`(이미 검증 입력) → `TTHHto4b`(신호) → `TTZHTo4b`(+ext1), `TTZZTo4b`(+ext1), `tHW`, `TTZToBB`; 두 era. 파일 수·event 수는 §3.4 표.
+3. **적용 순서** — `TT4b`(이미 검증 입력) → `TTHHto4b`(신호) → `TTZHTo4b`(+ext1), `TTZZTo4b`(+ext1), `tHW`; 두 era. (~~`TTZToBB`~~ — 2026-09-11 제외, §3.4 정정 참조.) 파일 수·event 수는 §3.4 표.
 4. **생산 후 검증** — 각 dataset 의 출력 event 합 = MiniAOD 부모 event 수(§3.4 표; 중앙 v9 수가 아니다), `check_expanded.py` 로 규칙, 중앙 v15 가 있는 샘플(TTbb 등)과의 값 비교는 §4.7 의 세 부류 기준.
 5. **2018 레시피** — 지금까지의 검증은 전부 **2017** 이다(`Run2_2017`, `150X_mc2017_realistic_v1`). 2018 은 §2.1 절차로 중앙 `RunIISummer20UL18NanoAODv15` 의 cmsDriver 원문(era `Run2_2018,run2_nanoAOD_106Xv2`, 2018 GT)을 받아 옮기고, 2018 MiniAOD 파일 하나로 `control_v15_200` 형 같은-노드 대조군(plain vs ours `--zero`, plain vs 중앙 2018 v15 `ALLOW_REPRO`)을 한 번 돈다 — `condor/` 에 era 인자 하나면 된다. 물리는 같지만 GT·era 가 다르니 200 ev 로 확인하는 값어치가 있다.
-6. **출력 목적지·크기·공개** — 125.4M ev × v15 MC ≈ 2.9 kB/ev ≈ **0.36 TB**. T3_CH_CERNBOX(EOS user) 로 받으려면 `eos quota` 를 먼저 보고(기본 1 TB 에 기존 사용량), 아니면 T2_KR_KNU 등 다른 storage. DBS `publication` 여부(NtupleForge 가 `das_scan` 으로 읽으려면 `phys03` 에 publish 하는 편이 맞다)와 출력 dataset 이름 규칙(`enrichedNanoAODv15_<KEY>_<era>`)을 D17 에 적는다.
+6. **출력 목적지·크기·공개** — 125.4M ev × v15 MC ≈ 2.9 kB/ev ≈ **0.36 TB** (2026-09-11 이후 5 샘플 108.3M ev ≈ **0.31 TB**). T3_CH_CERNBOX(EOS user) 로 받으려면 `eos quota` 를 먼저 보고(기본 1 TB 에 기존 사용량), 아니면 T2_KR_KNU 등 다른 storage. DBS `publication` 여부(NtupleForge 가 `das_scan` 으로 읽으려면 `phys03` 에 publish 하는 편이 맞다)와 출력 dataset 이름 규칙(`enrichedNanoAODv15_<KEY>_<era>`)을 D17 에 적는다.
 
 **열린 결정 — 컬럼 이름.** NanoAOD 컬럼은 현재 `expandedGenTtbarId`(camelCase, EDM instance 이름과 동일, `genTtbarId` 와 같은 관용)이다. 그런데 sidecar TTree 와 analyzer 계약([07](07_analyzer_integration.md))은 `Expanded_genTtbarId` 다. 6 샘플은 enriched, ttbar 3 종은 sidecar 이므로 **analyzer 가 두 이름을 다 알아야 한다.** NanoAOD 관용으로는 camelCase 가 맞고(`Expanded_` 는 `Jet_` 처럼 컬렉션 prefix 로 읽힌다), 계약 통일로는 `Expanded_genTtbarId` 가 맞다. 어느 쪽이든 **결정 후 D17 에 기록**한다. 지금 기본값은 camelCase.
 

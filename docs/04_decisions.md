@@ -157,6 +157,17 @@
     얹어 확장 id 를 branch 로 함께 만든다 (NanoAOD 컬럼 이름은 현재 `expandedGenTtbarId`;
     sidecar 계약의 `Expanded_genTtbarId` 와의 통일은 열린 결정 — 아래 진행 상황).
     대상: `TT4b`, `TTHHto4b`(신호), `TTZHTo4b`, `TTZZTo4b`, `tHW`, `TTZToBB`.
+    **정정 2026-09-11 — 대상 5 샘플.** `TTZToBB` 는 빠진다: Run 2 v15 분석은 ttZ(hadronic Z) 를 v15 에
+    이미 있는 inclusive `TTZToQQ_TuneCP5_13TeV-amcatnlo-pythia8`(UL17 13.98M / UL18 19.82M) 에서 취한다
+    (Run 3 와 같은 처리; NtupleForge `docs/03_DECISIONS.md` D-2026-09-11-ttz-hadronic-from-ttzqq, 사용자 결정).
+    따라서 enriched 생산도, 중앙 "NanoAODv15 from MiniAODv2" 요청도 **`TT4b`, `TTHHto4b`, `TTZHTo4b`, `TTZZTo4b`,
+    `tHW`** 다: 2017+2018 은 14 dataset, 파일 3,192 / 108,323,000 ev / ≈ 23,900 core-h / 14 task / ≈ 0.31 TB
+    (§3.4 표에서 `TTZToBB` 두 행을 뺀 값). 아래 "6 개" 는 당시 기록으로 둔다.
+    **범위 확대 2026-09-11(밤) — 2016 도 같다.** UL16 preVFP/postVFP NanoAODv15 에도 정확히 같은 5 종이 없고 v9 에는 다 있다
+    (NtupleForge D-2026-09-11-run2-scope-2016; 네 캠페인의 NOT_FOUND 집합이 diff 0). 중앙 요청은 **28 dataset / 약 162M ev**
+    로 넓혔다. 중앙 생산이 거절될 때의 enriched 대체 생산도 같은 비율로 커진다: 2016 은 half 당 7 dataset · 27.1M ev(v9 기준)이라
+    합계 약 162M ev, event 수에 비례하면 **≈ 36,000 core-h, 28 task**. 2016 의 MiniAOD 파일 수는 아직 조회하지 않았으므로
+    job 수와 TB 는 확정값이 아니다(≈ 0.47 TB 예상).
 
 - **근거**:
   1. **v15 전수 조사 (2026-08-31)**: registry 64 개 중 중앙 v15 가 없는 것은 위
@@ -235,7 +246,7 @@ HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳
 
 - 폐기 사유는 D1 참조. **검증됐던 사실**과 emit된 cfg 4편은 [10_enriched_nanoaod_archive.md](10_enriched_nanoaod_archive.md)와 `TtbarIdExtender/archive/enriched_nanoaod/`에 보존 — 지식은 버리지 않는다.
 
-> **2026-08-31**: 중앙 v15 가 없는 6 샘플에 한해 **D17 로 부분 번복**되었다 (PROPOSED).
+> **2026-08-31**: 중앙 v15 가 없는 6 샘플에 한해 **D17 로 부분 번복**되었다 (PROPOSED). *(2026-09-11: 5 샘플 — `TTZToBB` 는 `TTZToQQ` 로 대체, D17 정정 문단.)*
 > **2026-09-02**: 되살린 구현과 검증은 [11_enriched_nanoaod.md](11_enriched_nanoaod.md). 이 아카이브(D-DEP1, [10](10_enriched_nanoaod_archive.md))는
 > 첫 시도(v7.2)의 **역사 기록**으로만 남고, 실행 가능한 레시피는 11 이다.
 

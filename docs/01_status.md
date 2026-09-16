@@ -2,20 +2,20 @@
 
 > **목적**: 임의의 에이전트가 "현재 상태"를 확인하는 단일 지점.
 > **대상 독자**: 모든 기여자 (사람·AI).
-> **상태**: 살아있는 문서 — 마지막 의미있는 갱신 **2026-09-07** (v14.1: D17 gate 3·4·5 닫힘 — TT4b 71/72, v15 2000 ev 값 비교, batch 처리율·job 산정; HTCondor 검증 배치 `TtbarIdExtender/condor/` 추가. 이전 갱신 2026-09-02 v14.0).
+> **상태**: 살아있는 문서 — 마지막 의미있는 갱신 **2026-09-11 (밤)** (D17 대상 5 샘플 × **4 era-half** — 2016 preVFP/postVFP 도 같은 5 종이 없다; 그 전 같은 날 6 → **5 샘플**: `TTZToBB` 는 v15 의 `TTZToQQ` 로 대체, NtupleForge 결정 D-2026-09-11-ttz-hadronic-from-ttzqq; 이전 갱신 2026-09-07 v14.1: D17 gate 3·4·5 닫힘 — TT4b 71/72, v15 2000 ev 값 비교, batch 처리율·job 산정; HTCondor 검증 배치 `TtbarIdExtender/condor/` 추가. 이전 갱신 2026-09-02 v14.0).
 > **관련**: 숫자 전체는 [06_validation_results.md](06_validation_results.md), 결정 근거는 [04_decisions.md](04_decisions.md), 변경 이력은 [03_changelog.md](03_changelog.md).
 
 ## 결론 먼저 (BLUF)
 
 **알고리즘·검증은 완료 상태다.** 2017 UL ttbar stitching 7개 샘플 전체(~7.12억 event)에서 ttbarId-extend `genTtbarId`가 중앙 NanoAODv9와 100% byte-identical, 확장 id(`Expanded_genTtbarId`)의 무결성 조건 전량 통과, analyzer용 patch 파일 7개 추출 완료 (2026-06). 2026-07-05에 저장소 병합(생산 패키지 + 검증 도구)과 rename 을 수행했다. 이름은 최종적으로 subsystem `TTHHGenCategoryTools`, 패키지 `TtbarIdExtender`(NanoExtension→GenSidecar→TtbarIdExtender), 출력 `ttbarIDExtend.root`(구 `sidecar.root`), lookup `extractTtbarIdPatch`(구 `extractTtNb`)로 정리됐다 — **rename 이후 재빌드·스모크 테스트는 아직 실기기에서 수행되지 않았다** (아래 OPEN).
 
-**2026-09-02 — 생산 방식이 혼합으로 바뀌었다 (D17).** v15 마이그레이션에서 중앙 NanoAODv15 가 없는 6 샘플(`TTHHto4b`·`TT4b`·`TTZHTo4b`·`TTZZTo4b`·`tHW`·`TTZToBB`)은 MiniAODv2 에서 **enriched NanoAOD** 로 사설 생산한다 — 중앙 cmsDriver 원문에 `--customise` 하나를 덧붙여 확장 id 3 컬럼을 넣는 방식이고, 새 C++ 없이 python 파일 하나(`TtbarIdExtender/python/ttbarIdTable_cff.py`)로 구현됐다. v9 에서 **2000 event × 1666 branch 를 비트 단위로 비교해 실질 불일치 0**, v15(CMSSW_15_0_18)에서도 무수정 빌드·스키마 통과. 나머지(중앙 v15 가 있는 ttbar 3 종)는 sidecar 유지. 전부 [11_enriched_nanoaod.md](11_enriched_nanoaod.md).
+**2026-09-02 — 생산 방식이 혼합으로 바뀌었다 (D17).** *(2026-09-11 정정: 대상은 **5 샘플** — `TTZToBB` 는 v15 에 있는 inclusive `TTZToQQ` 로 대체하기로 NtupleForge 쪽에서 결정했으므로 enriched 대상에서 빠진다. 아래 문장의 "6 샘플" 은 당시 기록.)* v15 마이그레이션에서 중앙 NanoAODv15 가 없는 6 샘플(`TTHHto4b`·`TT4b`·`TTZHTo4b`·`TTZZTo4b`·`tHW`·`TTZToBB`)은 MiniAODv2 에서 **enriched NanoAOD** 로 사설 생산한다 — 중앙 cmsDriver 원문에 `--customise` 하나를 덧붙여 확장 id 3 컬럼을 넣는 방식이고, 새 C++ 없이 python 파일 하나(`TtbarIdExtender/python/ttbarIdTable_cff.py`)로 구현됐다. v9 에서 **2000 event × 1666 branch 를 비트 단위로 비교해 실질 불일치 0**, v15(CMSSW_15_0_18)에서도 무수정 빌드·스키마 통과. 나머지(중앙 v15 가 있는 ttbar 3 종)는 sidecar 유지. 전부 [11_enriched_nanoaod.md](11_enriched_nanoaod.md).
 
 ## DECIDED — 확정되어 유지 중인 것
 
 | 항목 | 상태 | 근거 문서 |
 |---|---|---|
-| Sidecar 방식(Approach 3)으로 생산; enriched NanoAOD(Approach 2)는 폐기 | DECIDED 2026-05-29 → **2026-08-31 부분 번복(D17)**: 중앙 v15 가 없는 6 샘플만 enriched, 나머지는 sidecar | [04](04_decisions.md) D1·**D17**, [11](11_enriched_nanoaod.md), [10](10_enriched_nanoaod_archive.md)(역사) |
+| Sidecar 방식(Approach 3)으로 생산; enriched NanoAOD(Approach 2)는 폐기 | DECIDED 2026-05-29 → **2026-08-31 부분 번복(D17)**: 중앙 v15 가 없는 6 샘플만 enriched, 나머지는 sidecar → **2026-09-11: 5 샘플**(`TTZToBB` 제외, `TTZToQQ` 대체) | [04](04_decisions.md) D1·**D17**, [11](11_enriched_nanoaod.md), [10](10_enriched_nanoaod_archive.md)(역사) |
 | 확장 분기 조건 = `nAddBJets >= 3` (sub-code 56 의존 제거) | DECIDED 2026-06 (v10) | [04](04_decisions.md) D4, [02](02_physics.md) |
 | 2017 UL 7개 샘플 byte-identity + 확장 무결성 검증 | 완료 2026-06 | [06](06_validation_results.md) |
 | Analyzer 소비 방식 = per-sample patch 파일 membership lookup | DECIDED | [04](04_decisions.md) D9, [07](07_analyzer_integration.md) |
