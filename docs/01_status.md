@@ -2,7 +2,7 @@
 
 > **목적**: 임의의 에이전트가 "현재 상태"를 확인하는 단일 지점.
 > **대상 독자**: 모든 기여자 (사람·AI).
-> **상태**: 살아있는 문서 — 마지막 의미있는 갱신 **2026-09-11 (밤)** (D17 대상 5 샘플 × **4 era-half** — 2016 preVFP/postVFP 도 같은 5 종이 없다; 그 전 같은 날 6 → **5 샘플**: `TTZToBB` 는 v15 의 `TTZToQQ` 로 대체, NtupleForge 결정 D-2026-09-11-ttz-hadronic-from-ttzqq; 이전 갱신 2026-09-07 v14.1: D17 gate 3·4·5 닫힘 — TT4b 71/72, v15 2000 ev 값 비교, batch 처리율·job 산정; HTCondor 검증 배치 `TtbarIdExtender/condor/` 추가. 이전 갱신 2026-09-02 v14.0).
+> **상태**: 살아있는 문서 — 마지막 의미있는 갱신 **2026-09-17**(enriched 는 중앙 요청의 대체가 아니라 **병행** 트랙; 2016 MiniAODv2 입력 1,737 파일 조회됨; D17 문단), 그 전 **2026-09-11 (밤)** (D17 대상 5 샘플 × **4 era-half** — 2016 preVFP/postVFP 도 같은 5 종이 없다; 그 전 같은 날 6 → **5 샘플**: `TTZToBB` 는 v15 의 `TTZToQQ` 로 대체, NtupleForge 결정 D-2026-09-11-ttz-hadronic-from-ttzqq; 이전 갱신 2026-09-07 v14.1: D17 gate 3·4·5 닫힘 — TT4b 71/72, v15 2000 ev 값 비교, batch 처리율·job 산정; HTCondor 검증 배치 `TtbarIdExtender/condor/` 추가. 이전 갱신 2026-09-02 v14.0).
 > **관련**: 숫자 전체는 [06_validation_results.md](06_validation_results.md), 결정 근거는 [04_decisions.md](04_decisions.md), 변경 이력은 [03_changelog.md](03_changelog.md).
 
 ## 결론 먼저 (BLUF)

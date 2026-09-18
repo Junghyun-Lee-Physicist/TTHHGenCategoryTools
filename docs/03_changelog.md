@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-11 (밤)** (D17 대상 5 샘플 × 4 era-half).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-17** (enriched 병행 트랙, 2016 입력 수치).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1353,3 +1353,16 @@ README). 4 task(`control_v15_200`, `timing_v15_2k`, `tt4b_v9_2k`, `tt4b_v15_2k`)
 
 **문서.** 04(D17 범위 확대 문단), 01(상태 줄).
 
+## 2026-09-17: enriched 는 병행 트랙 (사용자 결정), 2016 MiniAODv2 입력 확정
+
+**결정(NtupleForge 쪽, 사용자).** 중앙 "NanoAODv15 from MiniAODv2" 요청의 답장을 기다리는 동안 같은 5 종의 enriched 생산을
+**병행**한다. 이전 문서의 "거절 시 대체" 는 전부 이 뜻으로 고쳤다(04 D17 문단, 11 §3.4 인용문, 01 상태 줄).
+NtupleForge `docs/03_DECISIONS.md` D-2026-09-17-run2-v15-two-tracks.
+
+**입력 수치.** 2016 MiniAODv2 부모(NtupleForge `das_inventory_ul16{pre,post}_miniaodv2_20260916_*.tsv`): preVFP 873 파일 /
+27,245,000 ev / 2.10 TB, postVFP 864 파일 / 27,098,000 ev / 2.12 TB. 전체 4,929 파일 / 162,666,000 ev; core-h·TB 추정(≈ 36,000, ≈ 0.47)은 그대로.
+
+**착수 전 결정 2 개(미결).** 글루(NtupleForge `job_type: cmsrun` vs `TtbarIdExtender/crab/` pset 교체), 컬럼 이름
+(`expandedGenTtbarId` vs `Expanded_genTtbarId`). 코드 변경 없음.
+
+**같은 날 추가(09-17).** 컬럼 이름 결정: `genTtbarIdExpanded`(사용자). D17 → DECIDED. 적용(producer label, sidecar 컬럼 통일, loader)은 다음 작업.

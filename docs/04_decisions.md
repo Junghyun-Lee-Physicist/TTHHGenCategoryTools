@@ -148,7 +148,7 @@
 - **상태**: DECIDED. 값을 바꾸려면 이 항목을 먼저 갱신하고, `--preflight --check-das` 로 검증한
   job 수를 근거로 남긴다.
 
-## D17 — v15 에 중앙본이 없는 샘플에 한해 enriched NanoAOD 부활 (D-DEP1 부분 번복) · PROPOSED 2026-08-31 → **gate 전부 충족 2026-09-07** (DECIDED 는 컬럼 이름 결정과 함께 기록)
+## D17 — v15 에 중앙본이 없는 샘플에 한해 enriched NanoAOD 부활 (D-DEP1 부분 번복) · PROPOSED 2026-08-31 → **gate 전부 충족 2026-09-07** → **DECIDED 2026-09-17** (컬럼 이름 `genTtbarIdExpanded`, 사용자; 중앙 요청과 병행)
 
 - **선택**: 생산 방식을 **혼합**한다.
   - 중앙 v15 가 **있는** 샘플(ttbar 3 종 등) → **sidecar 유지** (D1 그대로).
@@ -165,9 +165,15 @@
     (§3.4 표에서 `TTZToBB` 두 행을 뺀 값). 아래 "6 개" 는 당시 기록으로 둔다.
     **범위 확대 2026-09-11(밤) — 2016 도 같다.** UL16 preVFP/postVFP NanoAODv15 에도 정확히 같은 5 종이 없고 v9 에는 다 있다
     (NtupleForge D-2026-09-11-run2-scope-2016; 네 캠페인의 NOT_FOUND 집합이 diff 0). 중앙 요청은 **28 dataset / 약 162M ev**
-    로 넓혔다. 중앙 생산이 거절될 때의 enriched 대체 생산도 같은 비율로 커진다: 2016 은 half 당 7 dataset · 27.1M ev(v9 기준)이라
-    합계 약 162M ev, event 수에 비례하면 **≈ 36,000 core-h, 28 task**. 2016 의 MiniAOD 파일 수는 아직 조회하지 않았으므로
-    job 수와 TB 는 확정값이 아니다(≈ 0.47 TB 예상).
+    로 넓혔다. enriched 생산도 같은 비율로 커진다: 2016 은 half 당 7 dataset 이라 합계 약 162M ev, event 수에 비례하면
+    **≈ 36,000 core-h, 28 task**(≈ 0.47 TB 예상).
+    **2026-09-17 세 가지 갱신.** ⓞ **컬럼 이름은 `genTtbarIdExpanded`** (사용자 제안; 공식 `genTtbarId` 와 같은 뿌리를 드러내는 이름. 적용: producer label, sidecar 컬럼 `Expanded_genTtbarId` 의 통일(재생산 또는 loader 별칭), analyzer loader; NtupleForge D-2026-09-17-expanded-id-column-name). 이것으로 D17 은 DECIDED. ① **enriched 는 더 이상 "거절 시 대체" 가 아니다**: 사용자 결정으로 중앙 요청과 **병행**한다
+    (NtupleForge `docs/03_DECISIONS.md` D-2026-09-17-run2-v15-two-tracks). 답장을 기다리지 않고 착수하며, 중앙본이 오면 같은
+    MiniAOD 부모에서 나온 두 산출물을 교차 검증한다. 착수 전 결정: 글루(NtupleForge `job_type: cmsrun` vs `TtbarIdExtender/crab/`)와
+    컬럼 이름. ② **2016 MiniAODv2 입력이 조회됐다**(NtupleForge `script/das_inventory_ul16{pre,post}_miniaodv2_20260916_*.tsv`):
+    preVFP 873 파일 / 27,245,000 ev / 2.10 TB, postVFP 864 파일 / 27,098,000 ev / 2.12 TB(각각 7 dataset, `TTZHTo4b`·`TTZZTo4b` 는
+    ext1 포함). 2017+2018+2016 = **4,929 파일 / 162,666,000 ev**. 2016 의 v9 수치(27.1M/27.1M)와의 차이는 preVFP +0.1M 뿐이라 core-h 추정은
+    그대로다.
 
 - **근거**:
   1. **v15 전수 조사 (2026-08-31)**: registry 64 개 중 중앙 v15 가 없는 것은 위
@@ -241,6 +247,16 @@ HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳
 > gate 5)은 서로 겹치고 뒤 절이 앞 절의 "미검증" 을 닫는 구조라 **[11](11_enriched_nanoaod.md) 로 통합**했다.
 > 결정 로그에는 결정과 상태만 남긴다.
 
+
+## D18: 이 저장소는 NtupleForge 에 흡수될 방향이다 · PROPOSED 2026-09-17 (사용자 방향)
+
+- **방향(사용자)**: 도구를 두 갈래로 둘 이유가 없다. NtupleForge 가 후처리 + MiniAOD 사전 + MiniAOD → NanoAOD(+사용자 branch) 를 다 하는
+  모듈 집합체가 되고, 이 저장소의 CMSSW 패키지(`TtbarIdExtender/`)와 `Validation/` 은 그 안의 scram 패키지·standalone 도구로 들어간다.
+  단 구조가 비직관적이 되면 분리 유지.
+- **순서**: Phase 0 은 병합 없이 NtupleForge 제출기에 `job_type: cmsrun` 을 붙여 이 저장소의 enriched cfg 를 태운다. 병합(Phase 1, `git subtree`,
+  경로·python cfg 모듈 이름 변경, 문서를 `docs/ExpandedTtbarId/` 로) 은 Phase 0 뒤에 결정. 규칙·완료 판정·단계: NtupleForge `docs/11_unified_forge_plan.md`,
+  결정 `docs/03_DECISIONS.md` D-2026-09-17-single-forge.
+- **이 저장소에서 지금 바뀌는 것**: 없음. 코드 변경 없이 cfg 가 NtupleForge 제출기에서 호출될 뿐이다. D16(검증 데이터 소유)은 병합 후에도 유지한다.
 
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 

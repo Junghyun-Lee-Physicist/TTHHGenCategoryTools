@@ -268,9 +268,11 @@ v15 가 v9 의 **4.9 배** 비싸다. 원인은 로그에 있다: 15_0_X NANO �
 >
 > **2026-09-11(밤) 범위 확대 — 2016 도 같다.** UL16 preVFP/postVFP NanoAODv15 에도 정확히 같은 5 종이 없다(네 Run 2 v15
 > 캠페인의 NOT_FOUND 집합 diff 0; NtupleForge `09_v15_migration_log.md` 16 절). 중앙 요청은 28 dataset / 약 162M ev 이고,
-> 중앙이 거절될 때의 enriched 대체 생산도 같은 범위다: 2016 은 half 당 7 dataset · 27.1M ev(v9 기준) → 전체 약 162M ev,
-> event 수 비례로 **≈ 36,000 core-h, 28 task**. 아래 표는 2017/2018 만의 실측이고, **2016 의 MiniAOD 부모 파일 수·event 수는
-> 아직 조회하지 않았다** — job 수와 TB(≈ 0.47 TB 예상)는 그 조회 뒤에 확정한다. 2016 레시피는 §2.1 절차로 중앙
+> enriched 생산도 같은 범위다: 2016 은 half 당 7 dataset → 전체 약 162M ev, event 수 비례로 **≈ 36,000 core-h, 28 task**.
+> 아래 표는 2017/2018 만의 실측이다. **2016 의 MiniAODv2 부모(2026-09-16 조회, NtupleForge `das_inventory_ul16{pre,post}_miniaodv2_*.tsv`)**:
+> preVFP 873 파일 / 27,245,000 ev / 2.10 TB, postVFP 864 파일 / 27,098,000 ev / 2.12 TB → 전체 4,929 파일 / 162,666,000 ev,
+> 출력 ≈ 0.47 TB 예상은 그대로. **2026-09-17 사용자 결정: enriched 는 중앙 요청의 대체가 아니라 병행 트랙이다**
+> (NtupleForge D-2026-09-17-run2-v15-two-tracks). 2016 레시피는 §2.1 절차로 중앙
 > `RunIISummer20UL16NanoAODAPVv15` / `…NanoAODv15` 의 cmsDriver 원문(era `Run2_2016_HIPM` / `Run2_2016`, 2016 GT)을 받아 옮긴다.
 
 | era | 샘플 | 파일 | event | 파일당 ev | 1 파일/job 소요 (1.26 ev/s) |
@@ -397,5 +399,7 @@ branch 이름·타입은 TTree 헤더만 읽으므로 xrootd 직독으로 몇 �
 6. **출력 목적지·크기·공개** — 125.4M ev × v15 MC ≈ 2.9 kB/ev ≈ **0.36 TB** (2026-09-11 이후 5 샘플 108.3M ev ≈ **0.31 TB**). T3_CH_CERNBOX(EOS user) 로 받으려면 `eos quota` 를 먼저 보고(기본 1 TB 에 기존 사용량), 아니면 T2_KR_KNU 등 다른 storage. DBS `publication` 여부(NtupleForge 가 `das_scan` 으로 읽으려면 `phys03` 에 publish 하는 편이 맞다)와 출력 dataset 이름 규칙(`enrichedNanoAODv15_<KEY>_<era>`)을 D17 에 적는다.
 
 **열린 결정 — 컬럼 이름.** NanoAOD 컬럼은 현재 `expandedGenTtbarId`(camelCase, EDM instance 이름과 동일, `genTtbarId` 와 같은 관용)이다. 그런데 sidecar TTree 와 analyzer 계약([07](07_analyzer_integration.md))은 `Expanded_genTtbarId` 다. 6 샘플은 enriched, ttbar 3 종은 sidecar 이므로 **analyzer 가 두 이름을 다 알아야 한다.** NanoAOD 관용으로는 camelCase 가 맞고(`Expanded_` 는 `Jet_` 처럼 컬렉션 prefix 로 읽힌다), 계약 통일로는 `Expanded_genTtbarId` 가 맞다. 어느 쪽이든 **결정 후 D17 에 기록**한다. 지금 기본값은 camelCase.
+
+**2026-09-17 결정(사용자 제안, NtupleForge D-2026-09-17-expanded-id-column-name): 이름은 `genTtbarIdExpanded`.** 공식 `genTtbarId` 와 같은 뿌리를 이름이 그대로 보여 주고 NanoAOD 관용(접두 = 대상, 접미 = 무엇)에 맞는다. producer 가 함께 내는 나머지 branch 도 같은 규칙(`genTtbarId…`)으로 맞춘다. 적용 범위: producer instance/label, sidecar TTree 컬럼(기존 2017 `ttnb_*.root` 7 개는 `Expanded_genTtbarId` 이므로 재생산 또는 loader 별칭 중 택일, 이 저장소에서 결정), analyzer loader, NtupleForge branch list 의 `keep` 줄. 이로써 D17 의 DECIDED 조건이 갖춰졌다; 04 에 기록.
 
 **D17 상태.** 원문의 DECIDED 조건 5 개 — ①(producer) ②(byte-identity) ③(확장값 61/62/71/72) ⑤(15_0_X) 충족, ④(CRAB 상한) 수치로 충족(3,525 job / 16 task, task 당 ≤ 486). DECIDED 로 올릴 근거가 갖춰졌다; 컬럼 이름 결정을 같은 항목에 적는다.
