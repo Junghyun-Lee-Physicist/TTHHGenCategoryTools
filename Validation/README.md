@@ -80,6 +80,23 @@ cd ..
 > 중복돼 한참 뒤 `matchTtbarId` **exit 7** 로만 드러나기 때문이다. 의도적이면
 > `ALLOW_MULTI_CRAB_SUBMISSION=1` 로 우회한다.
 
+### 0.1b 2018 을 NanoAODv15 에 다시 맞추기 (`2018v15`, 2026-09-27 추가)
+
+ttHH 생산이 NanoAODv15 로 옮겨 갔으므로(NtupleForge D-2026-09-22-production-order) 2018 patch 는 **v15 event 집합**에서
+다시 검증해야 쓴다. extend 쪽(`sidecar2018/`, EOS 의 `sorted2018/`)은 그대로 쓰고 nano 쪽만 v15 로 바꾼다:
+
+```bash
+cd filelists && ./make_nano_filelists_das.sh 2018v15; echo "rc=$?"; cd ..
+#   -> filelists/nano2018v15/ ; tt4b 는 중앙 v15 가 없어 의도적으로 SKIP (rc 는 0 유지)
+```
+
+- 완결성 기준은 **v15 의 DAS event 수**다: `data/das_nevents_2018v15.json` 을 `--xsec-db` 로 준다(기본값
+  `das_nevents_2018.json` 은 v9 수치라서 쓰면 틀린 FAIL 이 난다).
+- 2018 v15 는 MiniAOD 를 전부 덮지 않는다: `TTToSemiLeptonic` 460,133,000 (extend 478,982,000), `ttbb_Hadronic`
+  7,946,064 (extend 8,049,064). 나머지 넷은 extend 와 같다. extend 에만 있는 event 는 이 검증에서 실패가 아니다.
+- 제출·집계는 §4.0 과 같고 인자만 붙인다(`--nano-filelist-dir filelists/nano2018v15`, 새 `--out-base`, 새 `--work-base`).
+  명령 전체와 기대값은 워크스페이스 `RUNBOOK_lxplus_2026-09-16.md` §11 [c].
+
 ### 0.2 로컬 산출물 빠른 점검 (grid 전/후 공통)
 
 `scripts/check_extend_invariants.C` (신설)는 ttbarId-extend 파일 하나에 대해 인코딩 계약

@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "purpose": "DAS nevents of the CENTRAL 2018 UL NanoAODv15 datasets of the ttbar stitching samples. Completeness criterion of scripts/aggregate_validation.py when the 2018 extend is re-matched against v15 (pass it with --xsec-db; the default das_nevents_2018.json holds the v9 counts).",
+    "source": "NtupleForge script/das/das_ttHH_2018UL_v15_20260923_0853.log (sha256[:16] 79e653f80ee4640f), DS| lines of the standard campaign RunIISummer20UL18NanoAODv15-150X_mc2018_realistic_v1 (not the JMENano / BTVNano flavours). Same numbers in the 2026-09-03 scan.",
+    "era": "2018 (NanoAODv15)",
+    "generated": "2026-09-27",
+    "keys": "Validation short sample names (filelists/nano2018v15/filelist_<short>.txt)",
+    "tt4b": "absent on purpose: no central NanoAODv15 (RESULT|TT4b|NOT_FOUND in the same log; D17 enriched production).",
+    "v15_vs_miniaod": "Not 100 percent for two samples. The 2018 extend (MiniAOD) rows are TTToSemiLeptonic 478,982,000 and ttbb_Hadronic 8,049,064 (docs/06), v15 has 460,133,000 and 7,946,064. The other four are equal. A v15 re-match therefore leaves extend-only events for these two; that is expected and is not a failure.",
+    "update_rule": "Only change these if the DAS dataset itself changes. A mismatch against a validation run means the run is INCOMPLETE -- do not 'fix' it by editing this file."
+  },
+  "ttbb_Hadronic": 7946064,
+  "ttbb_SemiLeptonic": 10378681,
+  "ttbb_2L2Nu": 4858850,
+  "TTToHadronic": 343248000,
+  "TTToSemiLeptonic": 460133000,
+  "TTTo2L2Nu": 146010000
+}

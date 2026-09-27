@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-17** (enriched 병행 트랙, 2016 입력 수치).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-27** (2018 patch 의 v15 재검증 준비: `2018v15` filelist, v15 DAS 기준값).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1366,3 +1366,25 @@ NtupleForge `docs/03_DECISIONS.md` D-2026-09-17-run2-v15-two-tracks.
 (`expandedGenTtbarId` vs `Expanded_genTtbarId`). 코드 변경 없음.
 
 **같은 날 추가(09-17).** 컬럼 이름 결정: `genTtbarIdExpanded`(사용자). D17 → DECIDED. 적용(producer label, sidecar 컬럼 통일, loader)은 다음 작업.
+
+## 2026-09-27: 2018 patch 를 NanoAODv15 에서 다시 맞추는 준비 (`2018v15`)
+
+**왜.** ttHH 생산이 NanoAODv15 로 옮겨 갔고(NtupleForge D-2026-09-22-production-order), analyzer 는 v15 ntuple 에 2018 patch 를
+실행 시 붙인다. O6 의 검증은 v9 nano 기준이었고 `TTToSemiLeptonic` 은 FAIL(읽기 실패, T-23 ⑧) 상태였다. v15 에서 한 번 맞추면
+v15 에서의 유효성과 `TTToSemiLeptonic` 재실행이 같이 끝난다. 계획은 NtupleForge `docs/12_fastpath_workflow_plan.md` (V1).
+
+**바뀐 것.**
+- `Validation/filelists/make_nano_filelists_das.sh`: era `2018v15` (campaign `RunIISummer20UL18NanoAODv15-150X_mc2018_realistic_v1`,
+  출력 `nano2018v15/`). 캠페인에 중앙 dataset 이 없는 샘플은 `NO_CENTRAL` 목록으로 "예상된 SKIP" 로 기록하고 rc 를 1 로 만들지 않는다
+  (`2018v15` 의 `tt4b`; 다른 샘플이 없으면 전과 같이 rc 1). 다른 era 의 동작은 그대로.
+- `Validation/data/das_nevents_2018v15.json` (신규): 중앙 v15 의 DAS event 수 6 개(NtupleForge `script/das/das_ttHH_2018UL_v15_20260923_0853.log`,
+  09-03 스캔과 같은 값). `aggregate_validation.py --xsec-db` 로 준다.
+- `Validation/README.md` §0.1b, [01](01_status.md) O8.
+
+**새로 확인한 사실.** 2018 v15 는 MiniAOD 를 전부 덮지 않는다: `TTToSemiLeptonic` 460,133,000 (extend 478,982,000, JMENano 판 v15 는
+478,982,000), `ttbb_Hadronic` 7,946,064 (extend 8,049,064). 나머지 넷(TTToHadronic 343,248,000, TTTo2L2Nu 146,010,000, ttbb_SemiLeptonic
+10,378,681, ttbb_2L2Nu 4,858,850)은 extend 와 같다. 2017 에서 확인한 "v15 = MiniAOD 100 %" 는 2018 에 그대로 옮길 수 없다.
+
+**검증 (오프라인).** 스캔 로그의 파일 수(14 / 15 / 8 / 407 / 589 / 169)를 돌려주는 가짜 `dasgoclient` 와 가짜 `voms-proxy-info` 로
+`2018v15` 실행: rc 0, `tt4b` SKIP 한 줄, split 1+1+1+21+30+9 = 63 개(= condor job 수). 잘못된 era 는 rc 2, `2018` 은 이전과 같은 경로.
+실제 DAS 조회는 lxplus 에서(RUNBOOK §11 [c]).

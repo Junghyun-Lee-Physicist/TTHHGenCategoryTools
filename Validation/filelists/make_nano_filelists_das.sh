@@ -15,6 +15,13 @@
 #   ./make_nano_filelists_das.sh 2017            # -> nano2017das/ (2017 local lists untouched)
 #   ./make_nano_filelists_das.sh 2018 xrootd     # force root:// prefix (default)
 #   ./make_nano_filelists_das.sh 2018 lfn        # bare /store/... paths instead
+#   ./make_nano_filelists_das.sh 2018v15         # -> nano2018v15/ : CENTRAL NanoAODv15
+#
+# 2018v15 (added 2026-09-27, NtupleForge docs/12 V1): the ttHH production moved
+#   to NanoAODv15, so the 2018 patches must be re-matched against the v15 event
+#   set. tt4b has no central v15 dataset (D17: it comes from enriched NanoAOD),
+#   so it is SKIPPED ON PURPOSE for this era and does not make rc non-zero.
+#   v15 event counts are NOT the v9 ones: data/das_nevents_2018v15.json.
 #
 # OUTPUT
 #   <outdir>/filelist_<short>.txt        one ROOT path per line (master list)
@@ -33,14 +40,19 @@ MODE="${2:-xrootd}"
 SPLIT_SIZE="${SPLIT_SIZE:-20}"          # files per split list; override via env
 
 if [[ -z "$ERA" ]]; then
-    echo "usage: $0 <era: 2017|2018> [xrootd|lfn]" >&2
+    echo "usage: $0 <era: 2017|2018|2018v15> [xrootd|lfn]" >&2
     exit 2
 fi
 
+# NO_CENTRAL: short names with no central dataset in this campaign. They are
+# logged as an expected skip and do NOT set rc=1 (a missing dataset for any
+# other sample still does).
+NO_CENTRAL=""
 case "$ERA" in
-  2017) CAMPAIGN="RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9"          ; OUTDIR="nano2017das" ;;
-  2018) CAMPAIGN="RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1"; OUTDIR="nano2018"    ;;
-  *)    echo "ERROR: unsupported era '$ERA' (expected 2017 or 2018)" >&2; exit 2 ;;
+  2017)    CAMPAIGN="RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9"          ; OUTDIR="nano2017das" ;;
+  2018)    CAMPAIGN="RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1"; OUTDIR="nano2018"    ;;
+  2018v15) CAMPAIGN="RunIISummer20UL18NanoAODv15-150X_mc2018_realistic_v1"          ; OUTDIR="nano2018v15" ; NO_CENTRAL="tt4b" ;;
+  *)       echo "ERROR: unsupported era '$ERA' (expected 2017, 2018 or 2018v15)" >&2; exit 2 ;;
 esac
 
 case "$MODE" in
@@ -85,6 +97,10 @@ for i in "${!SHORT[@]}"; do
     ds="/${prim}/${CAMPAIGN}-*/NANOAODSIM"
     log ""
     log "### ${short}"
+    if [[ " ${NO_CENTRAL} " == *" ${short} "* ]]; then
+        log "  SKIP (expected): no central dataset for ${short} in ${CAMPAIGN} -> not listed"
+        continue
+    fi
     log "  query: file dataset=${ds}"
 
     # Resolve the concrete dataset(s) first so an ambiguous -vN is visible.
