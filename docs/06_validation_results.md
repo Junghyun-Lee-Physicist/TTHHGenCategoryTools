@@ -2,12 +2,14 @@
 
 > **목적**: 이 프로젝트가 신뢰 가능함을 입증하는 **측정된** 결과 전부. 다른 문서는 여기로 링크만 한다.
 > **대상 독자**: `Expanded_genTtbarId`를 분석에 쓰기 전 근거를 확인하려는 사람.
-> **상태**: DECIDED (2017 UL 캠페인 완료 2026-06; 수치는 검증 로그에서 전사). 새 era/샘플 결과는 이 문서에 append.
+> **상태**: DECIDED (2017 UL 캠페인 완료 2026-06; 수치는 검증 로그에서 전사). 새 era/샘플 결과는 이 문서에 append. 마지막 append **2026-09-28** (2018 UL 중앙 NanoAODv15 재검증, 맨 끝 절).
 > **관련**: 검사 로직은 [05](05_architecture.md) §3, 도구 사용법은 [Validation/README.md](../Validation/README.md), 명령 원문과 로그 맥락은 동결 원본 [legacy/Validation_pre-merge_ARCHITECTURE.md](legacy/Validation_pre-merge_ARCHITECTURE.md) §8.
 
 ## 결론 먼저 (BLUF)
 
 2017 UL ttbar stitching **7개 샘플, 합계 ~7.12억 event 전량**에서: (1) ttbarId-extend `genTtbarId` ≡ 중앙 NanoAODv9 (**disagree 0, unmatched 0**), (2) 확장 id 무결성 4조건 위반 **0**, 보존식 정확 성립, (3) 재분류 event의 출처는 **전부** 표준 tt+bb 버킷(53/54/55). analyzer용 patch 파일 7편의 카운트가 검증 로그와 일치.
+
+**2018 UL (2026-09-28)**: 2018 patch 를 중앙 **NanoAODv15** 6 샘플 전량(972,574,595 event)에 다시 맞춰 **6/6 PASS**. extend 와 v15 의 event 수가 같은 네 샘플은 tt+nb 수와 61/62/71/72 분해가 patch 추출 표와 정확히 같고, v15 가 더 적은 두 샘플은 기대값과 통계 요동 안에서 맞는다. 보류했던 `ttnb_TTbar_SemiLep.root` 도 v15 용으로 해제. 맨 끝 절.
 
 ## 1. per-event `genTtbarId` byte-identity — 7샘플 전량 일치 (2026-06)
 
@@ -249,3 +251,43 @@ chunk 당 4,000–8,000 회. event 수에 비례하고 part 총개수와 무관�
 (TTToHadronic 687 parts → 7,380/chunk, TTToSemiLeptonic 958 parts → 7,906/chunk,
 TTTo2L2Nu 293 parts → 4,371/chunk). 전량이 ~1.7시간에 끝나 최적화는 불필요하다.
 
+---
+
+## 2018 UL: 중앙 NanoAODv15 재검증 (63 job, 2026-09-28), **6/6 PASS**
+
+**왜**: ttHH 생산이 NanoAODv15 로 옮겨 갔으므로(NtupleForge D-2026-09-22-production-order) 2018 patch 를 v15 event 집합 위에서 다시 맞췄다
+([01](01_status.md) O8, NtupleForge `docs/12_fastpath_workflow_plan.md` V1). 같은 extend(sidecar, MiniAOD)를 `matchTtbarIdSorted` 로 중앙 v15 에 대조했다.
+nano 쪽 목록은 `Validation/filelists/nano2018v15`(`make_nano_filelists_das.sh 2018v15`, 14 / 15 / 8 / 407 / 589 / 169 파일),
+완결성 기준은 `Validation/data/das_nevents_2018v15.json`. `tt4b` 는 중앙 v15 가 없어 대상이 아니다(D17 enriched 쪽에서 본다).
+
+**실행**: 2026-09-27 17:49 UTC 에 63 job 제출(cluster 13488511). lxplus 의 `matchTtbarIdSorted` 를 다시 빌드하지 않은 채 제출해서 `TTToHadronic` 21 chunk 중
+19 개가 exit 4(nano 파일 읽기 실패; 옛 binary 에는 읽기 재시도가 없다)로 끝났다. 조용한 오답이 아니라 **드러난 실패**였다. 09-28 에 다시 빌드하고
+(`strings bin/matchTtbarIdSorted | grep -c reopening` = 1) 그 19 개만 다시 냈다(cluster 13489070): `--report` 63/63 ok, fail 0, miss 0.
+합산 `aggregate_validation.py --era 2018 --nano-filelist-dir filelists/nano2018v15 --xsec-db data/das_nevents_2018v15.json` 의 끝줄
+**`OVERALL: ALL SAMPLES PASS`**. 로그: NtupleForge `script/runlogs/run_v1_aggregate_20260928_083134.log`(제출은 `run_v1_submit_20260927_174937.log`).
+
+| sample | nano total == v15 DAS | unmatched | disagree | 불변식 4종 | `nAddBJets≥3` (= extended) | 기대값 | 61 / 62 | 71 / 72 | 재분류된 event 의 원 sub-code 53 / 54 / 55 |
+|---|---|---|---|---|---|---|---|---|---|
+| ttbb_Hadronic | 7,946,064 ✓ | 0 | 0 | 0 | **32,660** | ≈ 32,649 | 19,387 / 9,412 | 3,436 / 425 | 22,812 / 9,548 / 300 |
+| ttbb_SemiLeptonic | 10,378,681 ✓ | 0 | 0 | 0 | **37,420** | 37,420 (정확) | 22,173 / 10,984 | 3,806 / 457 | 25,973 / 11,102 / 345 |
+| ttbb_2L2Nu | 4,858,850 ✓ | 0 | 0 | 0 | **15,766** | 15,766 (정확) | 9,271 / 4,707 | 1,588 / 200 | 10,853 / 4,766 / 147 |
+| TTToHadronic | 343,248,000 ✓ | 0 | 0 | 0 | **36,835** | 36,835 (정확) | 22,844 / 9,978 | 3,702 / 311 | 26,529 / 10,076 / 230 |
+| TTToSemiLeptonic | 460,133,000 ✓ | 0 | 0 | 0 | **43,090** | ≈ 43,086 | 26,908 / 11,661 | 4,197 / 324 | 31,072 / 11,754 / 264 |
+| TTTo2L2Nu | 146,010,000 ✓ | 0 | 0 | 0 | **11,790** | 11,790 (정확) | 7,311 / 3,230 | 1,146 / 103 | 8,453 / 3,275 / 62 |
+
+읽는 법:
+
+- **정확한 등식 네 개**: extend rows == v15 DAS 인 네 샘플(ttbb_SemiLeptonic, ttbb_2L2Nu, TTToHadronic, TTTo2L2Nu)은 `nAddBJets≥3` 이 위 patch 추출 표의
+  tt+nb rows 와 같고, 61/62/71/72 분해까지 한 자리도 다르지 않다. v15 의 tt+nb event 전부가 patch 에 있고 patch 행 전부가 v15 에 있다는 뜻이다.
+- **두 샘플은 기대대로 작다**: v15 가 MiniAOD 보다 적다(TTToSemiLeptonic 460,133,000 vs extend 478,982,000, ttbb_Hadronic 7,946,064 vs 8,049,064).
+  빠진 event 가 tt+nb 비율에서 무작위라고 보면 44,851 × 460,133,000 / 478,982,000 = 43,086(관측 43,090, 차 +4, 통계 요동 σ ≈ 41),
+  33,072 × 7,946,064 / 8,049,064 = 32,649(관측 32,660, 차 +11, σ ≈ 20).
+- **unmatched 0**: v15 의 모든 event 가 extend 에 있다. v15 의 부모 MiniAOD 가 sidecar 입력과 같은 판이라는 뜻이다(NtupleForge `docs/12` X2 의 우려 해소).
+- **재분류는 전부 53/54/55 에서** 왔고 그 합이 `nAddBJets≥3` 과 같다(예: ttbb_Hadronic 22,812 + 9,548 + 300 = 32,660).
+- analyzer 조회 점검(NtupleForge `docs/12` X4)의 샘플별 기대값은 이 표의 `nAddBJets≥3` 이다(전 job 의 hit 합).
+
+**결론**: 2018 patch 중 중앙 v15 가 있는 6 편(`ttnb_TTbb_Hadronic`, `ttnb_TTbb_SemiLep`, `ttnb_TTbb_DiLep`, `ttnb_TTbar_Hadronic`, `ttnb_TTbar_SemiLep`,
+`ttnb_TTbar_DiLep`)은 v15 ntuple 에 그대로 쓴다. 07-28 의 v9 FAIL 로 보류했던 **`ttnb_TTbar_SemiLep.root` 도 v15 용으로 보류 해제**: patch 는 extend 전체에서
+뽑은 것이고, v9 FAIL 의 원인은 검증 쪽 읽기(`GetEntry()` 반환값 미검사, [08](08_troubleshooting.md) T-23 ⑧)였으며, 이번에는 읽기 검사와 재시도가 있는
+도구로 v15 전량에서 통과했다. `ttnb_TT4b.root` 는 중앙 v15 가 없어 이 검사 밖이다(v15 의 `TT4b` 는 enriched 생산이고 확장 id 열을 직접 싣는 설계, D17).
+v9 쪽 `TTToSemiLeptonic` 재실행은 하지 않는다(2018 v9 ntuple 보류, NtupleForge D-2026-09-17-ul18-v9-parked).

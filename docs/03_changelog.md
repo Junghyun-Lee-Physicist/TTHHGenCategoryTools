@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-27** (2018 patch 의 v15 재검증 준비: `2018v15` filelist, v15 DAS 기준값).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-28** (2018 patch 의 v15 재검증 통과, O8 CLOSED).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1388,3 +1388,15 @@ v15 에서의 유효성과 `TTToSemiLeptonic` 재실행이 같이 끝난다. 계
 **검증 (오프라인).** 스캔 로그의 파일 수(14 / 15 / 8 / 407 / 589 / 169)를 돌려주는 가짜 `dasgoclient` 와 가짜 `voms-proxy-info` 로
 `2018v15` 실행: rc 0, `tt4b` SKIP 한 줄, split 1+1+1+21+30+9 = 63 개(= condor job 수). 잘못된 era 는 rc 2, `2018` 은 이전과 같은 경로.
 실제 DAS 조회는 lxplus 에서(RUNBOOK §11 [c]).
+
+## 2026-09-28: 2018 patch 의 중앙 NanoAODv15 재검증 통과 (O8 CLOSED)
+
+- **결과**: `aggregate_validation.py --era 2018 --nano-filelist-dir filelists/nano2018v15 --xsec-db data/das_nevents_2018v15.json` 의 끝줄
+  `OVERALL: ALL SAMPLES PASS`. 여섯 샘플 전량(972,574,595 event, 63 job)에서 nano total == v15 DAS, unmatched 0, disagree 0, 불변식 0.
+  extend 와 v15 의 event 수가 같은 네 샘플은 patch 추출 표와 정확히 같고, v15 가 적은 두 샘플은 기대값대로다. 표: [06](06_validation_results.md) 끝 절.
+- **따라서**: v15 ntuple 에 쓸 2018 patch 6 편 확정. 07-28 의 v9 FAIL 로 보류했던 `ttnb_TTbar_SemiLep.root` 도 v15 용으로 해제
+  ([01](01_status.md) O8, O6 ⑦). v9 쪽 재실행은 하지 않는다(2018 v9 ntuple 보류).
+- **실행 기록**: 09-27 제출(cluster 13488511)은 lxplus 의 `matchTtbarIdSorted` 를 다시 빌드하지 않은 채여서 `TTToHadronic` 19/21 chunk 가 exit 4
+  (옛 binary 에는 읽기 재시도가 없다; 실패가 드러났을 뿐 틀린 값은 없다). 09-28 재빌드(`strings bin/matchTtbarIdSorted | grep -c reopening` = 1)
+  뒤 `--resubmit-failed` 로 19 개만 다시(13489070) → 63/63 ok. 로그는 NtupleForge 쪽 runlog(`run_v1_aggregate_20260928_083134.log`).
+- 코드 변경 없음(문서만: 01, 03, 06).
