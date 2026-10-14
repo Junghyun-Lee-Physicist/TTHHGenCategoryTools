@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-09-28** (2018 patch 의 v15 재검증 통과, O8 CLOSED).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-13** (AI 작업 계약 `00_PROMPT.md` §4: 진행 로그와 비정상 종료가 드러나는 로그). 그 전 2026-09-28 (2018 patch 의 v15 재검증 통과, O8 CLOSED).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1400,3 +1400,10 @@ v15 에서의 유효성과 `TTToSemiLeptonic` 재실행이 같이 끝난다. 계
   (옛 binary 에는 읽기 재시도가 없다; 실패가 드러났을 뿐 틀린 값은 없다). 09-28 재빌드(`strings bin/matchTtbarIdSorted | grep -c reopening` = 1)
   뒤 `--resubmit-failed` 로 19 개만 다시(13489070) → 63/63 ok. 로그는 NtupleForge 쪽 runlog(`run_v1_aggregate_20260928_083134.log`).
 - 코드 변경 없음(문서만: 01, 03, 06).
+
+## 2026-10-13 — AI 작업 계약: 진행 로그와 비정상 종료가 드러나는 로그 (사용자 원칙)
+
+- `00_PROMPT.md` §4 에 두 규칙(사용자 2026-10-13, 원문 인용): 몇 분 넘게 걸리는 일은 시작할 때 전체 크기, 단위가 끝날 때마다 `i/N`·몫·경과·ETA 한 줄,
+  한 단위가 길면 시간 간격의 heartbeat, 줄 버퍼(Python 2.7 코드는 `sys.stdout.flush()` 또는 `python -u`); 정상 끝의 결과 줄과 exit code, 실패 경로의 원인,
+  머리·꼬리가 있는 기록(꼬리 없음 = 강제 종료 또는 아직 실행 중). 근거와 계기: 워크스페이스 `AI_LIMITS_AND_PROTOCOL.md` §5 실패 8, §6 8·9.
+- 코드 변경 없음(문서만: `00_PROMPT.md`, 이 파일).
