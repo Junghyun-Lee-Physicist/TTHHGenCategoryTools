@@ -11,6 +11,8 @@ preflight_*.log
 submit_*_20*.log
 status_*_20*.log
 crab_projects/
+# --- launch_extend.sh run directories (all output of one launch, local test files)
+launch_logs/
 
 # --- local cmsRun test outputs (see TtbarIdExtender/README.md sec.1)
 #     NB: VarParsing appends _numEventN when maxEvents is set.

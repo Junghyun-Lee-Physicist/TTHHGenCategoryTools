@@ -67,7 +67,7 @@ ERA=""
 for arg in "$@"; do
   case "$arg" in
     --apply) APPLY=1 ;;
-    -h|--help) sed -n '2,/^# ====/p' "${BASH_SOURCE[0]}" | sed 's/^#\{0,1\} \{0,1\}//'; exit 0 ;;
+    -h|--help) awk 'NR>=2 && /^set -u/ {exit} NR>=2' "${BASH_SOURCE[0]}" | sed 's/^#\{0,1\} \{0,1\}//'; exit 0 ;;
     -*) echo "ERROR: unknown option '$arg' (try --help)" >&2; exit 2 ;;
     *)  if [[ -z "$ERA" ]]; then ERA="$arg"; else
           echo "ERROR: unexpected extra argument '$arg'" >&2; exit 2; fi ;;

@@ -1437,3 +1437,24 @@ v15 에서의 유효성과 `TTToSemiLeptonic` 재실행이 같이 끝난다. 계
 - `--dry-run`: 14 task, requestName `<name>_2016APV_extend`/`<name>_2016_extend`, outLFN `.../ttbarIdExtend_v2/2016APV`·`/2016`,
   `year=2016APV`/`year=2016`, unitsPerJob 10(site_config).
 - 14 개 dataset 문자열·event 수·파일 수를 인벤토리 TSV 와 프로그램으로 대조(전부 VALID, primary 일치). 파일 ASCII, 제출기는 Python 3.6 문법.
+
+## 2026-10-14 (2) — `crab/launch_extend.sh`: 확인 절차 전부를 한 명령으로 (O9)
+
+**왜.** 사용자: 확인 절차를 자동화해서 한 번에 돌리고 싶다. 같은 날의 `TtbarIdExtender/README.md` §2.2d 명령 (0)–(3) 을 사람이 하나씩 보던
+판정까지 포함해 한 스크립트로 묶었다. 감시·재제출·완료 점검을 하는 manager 는 다음 일([01](01_status.md) O9).
+
+**새 파일 `TtbarIdExtender/crab/launch_extend.sh`** (bash 4.2, ASCII). 단계: 1 env(CMSSW_10_6, cmsRun·root·dasgoclient, CRABClient — 없으면
+`crab-setup.sh` 를 source, proxy ≥ 24 h, era 블록 존재) → 2 local(era 마다 TTbb_DiLep MiniAOD 한 파일, `cmsRun year=<ERA>`; exit 0, era modifier 줄,
+출력 파일, endJob 의 missing 0) → 3 invariants(`check_extend_invariants.C` ALL INVARIANTS PASS) → 4 resolve(MATCH 7/7) → 5 apply → 6 preflight
+(exit 0, `READY TO SUBMIT`, WARN 0) → 7 dryrun(attempted = 항목 수, skipped 0) → `--submit` 이면 8 submit(submitted = 항목 수, `[FAILED]`·`[skip]` 없음)
+→ 9 report(기다린 뒤 `--report`, DEAD TASK 없음). 첫 실패에서 멈추고 exit 10–18 과 읽을 로그를 찍는다. 출력은 전부
+`crab/launch_logs/<UTC>_<eras>/launch.log`(머리·꼬리, 꼬리 없음 = 죽음; `.gitignore` 에 `launch_logs/` 추가), 단계마다의 로그, 로컬 출력.
+resolve 로그는 `crab/resolve_parents_<ERA>_<시각>.log` 로 복사(커밋용, 2018 관례). 작업 디렉터리는 `TtbarIdExtender/` 로 고정(CRAB
+`work_area` 가 상대 경로라서). SIGINT·SIGTERM 은 꼬리에 EXIT 130.
+
+**`resolve_parents.sh --help`**: 머리말 전체를 찍게 고침(전에는 제목 세 줄만 — `resolve_nano_children.sh` 에서 옮겨 온 sed 범위 탓).
+
+**검증 (오프라인; lxplus 실행 전).** 가짜 `cmsRun`·`root`·`dasgoclient`·`voms-proxy-info`·CRAB API 로 사례마다 새 사본에서: 정상(`--submit`, 14 task;
+yaml 의 2016 두 블록 열림, project dir 14, resolve 로그 복사, 화면 = launch.log), `--submit` 없음(READY, project dir 없음), MISMATCH(13, yaml 그대로),
+era modifier 다름(11), endJob missing(11), cmsRun exit 65(11), 불변조건 FAIL(12), proxy 1 h(10), CMSSW 14(10), 이미 있는 project dir(15, 제출 0),
+SUBMITREFUSED(18), task 하나 제출 실패(17, 나머지 안내), `--skip-local`(0), 잘못된 era·`--era` 없음(2), SIGTERM(130, 꼬리 있음).

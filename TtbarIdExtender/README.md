@@ -344,6 +344,27 @@ python3 crab/submit_ttbarIdExtend.py --era 2018 --report
 CRAB 스모크는 두지 않는다(2018 과 같은 순서): CRAB 경로는 2017·2018 에서 확인됐고, 2016 에서 새로운 것(era modifier)은 (0) 의
 로컬 실행이 확인한다.
 
+**한 명령으로 (2026-10-14, `crab/launch_extend.sh`).** 아래 (0)–(3) 을 차례로 돌리고 단계마다 통과 조건을 본다: 환경(CMSSW_10_6,
+CRABClient — 없으면 `crab-setup.sh` 를 스스로 source, proxy 24 h 이상) → era 마다 로컬 `cmsRun`(era modifier 줄, 출력 파일, endJob 의
+missing 0) → `check_extend_invariants.C`(ALL INVARIANTS PASS) → `resolve_parents.sh`(MATCH 7/7) → `--apply` → preflight(FAIL 0 **그리고
+WARN 0** — 이미 있는 project dir 은 제출을 건너뛰게 하므로 멈춘다) → dry-run(시도 수 = 항목 수, skipped 0) → (`--submit` 일 때) 제출
+(submitted = 항목 수, `[FAILED]`·`[skip]` 없음) → 5 분 뒤 `--report`(DEAD TASK 없음). 하나라도 어긋나면 그 자리에서 멈추고(exit 10–18)
+이유와 읽을 로그를 찍는다. 모든 출력은 `crab/launch_logs/<UTC>_<eras>/launch.log`(git 밖)에 머리(`=== START`)와 꼬리
+(`=== END ... EXIT=`)와 함께 남는다 — 꼬리가 없으면 죽은 것(ssh 끊김 등)이다. resolve 로그는 2018 처럼 커밋할 수 있게
+`crab/resolve_parents_<ERA>_<시각>.log` 로도 복사한다. 오프라인 시험(가짜 cmsRun·root·DAS·CRAB): 정상 1 + 멈춤 조건 11 + SIGTERM, 전부 기대대로.
+
+```bash
+tmux new -s extend          # ssh 가 끊겨도 계속 (다시 붙기: 같은 lxplus 노드에서 tmux attach -t extend)
+cmssw-el7
+cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src && cmsenv && cd TTHHGenCategoryTools && git pull --ff-only && cd TtbarIdExtender
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+voms-proxy-init -voms cms -rfc -valid 192:00 --out $PWD/proxy.cert    # AFS 에 (gitignore; 다음의 condor manager 도 이것을 쓴다)
+export X509_USER_PROXY=$PWD/proxy.cert
+bash crab/launch_extend.sh --era 2016APV,2016 --submit
+```
+
+`--submit` 없이 돌리면 dry-run 까지만 하고 `RESULT: READY` 로 끝난다(그 뒤 `--submit --skip-local` 로 이어 갈 수 있다).
+
 ```bash
 cmssw-el7
 cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src && cmsenv
