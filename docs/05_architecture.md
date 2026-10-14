@@ -78,9 +78,13 @@ CMSSW 불필요; `root-config`만 있으면 `make`. 각 `src/*.cc`가 `bin/<이�
 
 ## 5. 확장 지점 (새 era/샘플 추가 시)
 
-1. `TtbarIdExtender/crab/datasets.yaml`에 (MiniAODv2, nano_child) 쌍 추가 — parent suffix는 `crab/resolve_parents.sh`로 DAS 확인 후 기입.
-2. era가 다르면 `run_ttbarIdExtend_cfg.py`의 era modifier와 datasets.yaml의 era 블록 갱신 ([09](09_environment.md) §3.7).
-3. CRAB 4단계 강제 순서: `preflight.py` → `--dry-run` → `--max-files 5` 스모크 → 본제출.
+1. `TtbarIdExtender/crab/datasets.yaml`에 (MiniAODv2, nano_child) 쌍을 `enabled: false`/`verified: false`로 추가하고, 그 era 의 NanoAODv9
+   목록을 `crab/resolve_parents.sh`의 `case`에 넣는다. lxplus 에서 `bash crab/resolve_parents.sh <ERA>`로 DAS parent 와 비교(MATCH)한 뒤,
+   전부 MATCH 면 `--apply`가 두 flag 를 연다(2026-10-14, [04](04_decisions.md) D19); MISMATCH 는 손으로 DAS 값을 넣는다.
+2. era가 다르면 `run_ttbarIdExtend_cfg.py`의 era modifier(`_ERA_NAME_BY_YEAR`)와 datasets.yaml의 era 블록 갱신 ([09](09_environment.md) §3.7),
+   그리고 `submit_ttbarIdExtend.py`의 캠페인 접두 표 `_ERA_CAMPAIGN_PREFIX`에 한 줄.
+3. CRAB 순서: 로컬 `cmsRun year=<ERA>` 한 파일 + `check_extend_invariants.C` → `--preflight --check-das` → `--dry-run` → 본제출.
+   `--max-files` 스모크는 금지(부분 task 가 timestamp 를 하나 더 만든다; README §2.2). CRAB 스모크가 필요하면 가장 작은 샘플 하나를 통째로.
 4. `Validation/filelists/`에 nano/ttbarId-extend filelist 생성(`make_filelists*.py`) → 소샘플은 `matchTtbarId`, 대샘플(대략 5천만 event 초과)은 sorted 경로 → `extractTtbarIdPatch`.
 
 ## 3.1 전량 검증의 실행 구조 (HTCondor, 2026-07-28)

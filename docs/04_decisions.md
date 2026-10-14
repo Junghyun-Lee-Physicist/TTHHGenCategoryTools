@@ -2,7 +2,7 @@
 
 > **목적**: "왜 이 선택인가? 다른 후보는? 아직 유효한가?"의 단일 출처.
 > **대상 독자**: 설계를 바꾸려는 사람; DECIDED를 다시 열기 전 반드시 여기 확인.
-> **상태**: 살아있는 문서 — 마지막 갱신 **2026-07-27** (D15 신설: CRAB task 당 job 10,000 상한).
+> **상태**: 살아있는 문서 — 마지막 갱신 **2026-10-14** (D19 신설: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
 > **관련**: 시간순 이력은 [03_changelog.md](03_changelog.md), 실패 사례는 [08_troubleshooting.md](08_troubleshooting.md).
 
 각 항목: 선택 / 근거 / 검토·기각된 대안 / 상태.
@@ -257,6 +257,24 @@ HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳
   경로·python cfg 모듈 이름 변경, 문서를 `docs/ExpandedTtbarId/` 로) 은 Phase 0 뒤에 결정. 규칙·완료 판정·단계: NtupleForge `docs/11_unified_forge_plan.md`,
   결정 `docs/03_DECISIONS.md` D-2026-09-17-single-forge.
 - **이 저장소에서 지금 바뀌는 것**: 없음. 코드 변경 없이 cfg 가 NtupleForge 제출기에서 호출될 뿐이다. D16(검증 데이터 소유)은 병합 후에도 유지한다.
+
+## D19 — 2016 preVFP·postVFP 도 extend 를 만든다; 새 era 의 잠금 해제는 `resolve_parents.sh --apply` · 범위 DECIDED 2026-10-14(사용자) · `--apply` 도입 2026-10-14(AI 제안, 사용자에게 고지)
+
+- **결정(사용자 2026-10-14)**: ttHH 분석을 full Run 2(2016 preVFP·postVFP, 2017, 2018)로, 중앙 NanoAODv9 에서 돌린다(TTHHAnalyzer
+  `docs/DECISIONS.md` D-2026-10-14-B). 2017·2018 patch 는 있으므로 이 저장소에서 새로 할 일은 **2016 두 기간의 extend 생산과 patch 추출**이다.
+  era 키는 cfg 의 `year=` 값 그대로 `2016APV`(preVFP)·`2016`(postVFP).
+- **잠금 해제 방식**: 지금까지는 `resolve_parents.sh` 의 `PARENT (from DAS)` 를 사람이 `dataset:` 에 붙여넣고 두 flag 를 손으로 바꿨다
+  (`datasets.yaml` 2018 머리말, [05](05_architecture.md) §5). 이제 스크립트가 yaml 과 직접 비교해 MATCH 를 찍고, `--apply` 는 **그 era 의
+  7 개가 전부 MATCH 일 때만** MATCH 항목의 `enabled`/`verified` 두 줄을 true 로 바꾼다(다른 줄이 바뀌면 스스로 거부, exit 4).
+  규칙의 뜻("-vN 을 추측하지 말고 DAS 로 확인")은 그대로이고, 손으로 옮겨 적는 과정의 오타만 없앤다.
+- **2016 의 `dataset:` 값 출처**: NtupleForge DAS 인벤토리(2026-09-11/16, VALID 표준 캠페인)에서 그대로. 같은 primary 의
+  PU35ForTRK·PUForTRK·PUForMUOVal·ext1 판은 다른 dataset 이라 쓰지 않는다(postVFP `TTbb_SemiLep` 의 `_ext1-v3` 는 DAS 상태 PRODUCTION).
+- **preflight 의 "campaign vs era"**: era 별 캠페인 접두 표(`_ERA_CAMPAIGN_PREFIX`)로 본다. 옛 규칙("era 키가 두 캠페인 문자열에 들어 있다")은
+  2017·2018 의 GT 이름(`mc2017_`, `upgrade2018_`) 덕에 맞았을 뿐이고 UL16(`mcRun2_asymptotic`, preVFP 와 postVFP 는 `APV` 만 다름)을 가르지 못한다.
+  2017·2018 항목의 판정은 같다(시험으로 확인). 표에 없는 era 키는 옛 규칙.
+- **기각한 대안**: ① yaml 을 처음부터 `enabled: true` 로 — 인벤토리는 DAS 에서 왔지만 parent 연결은 확인하지 않은 값이라 규칙 위반.
+  ② `--apply` 가 MATCH 인 것만 부분 개방 — 한 era 안에서 일부만 열리면 stitching 표본이 빠진 채 제출될 수 있어 기각(전부 아니면 아무것도).
+  ③ 잠금 해제 없이 `--force` 로 제출 — `verified` 의 뜻이 없어진다.
 
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 

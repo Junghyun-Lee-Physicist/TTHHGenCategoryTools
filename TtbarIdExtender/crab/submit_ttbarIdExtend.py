@@ -535,6 +535,41 @@ def crab_action_one(cfg, *, action):
 # `year` handling. Nothing is submitted; a log file is written.
 _DS_RE = re.compile(r"^/[^/]+/[^/]+/(MINIAODSIM|NANOAODSIM)$")
 
+# era key -> (MiniAODv2 campaign prefix, NanoAODv9 campaign prefix) for the
+# "campaign vs era" check. Added 2026-10-14 with the 2016 eras: the old rule
+# ("the era key is a substring of both campaign strings") only worked for 2017
+# and 2018 because their global tags spell the year (mc2017_..., upgrade2018_...).
+# UL16 campaigns say "UL16", their GT "mcRun2_asymptotic" has no year, and
+# preVFP differs from postVFP only by "APV" -- a substring test cannot tell them
+# apart. Same verdict as before for every 2017/2018 entry. Era keys missing from
+# this table keep the old substring rule.
+_ERA_CAMPAIGN_PREFIX = {
+    "2016APV": ("RunIISummer20UL16MiniAODAPVv2-", "RunIISummer20UL16NanoAODAPVv9-"),
+    "2016":    ("RunIISummer20UL16MiniAODv2-",    "RunIISummer20UL16NanoAODv9-"),
+    "2017":    ("RunIISummer20UL17MiniAODv2-",    "RunIISummer20UL17NanoAODv9-"),
+    "2018":    ("RunIISummer20UL18MiniAODv2-",    "RunIISummer20UL18NanoAODv9-"),
+}
+
+
+def campaign_matches_era(era, camp_mini, camp_nano):
+    """True if both campaign strings belong to the datasets.yaml era key."""
+    pref = _ERA_CAMPAIGN_PREFIX.get(era)
+    if pref is None:
+        return era in camp_mini and era in camp_nano
+    return camp_mini.startswith(pref[0]) and camp_nano.startswith(pref[1])
+
+
+# The year= values the pset accepts are the keys of its _ERA_NAME_BY_YEAR dict.
+_PSET_YEARS_RE = re.compile(r"_ERA_NAME_BY_YEAR\s*=\s*\{(.*?)\}", re.S)
+
+
+def pset_supported_years(src):
+    """Set of year keys in the pset's _ERA_NAME_BY_YEAR, or None if not found."""
+    m = _PSET_YEARS_RE.search(src)
+    if not m:
+        return None
+    return set(re.findall(r"[\"']([^\"']+)[\"']\s*:", m.group(1)))
+
 
 def run_preflight(args, cat, site):
     rows, lines = [], []
@@ -611,6 +646,19 @@ def run_preflight(args, cat, site):
             bad("pset year option",
                 "MISSING: the pset has no `year` VarParsing option, so the era "
                 "modifier stays hardcoded regardless of the era being submitted")
+        # Every era to be submitted must be a year= value the pset accepts;
+        # otherwise CRAB's submit-time import of the pset raises ValueError.
+        years = pset_supported_years(src)
+        sel_eras = sorted(era_filter) if era_filter else sorted((cat.get("eras") or {}).keys())
+        if years is None:
+            warn("pset year values", "no _ERA_NAME_BY_YEAR in the pset -- year support not checked")
+        else:
+            missing = [e for e in sel_eras if e not in years]
+            if missing:
+                bad("pset year values", "pset does not accept year=%s (accepts: %s)"
+                    % (",".join(missing), ", ".join(sorted(years))))
+            else:
+                ok("pset year values", "accepts year=%s" % ",".join(sel_eras))
     else:
         bad("pset present", "not found: %s" % EXTEND_PSET)
 
@@ -662,12 +710,14 @@ def run_preflight(args, cat, site):
                 bad("%s/%s dataset syntax" % (era, name), "not a MINIAODSIM path: %r" % mini)
             if not _DS_RE.match(str(nano)) or not str(nano).endswith("NANOAODSIM"):
                 bad("%s/%s nano_child syntax" % (era, name), "not a NANOAODSIM path: %r" % nano)
-            # campaign/era coherence: the era key must appear in both campaign strings
+            # campaign/era coherence: both campaign strings must belong to the
+            # era key (_ERA_CAMPAIGN_PREFIX; substring rule for other keys)
             camp_mini = str(mini).split("/")[2] if str(mini).count("/") >= 3 else ""
             camp_nano = str(nano).split("/")[2] if str(nano).count("/") >= 3 else ""
-            if era not in camp_mini or era not in camp_nano:
+            if not campaign_matches_era(era, camp_mini, camp_nano):
                 bad("%s/%s campaign vs era" % (era, name),
-                    "era key not found in campaign strings (mini=%s, nano=%s)" % (camp_mini, camp_nano))
+                    "campaign strings do not belong to era %s (mini=%s, nano=%s)"
+                    % (era, camp_mini, camp_nano))
             else:
                 tags.append("campaign-era ok")
             # primary dataset must be identical on both sides
@@ -682,8 +732,8 @@ def run_preflight(args, cat, site):
                     "(bash crab/resolve_parents.sh %s)" % era)
             elif not en:
                 warn("%s/%s state" % (era, name),
-                     "enabled:false -> will be SKIPPED (verified=%s). Open it after "
-                     "resolve_parents.sh %s" % (ver, era))
+                     "enabled:false -> will be SKIPPED (verified=%s). Open it with "
+                     "bash crab/resolve_parents.sh %s --apply" % (ver, era))
             else:
                 ok("%s/%s state" % (era, name), "enabled+verified; " + ", ".join(tags))
             req = "%s_%s_extend" % (name, era)

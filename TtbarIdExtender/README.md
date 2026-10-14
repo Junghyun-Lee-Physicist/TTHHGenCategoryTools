@@ -114,7 +114,8 @@ python3 crab/submit_ttbarIdExtend.py --era 2017
 
 환경(cmsenv / CRABClient / proxy 잔여시간) · pset 존재·compile·**`year` 옵션 유무** ·
 site_config(`out_lfn_base` placeholder, `/store/` 접두) · era 별 dataset 상태
-(MINIAODSIM/NANOAODSIM 경로 문법, **campaign 문자열에 era 키 포함 여부**,
+(MINIAODSIM/NANOAODSIM 경로 문법, **campaign 이 그 era 의 것인지** — 2026-10-14 부터 era 별 캠페인 접두 표
+`_ERA_CAMPAIGN_PREFIX` 로 본다(옛 "era 키가 문자열에 들어 있나" 규칙은 UL16 을 못 가른다), **pset 이 그 era 를 `year=` 로 받는지**,
 MiniAOD↔Nano primary 일치, `enabled`/`verified` 조합, 기존 CRAB project dir).
 `--check-das` 를 붙이면 모든 MiniAOD/Nano 경로를 DAS 로 조회해 **잘못된 `-vN` 접미사를
 제출 전에** 잡는다. 로그: `crab/preflight_extend_<eras>_<timestamp>.log`, FAIL 시 exit 1.
@@ -319,6 +320,64 @@ python3 crab/submit_ttbarIdExtend.py --era 2018 --report
 
 > **실제로 완료된 캠페인은 이 표가 아니다.** 실측 결과(2026-07-27 완료): **7 tasks / 11,946 jobs / failed 0, 전부 COMPLETED**. 설정이 **혼합**으로 돌았다 — `TTbar_SemiLep` 만 upj=10(1,003 jobs; 1,001 + CRAB block 경계로 +2), 나머지 6개는 upj=1(= MiniAOD 파일 수). 재제출이 `site_config.yaml` 기본값을 10 으로 올리기 **전에** 이뤄져 `datasets.yaml` per-entry override 만 적용된 상태였다. **무해하다**(D15: packing 은 물리에 무관) → 재생산하지 않는다. upj=10 기본값은 **다음 제출부터** 적용된다.
 > 즉 위 표는 **다음 제출**의 기대치다.
+
+---
+
+### 2.2d 2016 preVFP(`2016APV`)·postVFP(`2016`) 제출 (2026-10-14 추가)
+
+2016 은 era 키가 둘이다: `2016APV`(UL16 preVFP, era modifier `Run2_2016_HIPM`)와 `2016`(UL16 postVFP, `Run2_2016`). 이 이름은 cfg 의
+`year=` 값 그대로다(cfg 는 처음부터 둘 다 받았다). `datasets.yaml` 의 두 블록(7 샘플씩)은 NtupleForge DAS 인벤토리
+(`script/das/inventory_dumps/das_inventory_ul16{pre,post}_{miniaodv2,v9}_*.tsv`, VALID 표준 캠페인)에서 그대로 옮겼고, parent 확인
+전이라 **`enabled: false` / `verified: false`** 로 들어 있다. 2018(§2.2b)과 다른 점 둘:
+
+- `resolve_parents.sh` 가 DAS parent 를 yaml 의 `dataset:` 과 비교해 항목마다 **MATCH / MISMATCH / ABSENT** 를 찍고 끝에
+  `RESULT: ... MATCH 7/7` 을 낸다(전부 MATCH 가 아니면 exit 3).
+- `--apply` 가 "붙여넣고 verified/enabled 를 true 로" 를 대신한다 — **7 개가 전부 MATCH 일 때만**, 그 era 블록의 MATCH 항목의
+  두 줄(`enabled`, `verified`)만 바꾸고 diff 를 보여 준다. 하나라도 MATCH 가 아니면 아무것도 쓰지 않는다. 되돌리기는
+  `git checkout -- crab/datasets.yaml`.
+
+| era | MiniAOD 파일 | MiniAOD event | job (upj 10) | 가장 큰 task |
+|---|---|---|---|---|
+| `2016APV` | 4,234 | 278,767,547 | 427 | TTbar_SemiLep 198 |
+| `2016` | 6,894 | 310,338,785 | 693 | TTbar_SemiLep 320 |
+
+CRAB 스모크는 두지 않는다(2018 과 같은 순서): CRAB 경로는 2017·2018 에서 확인됐고, 2016 에서 새로운 것(era modifier)은 (0) 의
+로컬 실행이 확인한다.
+
+```bash
+cmssw-el7
+cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src && cmsenv
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+voms-proxy-init -voms cms -valid 192:00
+cd TTHHGenCategoryTools/TtbarIdExtender
+
+# (0) 로컬: 각 era 의 가장 작은 샘플(TTbb_DiLep) 한 파일, 20000 event
+NANO=/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM
+MINI=$(dasgoclient -query "parent dataset=$NANO" | grep MINIAODSIM | head -1)
+MINIFILE=$(dasgoclient -query "file dataset=$MINI" | head -1)
+cmsRun test/run_ttbarIdExtend_cfg.py year=2016APV inputFiles=root://cms-xrd-global.cern.ch/${MINIFILE} maxEvents=20000 outputFile=ttbarIDExtend_local2016APV.root
+#   확인: 'era modifier = Run2_2016_HIPM + run2_nanoAOD_106Xv2'
+root -l -b -q "$CMSSW_BASE/src/TTHHGenCategoryTools/Validation/scripts/check_extend_invariants.C(\"ttbarIDExtend_local2016APV_numEvent20000.root\")"
+#   -> VERDICT: ALL INVARIANTS PASS
+#   postVFP 는 NANO 를 .../RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM 로, year=2016 으로 같은 세 줄.
+
+# (1) parent 확인(읽기) -> 잠금 해제
+bash crab/resolve_parents.sh 2016APV 2>&1 | tee crab/resolve_parents_2016APV_$(date +%Y%m%d_%H%M).log
+bash crab/resolve_parents.sh 2016APV --apply
+bash crab/resolve_parents.sh 2016 2>&1 | tee crab/resolve_parents_2016_$(date +%Y%m%d_%H%M).log
+bash crab/resolve_parents.sh 2016 --apply
+
+# (2) preflight -> dry-run -> 본제출
+python3 crab/submit_ttbarIdExtend.py --era 2016APV,2016 --preflight --check-das
+python3 crab/submit_ttbarIdExtend.py --era 2016APV,2016 --dry-run
+python3 crab/submit_ttbarIdExtend.py --era 2016APV,2016 2>&1 | tee crab/submit_2016_full_$(date +%Y%m%d_%H%M).log
+
+# (3) 몇 분 뒤: DEAD TASK 가 없는지, 그 뒤로는 진행
+python3 crab/submit_ttbarIdExtend.py --era 2016APV,2016 --report
+```
+
+생산이 끝난 뒤의 filelist·검증(§2.4, `../Validation`)은 아직 2017/2018 만 안다 — `make_filelists_miniAOD.py`,
+`make_nano_filelists_das.sh`, `submit_validation_condor.py` 의 era 추가가 다음 일이다([../docs/01_status.md](../docs/01_status.md) O9).
 
 ### 2.3 진행 확인 / 재제출 / kill
 

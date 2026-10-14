@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-13** (AI 작업 계약 `00_PROMPT.md` §4: 진행 로그와 비정상 종료가 드러나는 로그). 그 전 2026-09-28 (2018 patch 의 v15 재검증 통과, O8 CLOSED).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-14** (2016 preVFP·postVFP extend 생산 준비, D19). 그 전 2026-10-13 (AI 작업 계약 `00_PROMPT.md` §4: 진행 로그와 비정상 종료가 드러나는 로그).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1407,3 +1407,33 @@ v15 에서의 유효성과 `TTToSemiLeptonic` 재실행이 같이 끝난다. 계
   한 단위가 길면 시간 간격의 heartbeat, 줄 버퍼(Python 2.7 코드는 `sys.stdout.flush()` 또는 `python -u`); 정상 끝의 결과 줄과 exit code, 실패 경로의 원인,
   머리·꼬리가 있는 기록(꼬리 없음 = 강제 종료 또는 아직 실행 중). 근거와 계기: 워크스페이스 `AI_LIMITS_AND_PROTOCOL.md` §5 실패 8, §6 8·9.
 - 코드 변경 없음(문서만: `00_PROMPT.md`, 이 파일).
+
+## 2026-10-14 — 2016 preVFP(`2016APV`)·postVFP(`2016`) extend 생산 준비 (D19, O9)
+
+**왜.** 사용자가 ttHH 를 full Run 2 로, 중앙 NanoAODv9 에서 돌리기로 했다(TTHHAnalyzer D-2026-10-14-B). 2017·2018 patch 는 있으므로 2016 두
+기간만 새로 만든다. 결정과 기각한 대안은 [04](04_decisions.md) D19.
+
+**동작 변경 고지.**
+1. `crab/resolve_parents.sh`: era `2016APV`·`2016` 추가. 각 parent 를 `datasets.yaml` 의 `dataset:` 과 비교해 MATCH / MISMATCH / ABSENT 를 찍고
+   `RESULT: ... MATCH n/7` 로 끝난다. **exit code 가 생겼다**: 0 전부 MATCH, 3 하나라도 아님(전에는 항상 0), 2 인자·era 오류, 1 dasgoclient 없음.
+   `--apply`(신규): 전부 MATCH 일 때만 그 era 블록의 MATCH 항목에서 `enabled`/`verified` 두 줄을 true 로 바꾸고 diff 를 보여 준다; 다른 줄이
+   바뀌거나 열리지 않은 항목이 있으면 쓰지 않고 exit 4. 2017·2018 의 출력은 줄 몇 개(MATCH, RESULT)가 늘었을 뿐 같다.
+2. `crab/submit_ttbarIdExtend.py --preflight`: "campaign vs era" 를 era 별 캠페인 접두 표(`_ERA_CAMPAIGN_PREFIX`)로 본다(옛 규칙은 UL16 을
+   못 가른다; 2017·2018 항목의 판정은 같음). 새 검사 "pset year values": 고른 era 가 cfg 의 `_ERA_NAME_BY_YEAR` 키에 없으면 FAIL
+   (CRAB 의 제출 시 pset import 가 ValueError 로 죽기 전에). `enabled:false` WARN 의 안내 문구가 `--apply` 를 가리킨다.
+3. `crab/datasets.yaml`: era 블록 `"2016APV"`·`"2016"` 7 샘플씩(NtupleForge DAS 인벤토리 `das_inventory_ul16{pre,post}_{miniaodv2,v9}_*.tsv`
+   에서 그대로, 전부 `enabled:false`/`verified:false`). 머리말에 `--apply` 한 문단. 2017·2018 블록은 그대로.
+
+**문서.** `TtbarIdExtender/README.md` §2.2d(명령 전부)·`--preflight` 설명, [05](05_architecture.md) §5(새 era 절차; `--max-files` 스모크 줄을 금지 규칙에
+맞춤), [04](04_decisions.md) D19, [01](01_status.md) O9.
+
+**검증 (오프라인, 컨테이너; lxplus 실행은 아직).** 가짜 `dasgoclient`·`voms-proxy-info`·CRAB client 로:
+- `resolve_parents.sh` 시험 37/37 PASS — 스크립트의 NANO 목록 = yaml 의 nano_child(네 era), 읽기 전용은 파일을 안 바꿈, `--apply 2016APV` 는
+  정확히 14 줄(enabled 7 + verified 7)만 바꾸고 `2016`·2017·2018 은 그대로, 두 번째 `--apply` 는 "nothing to change", MISMATCH·parent 없음·parent
+  둘이면 exit 3 이고 쓰지 않음, 인자 오류 exit 2, dasgoclient 없음 exit 1, 임시 파일 남지 않음. gawk·mawk·nawk 결과 동일.
+- preflight `--era 2016APV,2016 --check-das`: 잠금 상태 0 FAIL(WARN 15 = 닫힌 항목 14 + "submittable 0"), `--apply` 뒤 68 PASS / 0 WARN / 0 FAIL,
+  job 수 427 + 693(인벤토리 nfiles). `--era 2017,2018`: 26 PASS / 0 FAIL(전과 같은 판정). 음성 대조: postVFP dataset 을 2016APV 블록에 넣으면
+  "campaign vs era" FAIL; cfg 가 모르는 era 는 "pset year values" FAIL.
+- `--dry-run`: 14 task, requestName `<name>_2016APV_extend`/`<name>_2016_extend`, outLFN `.../ttbarIdExtend_v2/2016APV`·`/2016`,
+  `year=2016APV`/`year=2016`, unitsPerJob 10(site_config).
+- 14 개 dataset 문자열·event 수·파일 수를 인벤토리 TSV 와 프로그램으로 대조(전부 VALID, primary 일치). 파일 ASCII, 제출기는 Python 3.6 문법.
