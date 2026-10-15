@@ -383,13 +383,15 @@ task 마다 CRAB timestamp 디렉터리 1 개, 출력 파일 수 = job 수(id 1.
 로 전체 행의 불변조건과 tt+nb 수 → `crab/manager/<name>/REPORT.txt`. job 은 lxplus batch(el9 slot 에서 `cmssw-el7` 로 다시 실행, cmsenv,
 crab-setup), JobFlavour `tomorrow`, 22 시간마다 exit 75 로 다시 큐에 들어가 상태에서 이어 간다. 이미 낸 era 는 감시만 하고, `--launch` 를
 주면 아직 project dir 이 하나도 없는 era 만 `launch_extend.sh` 로 낸다(stdin 을 닫아 pass phrase 질문이 오면 멈추지 않고 실패). 로그는
-`crab/manager/<name>/manager.log`(점검마다 한 줄 + task 표; START/END 줄; 마지막 줄이 2 × 30 분보다 오래면 죽은 것).
+`crab/manager/<name>/manager.log`(점검마다 한 줄 + task 표; START/END 줄; 마지막 줄이 2 × 30 분보다 오래면 죽은 것). manager 는 줄마다 열고 닫는다 — AFS 는 쓴 host 가 닫은 내용만 다른 host 에 보여 준다([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-39; 2026-10-15 전의 manager 는 열어 둔 채 써서 lxplus 에서 끝날 때까지 안 보였다). job 의 stdout 에도 같은 줄이 있다: `condor_tail -maxbytes 4000 <cluster>.0`.
 
 ```bash
 # lxplus 호스트 셸(cmssw-el7 밖 -- condor_submit 은 호스트에만 있다), TtbarIdExtender/ 에서
 bash crab/manager_condor.sh --era 2016APV,2016 --name extend2016            # 감시만 (제출은 이미 함)
 tail -f crab/manager/extend2016/manager.log
 condor_q -constraint 'JobBatchName == "extend_manager_extend2016"'
+condor_tail -maxbytes 4000 <cluster>.0                                     # job 의 stdout (manager.log 와 같은 줄)
+python3 -c "import json; s=json.load(open('crab/manager/extend2016/state.json')); print(s['phase'], s['checks'], s['alerts'])"   # watch|check|done|checkfailed
 # 한 번만 점검(사람이 직접, cmssw-el7 + cmsenv + crab-setup 안에서): manager 가 도는 중이면 --dry-run 을 붙인다
 python3 crab/extend_manager.py --era 2016APV,2016 --name extend2016 --once --dry-run
 ```

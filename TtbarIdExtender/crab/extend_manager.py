@@ -47,7 +47,9 @@
 #       (ALERT); 4 CHECK FAILED; 75 time budget used up -- run again to go on
 #       (the condor job is re-queued on 75); 130/143 SIGINT/SIGTERM.
 #
-# Log: crab/manager/<name>/manager.log, one line per event, each line flushed:
+# Log: crab/manager/<name>/manager.log, one line per event, each line appended
+# with open + fsync + close (on AFS other hosts see a file's data only after
+# the writer closes it, T-39); the job's stdout has the same lines:
 #   [manager] <UTC> check <n> | jobs done <d>/<t> (<p>%) run .. idle .. ... | ETA ..
 #   a START line at every start and an END line at every exit -- a log whose
 #   last line is neither END nor a check younger than 2 x interval means the
@@ -93,22 +95,29 @@ def utc():
 
 
 class Log(object):
+    # Every line is appended with open + write + fsync + close. AFS stores what a
+    # host wrote to a file on the file server when that host closes (or fsyncs)
+    # the file, so other hosts see it only then (write-on-close): with the log
+    # kept open for the whole run, lxplus would see the manager's lines only when
+    # the manager exits (up to 22 h). The [job] lines of job.sh come from tee -a,
+    # which closes after every line. 2026-10-15, T-39.
     def __init__(self, path):
         self.path = path
-        self.fh = io.open(path, "a", encoding="utf-8")
+        io.open(path, "a", encoding="utf-8").close()   # fail here if not writable
 
-    def __call__(self, msg):
-        line = "[manager] %s %s" % (utc(), msg)
-        print(line)
-        sys.stdout.flush()
-        self.fh.write(line + "\n")
-        self.fh.flush()
-
-    def raw(self, text):
+    def _append(self, text):
         print(text)
         sys.stdout.flush()
-        self.fh.write(text + "\n")
-        self.fh.flush()
+        with io.open(self.path, "a", encoding="utf-8") as fh:
+            fh.write(text + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+
+    def __call__(self, msg):
+        self._append("[manager] %s %s" % (utc(), msg))
+
+    def raw(self, text):
+        self._append(text)
 
 
 class Alarm(Exception):

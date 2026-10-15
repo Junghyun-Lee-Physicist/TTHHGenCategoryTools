@@ -1553,3 +1553,27 @@ manager(`extend_manager.py`)·`launch_extend.sh` 는 그대로(`launch_extend.sh
 crab-setup 이 다른 이유로 실패하면(가짜의 `FAKE_CRAB_BROKEN`) 새 `job.sh` 는 exit 94 + 진단 줄(crab-setup 의 오류 문구, `ModuleNotFoundError`).
 생성된 `job.sh` 는 `bash -n`(5.2, 5.1)과 shellcheck 깨끗; `manager_condor.sh` 의 shellcheck 경고 수는 전과 같음(2), ASCII-only. bash 4.2 에서의
 확인은 다시 낸 manager job 의 `[job] ... CRABClient from ...` 줄(T-37 의 교훈: el7 스크립트는 4.2 에서 한 번 돌기 전에는 "시험됨" 이 아니다).
+
+## 2026-10-15 (4) — T-38 확정, manager 다시 제출됨; manager.log 를 줄마다 닫는다 (AFS write-on-close, T-39)
+
+**lxplus (사용자, 05:05 UTC).** c0d9cd0 을 pull 해 `manager_condor.sh --era 2016APV,2016 --name extend2016` → cluster 13519526. el7(bash 4.2)
+안에서 `CRABClient from /cvmfs/cms.cern.ch/share/cms/crab/1.0/lib/prod/CRABClient`, `starting extend_manager.py`. T-38 원인 확정:
+`/cvmfs/cms.cern.ch/common/crab-setup.sh` 3–7 행이 `$1` 을 CRAB client 판(`prod|pre|dev`)으로 보고 그 밖이면 `ERROR: Invalid CRAB type`.
+
+**관찰.** 시작 21 초 뒤 lxplus 의 manager.log 에 `[manager]` 줄이 없었다. manager 는 manager.log 를 한 번 열어 두고 줄마다 flush 만 했는데,
+AFS 는 쓴 host 가 닫거나 fsync 해야 다른 host 에 보여 준다 → lxplus 에서는 manager 가 끝날 때까지 안 보일 수 있다. [08](08_troubleshooting.md)
+T-39. 확인(07:01 UTC): `condor_tail -maxbytes 4000 13519526.0` 에는 check 1–4(05:07, 05:37, 06:07, 06:37 UTC)와 task 표가
+있는데 lxplus 의 manager.log 는 `starting extend_manager.py` 에서 멈춰 있었다. 이 job 은 다시 내지 않는다 — 97 % 였고 완료 점검은 끊으면
+처음부터다; 그 줄들은 manager 가 끝나며 파일을 닫을 때 나타난다.
+
+**진행 (check 4, 06:38 UTC).** jobs 1108/1137(97.4 %), task 13/14 끝(2016APV 일곱, 2016 여섯), 남은 것 2016/TTbar_DiLep 78/107(run 15,
+transferring 14); 실패 0, 재제출 0, proxy 182 h.
+
+**동작 변경 고지 (`TtbarIdExtender/crab/extend_manager.py`).** `Log` 가 줄마다 열고(append) → 쓰고 → flush → `os.fsync` → 닫는다(전에는 시작할
+때 한 번 열어 끝까지). 내용·순서·stdout 은 그대로. 이미 도는 manager 에는 다음 시작부터 적용(다시 제출하거나 22 시간 뒤 exit 75 의 재큐).
+
+**검증 (오프라인, 가짜 CRAB·EOS·root·xrdfs).** 같은 시나리오를 옛/새 코드로 돌려 manager.log 와 stdout 을 비교: 정상 DONE, 재제출 DONE, 재제출
+소진 ONCE, 죽은 task·정체·status 오류·proxy 부족 STOPPED, timestamp 2 개·파일 누락·행 수 차이·읽을 수 없는 파일·불변조건 위반 CHECK FAILED,
+SUBMITREFUSED ONCE, `--launch` DONE·실패 STOPPED, 두 era 중 2016 만 launch DONE — 16 개 모두 exit code 같고 로그는 시각(과 시험 디렉터리
+이름)만 다름. 도는 manager 의 열린 fd 중 manager.log: 옛 1, 새 0. SIGTERM: 둘 다 exit 143, END 줄, lock 지움. Python 3.11·3.9 컴파일,
+ASCII-only (3.6 전용 구문 없음).
