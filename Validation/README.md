@@ -196,6 +196,9 @@ SCRAM arch 로 이미지를 고른다(`el8_amd64_gcc12` → `cmssw/el8:x86_64`; 
 - nano 쪽: 중앙 NanoAODv15 `RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2`, Run 3 의 primary(`TT4B`, `TTBBto*`, `TTto*`)를 같은 일곱
   short name 으로. `TTto2L2Nu` 는 `-v3`(VALID)만 — 같은 이름의 `-v2` 는 INVALID 라 `dataset=` 조회에 나오지 않는다. 3,052 파일 → 156 job(20 개씩).
 - 완결성 기준: `data/das_nevents_2024.json`(일곱 합 1,486,995,493; NtupleForge DAS 로그 2026-09-23). Nano 가 MiniAOD 보다 적어도 실패가 아니다.
+  2024 의 네 샘플(TTbar_SemiLep, TTbar_DiLep, TTbb_Hadronic, TTbb_DiLep)은 반대로 **Nano > MiniAOD** 다 — 그 event 가 extend 에 없으면
+  `unmatched` 로 나온다: `matchTtbarIdSorted` 는 하나도 못 맞출 때만 exit 5 라 chunk 는 ok, `aggregate_validation.py` 의 `unmatched == 0` 줄만
+  FAIL. 차이의 크기, 해석, 다음 단계(`scripts/das_lineage.py`): [../docs/01_status.md](../docs/01_status.md) O10.
 - 시작 조건: manager `extend2024` 의 `RESULT DONE`(`REPORT.txt` ALL PASS).
 
 블록은 셸이 바뀌는 곳과 기다릴 곳에서 나뉜다 — 하나씩 붙이고 프롬프트가 돌아온 뒤 다음 것([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-41).

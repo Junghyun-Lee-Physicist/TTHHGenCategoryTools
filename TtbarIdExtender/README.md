@@ -524,6 +524,7 @@ bash crab/manager_condor.sh --era 2024 --name extend2024
 tail -n 20 crab/manager/extend2024/manager.log
 git add crab/datasets.yaml crab/resolve_parents_2024_*.log
 git commit -m "extend: 2024 MiniAODv6 parents (resolve_parents --fill), entries opened; resolve log"
+git pull --rebase    # 그사이 다른 clone(맥)이 올린 커밋 위로; 없으면 아무것도 안 한다 (2026-10-15: 이 줄이 없어 push 가 fetch first 로 거부됨)
 git push
 ```
 

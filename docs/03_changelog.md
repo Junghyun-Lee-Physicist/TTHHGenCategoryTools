@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (7)** (T-41: 명령 블록을 셸 경계와 비밀번호 프롬프트에서 나눔, `switch`; O9 ⑧ 결과). 그 전 2026-10-15 (6) (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (8)** (O10: 2024 CRAB 제출 3,557 job, manager `extend2024`; NanoAOD > MiniAOD 네 샘플과 DAS 확인; O9 ⑧ 진행). 그 전 2026-10-15 (7) (T-41: 명령 블록을 셸 경계와 비밀번호 프롬프트에서 나눔, `switch`; O9 ⑧ 결과). 그 전 2026-10-15 (6) (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1663,3 +1663,22 @@ entry 수 ≠ open-check — 보통 일시적 AAA; 로그 확인 뒤 그 하나�
 **문서만 (코드 변경 없음).** `TtbarIdExtender/README.md` §2.2e 와 `Validation/README.md` §0.1c·§0.1d 의 블록을 셸 경계(호스트 ↔ 컨테이너)와 비밀번호를
 묻는 명령(`switch`, `voms-proxy-init`, 첫 CRAB 제출)에서 나누고 `exit` 를 따로 뒀다; §2.2e 에 `switch`. smoke 와 전량, 끝난 뒤의 report·집계도 기다릴 곳에서
 나눴다. 규칙: [../00_PROMPT.md](../00_PROMPT.md) §6. [01](01_status.md) O9·O10.
+
+## 2026-10-15 (8) — O10: 2024 CRAB 제출(7 task, 3,557 job), manager `extend2024`; NanoAOD > MiniAOD 네 샘플과 DAS 확인; O9 ⑧ 진행
+
+**lxplus (사용자), 2024.** T-41 대로 나눈 블록으로 다시: `switch` → v15 clone pull → `cmssw-el8` 에서 `scram b clean && scram b -j8` →
+`resolve_parents.sh 2024` → `--fill` → MATCH 7/7 → `launch_extend.sh --era 2024` READY(로컬 cmsRun·불변조건·resolve·`--apply`·preflight·dry-run) →
+`--skip-local --submit` → `RESULT: SUBMITTED`, 7 task RUNNING, 3,557 job. condor manager `extend2024` = cluster 13532975(`SCRAM arch=el8_amd64_gcc12 ->
+job runs in cmssw-el8`, proxy 191 h). `datasets.yaml`(2024 parent 일곱, 열림)과 resolve 로그 둘을 lxplus 에서 커밋(fb54da9); 맥의 1eab70d 가 먼저
+올라가 있어 push 가 `rejected (fetch first)` → `git pull --rebase` 뒤 push. `TtbarIdExtender/README.md` §2.2e (i) 의 commit 과 push 사이에
+`git pull --rebase` 를 넣었다(올라온 것이 없으면 아무것도 안 한다).
+
+**NanoAOD > MiniAOD.** 네 샘플에서 중앙 NanoAODv15 의 DAS nevents 가 그 MiniAODv6 parent 보다 많다(UL16 다섯 항목과 반대 방향). TTbb_DiLep 의
+차이 804 가 launch 의 로컬 시험 파일(그 MiniAOD 의 DAS 목록 첫 파일)의 event 수와 같아 그 파일이 invalid 인지 사용자가 DAS 로 확인: `is_file_valid: 1`,
+`nevents: 804`, valid 목록 604 파일 = summary `nfiles` → 그 가설은 기각. 표, 남은 두 설명, 2024 검증에서 가르는 법: [01](01_status.md) O10.
+
+**O9 ⑧ (2016 대조).** 2016APV `file_TTToSemiLeptonic_4` 의 exit 4 는 nano 파일 하나의 xrootd open 이 1813 s 뒤 `Operation expired`(일시적) →
+그 chunk 만 다시(cluster 13532884). 2016 22 chunk 제출(cluster 13532885), 16:19 CEST 에 19 끝·3 도는 중.
+
+**문서만 (코드 변경 없음).** [01](01_status.md) O9·O10·O3, `TtbarIdExtender/README.md` §2.2e (i), `Validation/README.md` §0.1d(Nano > MiniAOD 인 2024 의
+unmatched 가 어디에 어떻게 나오는지).
