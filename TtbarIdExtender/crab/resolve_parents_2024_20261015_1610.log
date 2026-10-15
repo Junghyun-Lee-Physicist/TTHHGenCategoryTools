@@ -1,0 +1,43 @@
+### resolve_parents.sh -- ERA=2024 (nano campaign: RunIII2024Summer24NanoAODv15)
+### datasets.yaml: /afs/cern.ch/user/j/junghyun/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/crab/datasets.yaml
+### utc: 2026-10-15T14:10:31Z  host: lxplus941.cern.ch
+============================================================
+[TT4b]  (1/7)
+  nano_child : /TT4B_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+  PARENT (from DAS) : /TT4B_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbar_SemiLep]  (2/7)
+  nano_child : /TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+  PARENT (from DAS) : /TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbar_Hadronic]  (3/7)
+  nano_child : /TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+  PARENT (from DAS) : /TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbar_DiLep]  (4/7)
+  nano_child : /TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+  PARENT (from DAS) : /TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbb_SemiLep]  (5/7)
+  nano_child : /TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+  PARENT (from DAS) : /TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbb_Hadronic]  (6/7)
+  nano_child : /TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+  PARENT (from DAS) : /TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbb_DiLep]  (7/7)
+  nano_child : /TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+  PARENT (from DAS) : /TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+RESULT: ERA=2024  MATCH 7/7  not-MATCH 0
+Every dataset: field already equals its DAS parent.
+To open these entries (enabled/verified -> true) run:
+  bash crab/resolve_parents.sh 2024 --apply

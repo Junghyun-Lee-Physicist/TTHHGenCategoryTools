@@ -506,62 +506,62 @@ eras:
     datasets:
 
       - name: "TT4b"
-        dataset:    ""
+        dataset:    "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM"
         nano_child: "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Dedicated tt4b (madgraph), Summer24. Sole source of tt+nb in the
           stitching plan AN. NanoAODv15 9,898,300 ev / 34 files.
 
       - name: "TTbar_SemiLep"
-        dataset:    ""
+        dataset:    "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM"
         nano_child: "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar SL (powheg), Summer24. NanoAODv15 484,475,057 ev /
           790 files.
 
       - name: "TTbar_Hadronic"
-        dataset:    ""
+        dataset:    "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM"
         nano_child: "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar FH (powheg), Summer24. NanoAODv15 472,535,695 ev /
           773 files.
 
       - name: "TTbar_DiLep"
-        dataset:    ""
+        dataset:    "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM"
         nano_child: "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar DL (powheg), Summer24. NanoAODv15 470,123,263 ev /
           780 files (-v3; the -v2 NanoAODv15 is INVALID in DAS).
 
       - name: "TTbb_SemiLep"
-        dataset:    ""
+        dataset:    "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM"
         nano_child: "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           ttbb (powheg) SL, Summer24. NanoAODv15 22,473,402 ev / 283 files.
 
       - name: "TTbb_Hadronic"
-        dataset:    ""
+        dataset:    "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM"
         nano_child: "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           ttbb (powheg) FH, Summer24. NanoAODv15 14,990,580 ev / 189 files.
 
       - name: "TTbb_DiLep"
-        dataset:    ""
+        dataset:    "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM"
         nano_child: "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           ttbb (powheg) DL, Summer24. NanoAODv15 12,499,196 ev / 203 files.
           Smallest 2024 ttbar sample: launch_extend.sh takes one of its MiniAOD
