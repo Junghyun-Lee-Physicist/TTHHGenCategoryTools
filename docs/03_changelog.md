@@ -1529,3 +1529,27 @@ lxplus 의 `datasets.yaml`(두 era 열림)과 resolve log 셋을 커밋(b92e99e)
 rc 2. extend: 일곱 샘플 rc 0 `RESULT OK`(Python 3.9 로), 기본 EOS 경로가 없을 때 rc 2, 한 샘플 디렉터리 없음 rc 1, 빈 샘플 rc 1, timestamp 둘 rc 3,
 모르는 era rc 1. 집계: 가짜 chunk JSON 으로 2016APV `ALL SAMPLES PASS`(DAS 기준 파일을 찾음), 2016 의 한 샘플 +1 event → FAIL `DIFF -1`, chunk 하나
 없음 → `all chunks present 2/3` FAIL. condor 제출기 `--dry-run --era 2016APV`: 13 job(작은 샘플 1, 큰 샘플 3 씩)의 `match.args`·`match.sub`.
+
+## 2026-10-15 (3) — condor manager 가 crab-setup 에서 멈춤(exit 94): `job.sh` 가 crab-setup.sh 를 인자 없이 (T-38)
+
+**lxplus (사용자).** 04:11 UTC 에 낸 manager job(cluster 13519511)이 04:12:53 에 `FATAL CRABClient not importable after crab-setup.sh (exit 94)`
+로 끝났다 — manager 는 시작하지 않았다(상태 파일·CRAB task 는 그대로). CRAB task 들은 영향 없이 grid 에서 돈다.
+
+**원인.** `job.sh` 는 condor 의 job id 를 `$1` 로 받는데, 최상위에서 `source /cvmfs/cms.cern.ch/common/crab-setup.sh` 를 불러 crab-setup.sh 가 그
+`$1`(`13519511.0`)을 자기 첫 인자(선택 인자: client 판)로 받았다(가장 유력; 출력을 버려 직접 증거는 없음). 오프라인 시험은 인자를 무시하는 가짜
+crab-setup.sh 와 미리 채운 `PYTHONPATH` 로 돌아 이 길을 못 봤다. [08](08_troubleshooting.md) T-38.
+
+**동작 변경 고지 (`TtbarIdExtender/crab/manager_condor.sh` 가 쓰는 `job.sh`).**
+1. crab-setup.sh 를 인자 없이 부르는 함수 `crab_setup` 안에서 source 한다(위치 인자가 새지 않음). 출력은 버리지 않고 job 의 scratch 에
+   `crab_setup.log` 로.
+2. exit 94 면 manager.log 에 python3 의 경로·판, `PYTHONPATH` 의 crab 항목, crab-setup 출력과 `import CRABClient` 오류의 끝 20 줄(`[job]   ` 줄).
+3. 성공하면 `[job] ... CRABClient from <dir>` 한 줄(어느 client 가 잡혔는지).
+manager(`extend_manager.py`)·`launch_extend.sh` 는 그대로(`launch_extend.sh` 는 인자 없이 부르는 `main` 안에서 source 하므로 같은 문제가 없다).
+
+**검증 (오프라인, bash 5.2; `job.sh` 는 cmssw-el7 의 bash 4.2 에서 도는데 쓴 구문은 4.2 에도 있는 것뿐).** 첫 인자를 client 판(`prod|pre|dev`,
+없으면 `prod`)으로 읽고 모르는 판이면 `return 1` 하는 가짜 crab-setup.sh, 가짜 cmssw-el7(재실행 경로 포함)·cmsset·scramv1, `PYTHONPATH` 없이
+시작하는 job(인자 = `13519511.0`): HEAD(1550939)의 `job.sh` → exit 94, manager.log 의 FATAL 줄이 lxplus 와 같음; 새 `job.sh` → `CRABClient from
+.../fakecrab/CRABClient`, `starting extend_manager.py`, manager 가 `--era 2016APV,2016 --name ... --lock-owner condor:13519511.0` 를 받음(rc 0);
+crab-setup 이 다른 이유로 실패하면(가짜의 `FAKE_CRAB_BROKEN`) 새 `job.sh` 는 exit 94 + 진단 줄(crab-setup 의 오류 문구, `ModuleNotFoundError`).
+생성된 `job.sh` 는 `bash -n`(5.2, 5.1)과 shellcheck 깨끗; `manager_condor.sh` 의 shellcheck 경고 수는 전과 같음(2), ASCII-only. bash 4.2 에서의
+확인은 다시 낸 manager job 의 `[job] ... CRABClient from ...` 줄(T-37 의 교훈: el7 스크립트는 4.2 에서 한 번 돌기 전에는 "시험됨" 이 아니다).

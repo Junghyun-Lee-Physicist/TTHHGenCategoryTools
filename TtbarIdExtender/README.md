@@ -397,7 +397,9 @@ python3 crab/extend_manager.py --era 2016APV,2016 --name extend2016 --once --dry
 오프라인 시험(가짜 CRAB·EOS·root·xrdfs·cvmfs): 정상 완료, 재제출, 재제출 소진 ALERT 와 `--clear-alerts`, SUBMITREFUSED, 정체, status 오류,
 proxy 부족, timestamp 2 개, 파일 누락, 행 수 차이, 읽을 수 없는 파일, 불변조건 위반, xrootd 경로, 시간 예산(exit 75)과 이어 가기,
 `--launch`(era 별, 실패, 이미 낸 era, 껍데기, 일부만 있는 era), lock, SIGTERM, `job.sh` 의 cmssw-el7 재실행부터 DONE 까지 — 전부 기대대로.
-lxplus 실제 실행은 아직이다.
+lxplus 첫 실행(2026-10-15, cluster 13519511)은 manager 가 시작하기 전 crab-setup 에서 exit 94 로 끝났다: condor job id 가 crab-setup.sh 의
+첫 인자로 새어 들어갔는데, 시험의 가짜 crab-setup.sh 는 인자를 무시했고 `PYTHONPATH` 도 미리 채워져 있었다([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md)
+T-38; 고침). `job.sh` 가 manager 전에 끝나면 원인은 manager.log 의 `[job]` 줄에 있다(exit 90–94, 94 는 crab-setup 출력과 import 오류의 끝까지).
 
 ```bash
 cmssw-el7

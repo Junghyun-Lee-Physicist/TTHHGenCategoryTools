@@ -32,7 +32,8 @@
 # pattern), then cmsenv in this CMSSW area, crab-setup.sh, and
 #   python3 -u crab/extend_manager.py --era .. --name .. --lock-owner condor:<id> [--launch]
 # Exit codes of job.sh before the manager: 90 cmsset_default, 91 CMSSW dir,
-# 92 scram runtime, 93 package dir, 94 crab-setup (all logged to manager.log).
+# 92 scram runtime, 93 package dir, 94 crab-setup (all logged to manager.log;
+# 94 with the tail of crab-setup's output and of the CRABClient import error).
 # ASCII-only.
 # =============================================================================
 set -u
@@ -132,10 +133,23 @@ source /cvmfs/cms.cern.ch/cmsset_default.sh || { jlog "FATAL cmsset_default.sh f
 cd "$CMSSW_AREA/src" || { jlog "FATAL cannot cd $CMSSW_AREA/src (AFS token?) (exit 91)"; exit 91; }
 eval "\$(scramv1 runtime -sh)" || { jlog "FATAL scram runtime failed (exit 92)"; exit 92; }
 cd "$PKG" || { jlog "FATAL cannot cd $PKG (exit 93)"; exit 93; }
+# A sourced file sees the caller's positional parameters when it is given none. Sourced at
+# the top level of this script, crab-setup.sh got \$1 = the condor job id, and CRABClient was
+# not importable afterwards (exit 94 on 2026-10-15, T-38; crab-setup.sh takes an optional
+# first argument, the client version). So source it from a function called without
+# arguments, and keep its output (shown in manager.log on exit 94).
+crab_setup() { source /cvmfs/cms.cern.ch/common/crab-setup.sh; }
 set +u
-source /cvmfs/cms.cern.ch/common/crab-setup.sh >/dev/null 2>&1
+crab_setup > "\$WORK/crab_setup.log" 2>&1
 set -u
-python3 -c "import CRABClient" >/dev/null 2>&1 || { jlog "FATAL CRABClient not importable after crab-setup.sh (exit 94)"; exit 94; }
+if ! python3 -c "import CRABClient" > "\$WORK/crab_import.log" 2>&1; then
+  crabpp="\$(echo "\${PYTHONPATH:-}" | tr ':' '\n' | grep -i crab | head -n 3 | tr '\n' ' ')"
+  jlog "FATAL CRABClient not importable after crab-setup.sh (exit 94): python3=\$(command -v python3) (\$(python3 -V 2>&1)), PYTHONPATH crab entries: \${crabpp:-none}"
+  { echo "--- crab-setup.sh output (last 20 lines):"; tail -n 20 "\$WORK/crab_setup.log"
+    echo "--- python3 -c 'import CRABClient' (last 20 lines):"; tail -n 20 "\$WORK/crab_import.log"; } | sed 's/^/[job]   /' | tee -a "\$MLOG"
+  exit 94
+fi
+jlog "CRABClient from \$(python3 -c 'import os, CRABClient; print(os.path.dirname(CRABClient.__file__))' 2>&1 | tail -n 1)"
 export PYTHONUNBUFFERED=1
 jlog "starting extend_manager.py"
 exec python3 -u crab/extend_manager.py --era "$ERAS" --name "$NAME" --interval-min "$INTERVAL" --lock-owner "condor:\$JOBID" $LAUNCH_ARG
