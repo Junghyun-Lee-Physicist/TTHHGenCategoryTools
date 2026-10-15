@@ -16,12 +16,18 @@
 #   ./make_nano_filelists_das.sh 2018 xrootd     # force root:// prefix (default)
 #   ./make_nano_filelists_das.sh 2018 lfn        # bare /store/... paths instead
 #   ./make_nano_filelists_das.sh 2018v15         # -> nano2018v15/ : CENTRAL NanoAODv15
+#   ./make_nano_filelists_das.sh 2016APV         # -> nano2016APV/ : UL16 preVFP NanoAODv9
+#   ./make_nano_filelists_das.sh 2016            # -> nano2016/    : UL16 postVFP NanoAODv9
 #
 # 2018v15 (added 2026-09-27, NtupleForge docs/12 V1): the ttHH production moved
 #   to NanoAODv15, so the 2018 patches must be re-matched against the v15 event
 #   set. tt4b has no central v15 dataset (D17: it comes from enriched NanoAOD),
 #   so it is SKIPPED ON PURPOSE for this era and does not make rc non-zero.
 #   v15 event counts are NOT the v9 ones: data/das_nevents_2018v15.json.
+#
+# 2016APV / 2016 (added 2026-10-15, O9): the UL16 preVFP (APV) and postVFP
+#   NanoAODv9 campaigns of the 2016 extend production; the event counts are in
+#   data/das_nevents_2016APV.json / das_nevents_2016.json.
 #
 # OUTPUT
 #   <outdir>/filelist_<short>.txt        one ROOT path per line (master list)
@@ -40,7 +46,7 @@ MODE="${2:-xrootd}"
 SPLIT_SIZE="${SPLIT_SIZE:-20}"          # files per split list; override via env
 
 if [[ -z "$ERA" ]]; then
-    echo "usage: $0 <era: 2017|2018|2018v15> [xrootd|lfn]" >&2
+    echo "usage: $0 <era: 2017|2018|2018v15|2016APV|2016> [xrootd|lfn]" >&2
     exit 2
 fi
 
@@ -52,7 +58,9 @@ case "$ERA" in
   2017)    CAMPAIGN="RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9"          ; OUTDIR="nano2017das" ;;
   2018)    CAMPAIGN="RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1"; OUTDIR="nano2018"    ;;
   2018v15) CAMPAIGN="RunIISummer20UL18NanoAODv15-150X_mc2018_realistic_v1"          ; OUTDIR="nano2018v15" ; NO_CENTRAL="tt4b" ;;
-  *)       echo "ERROR: unsupported era '$ERA' (expected 2017, 2018 or 2018v15)" >&2; exit 2 ;;
+  2016APV) CAMPAIGN="RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11"; OUTDIR="nano2016APV" ;;
+  2016)    CAMPAIGN="RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17"         ; OUTDIR="nano2016"    ;;
+  *)       echo "ERROR: unsupported era '$ERA' (expected 2017, 2018, 2018v15, 2016APV or 2016)" >&2; exit 2 ;;
 esac
 
 case "$MODE" in

@@ -97,6 +97,79 @@ cd filelists && ./make_nano_filelists_das.sh 2018v15; echo "rc=$?"; cd ..
 - 제출·집계는 §4.0 과 같고 인자만 붙인다(`--nano-filelist-dir filelists/nano2018v15`, 새 `--out-base`, 새 `--work-base`).
   명령 전체와 기대값은 워크스페이스 `RUNBOOK_lxplus_2026-09-16.md` §11 [c].
 
+### 0.1c 2016 두 기간 — `2016APV`(UL16 preVFP)·`2016`(UL16 postVFP) (2026-10-15 추가, [../docs/01_status.md](../docs/01_status.md) O9 ⑦–⑨)
+
+두 생성기·`aggregate_validation.py` 가 두 era 를 안다. extend 쪽 기본 경로는 **CERN EOS**(이 캠페인의 CRAB stage-out 은
+`T3_CH_CERNBOX`, `crab/site_config.yaml`): `/eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/<era>`. nano 쪽은 중앙
+NanoAODv9(`RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11`, `RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17`).
+완결성 기준은 `data/das_nevents_2016APV.json`, `das_nevents_2016.json`(TTHHAnalyzer `data/samples_2016{pre,post}VFP_UL.json` 의
+DAS nevents; 2016 은 2026-10-15 lxplus preflight 의 DAS 조회와 일곱 수 모두 같음). 시작 조건: condor manager 의 `RESULT DONE`(모든 job 끝,
+task 마다 timestamp 1 개, 행 수 = DAS MiniAOD nevents — `../TtbarIdExtender/README.md` §2.2d).
+
+`make_filelists_miniAOD.py` 의 끝 줄은 이제 `RESULT OK | RESULT FAIL` 이고 exit code 가 판정이다: 0 = 일곱 샘플 모두 filelist, 1 = 빠지거나 빈 샘플,
+2 = SAMPLE_DIR 없음, 3 = 한 샘플에 CRAB timestamp 둘(위 가드). (2017·2018 때는 빠진 샘플이 있어도 0 으로 끝났다.)
+
+```bash
+# 호스트 셸(EL9). proxy 는 extend 캠페인의 것을 그대로 쓴다(AFS, 192 h; /tmp 의 proxy 는 condor 가 못 읽는다)
+export X509_USER_PROXY=~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert
+voms-proxy-info -timeleft                                   # 초; 48 h(172800) 넘게 남아 있어야 편하다
+cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src/TTHHGenCategoryTools/Validation/filelists
+python3 make_filelists_miniAOD.py 2016APV; echo "rc=$?"     # -> sidecar2016APV/   (rc=0, RESULT OK 이어야)
+python3 make_filelists_miniAOD.py 2016; echo "rc=$?"        # -> sidecar2016/
+./make_nano_filelists_das.sh 2016APV; echo "rc=$?"          # -> nano2016APV/      (rc=0)
+./make_nano_filelists_das.sh 2016; echo "rc=$?"             # -> nano2016/
+cd ..
+```
+
+그다음은 §4.0 과 같고 `--era` 만 바꾼다(정렬 → preflight → smoke → 전량 → `--report` → aggregate). job 수는 nano 파일 수 / 20 이다.
+2016 의 표본은 2018 의 약 1/3 규모(TTToSemiLeptonic nano 132 M / 145 M 대 2018 476 M)다.
+
+```bash
+# 컨테이너 안: 빌드(한 번)와 정렬
+cmssw-el7
+cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src && cmsenv && cd TTHHGenCategoryTools/Validation && make -j4
+python3 scripts/submit_validation_condor.py --era 2016APV --sort-only
+python3 scripts/submit_validation_condor.py --era 2016 --sort-only
+exit
+# 호스트: preflight -> smoke -> 전량 (컨테이너를 나오면 export 가 사라지므로 다시)
+cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src/TTHHGenCategoryTools/Validation
+export X509_USER_PROXY=~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert
+python3 scripts/submit_validation_condor.py --era 2016APV --preflight
+python3 scripts/submit_validation_condor.py --era 2016APV --smoke
+python3 scripts/submit_validation_condor.py --era 2016APV
+python3 scripts/submit_validation_condor.py --era 2016 --preflight
+python3 scripts/submit_validation_condor.py --era 2016
+# 끝나면 (실패 chunk 는 --report / --resubmit-failed)
+python3 scripts/aggregate_validation.py --era 2016APV --json-out ~/val_summary_2016APV.json
+python3 scripts/aggregate_validation.py --era 2016 --json-out ~/val_summary_2016.json
+```
+
+**patch 추출(⑨) — 두 era 모두 `OVERALL: ALL SAMPLES PASS` 뒤에만.** analyzer(TTHHAnalyzer)는 `ttnb_<KEY>.root` / tree `TtNb` 를 기간 디렉터리
+`DerivedCorr/expandedTtbarId/2016preVFP`(= `2016APV`), `.../2016postVFP`(= `2016`) 에서 읽는다(TTHHAnalyzer 의 그 디렉터리 README.txt,
+yml 의 `path_expanded_ttbarid_dir`). label 은 TTHHAnalyzer 의 기간 이름으로.
+
+```bash
+# 컨테이너 안 (bin/extractTtbarIdPatch), Validation/ 에서
+for ERA_HALF in 2016APV:2016preVFP 2016:2016postVFP; do
+  ERA="${ERA_HALF%%:*}"; HALF="${ERA_HALF#*:}"
+  mkdir -p lookup${ERA} logs${ERA}
+  for PAIR in tt4b:TT4b ttbb_Hadronic:TTbb_Hadronic ttbb_SemiLeptonic:TTbb_SemiLep ttbb_2L2Nu:TTbb_DiLep \
+              TTToHadronic:TTbar_Hadronic TTToSemiLeptonic:TTbar_SemiLep TTTo2L2Nu:TTbar_DiLep; do
+    S="${PAIR%%:*}"; KEY="${PAIR#*:}"
+    bin/extractTtbarIdPatch --filelist filelists/sidecar${ERA}/filelist_${S}.txt \
+        --out lookup${ERA}/ttnb_${KEY}.root --out-tree TtNb --label ${KEY}_${HALF} \
+        2>&1 | tee logs${ERA}/patch_${KEY}_${ERA}.log
+    echo "[${ERA} ${KEY}] exit=${PIPESTATUS[0]}" | tee -a logs${ERA}/patch_summary_${ERA}.log
+  done
+done
+cat logs2016APV/patch_summary_2016APV.log logs2016/patch_summary_2016.log    # 열네 줄 모두 exit=0
+ls -l lookup2016APV lookup2016; md5sum lookup2016APV/*.root lookup2016/*.root
+```
+
+TTHHAnalyzer 로: lxplus 에 TTHHAnalyzer 체크아웃이 있으면 `lookup2016APV/ttnb_*.root` → 그 `DerivedCorr/expandedTtbarId/2016preVFP/`,
+`lookup2016/ttnb_*.root` → `.../2016postVFP/` 로 복사해 그 저장소에서 커밋한다. 없으면 맥으로 `scp` 해 맥의 TTHHAnalyzer 에서 커밋한다. 결과 수치는
+[`../docs/06_validation_results.md`](../docs/06_validation_results.md) 에 append.
+
 ### 0.2 로컬 산출물 빠른 점검 (grid 전/후 공통)
 
 `scripts/check_extend_invariants.C` (신설)는 ttbarId-extend 파일 하나에 대해 인코딩 계약

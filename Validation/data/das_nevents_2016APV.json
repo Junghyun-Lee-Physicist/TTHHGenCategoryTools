@@ -1,0 +1,28 @@
+{
+  "_meta": {
+    "purpose": "DAS nevents of the central NanoAODv9 datasets of the 7 ttbar stitching samples, used by scripts/aggregate_validation.py as the completeness criterion (the sum of per-chunk nano_entries must equal this).",
+    "why_in_this_repo": "A validation tool carries its own reference data (docs/08 T-23 (7), docs/04 D16).",
+    "source": "TTHHAnalyzer/data/samples_2016preVFP_UL.json (the successor of tempTTHH), field 'nevents' (DAS, NtupleForge's dataset records); era 2016APV = UL16 preVFP (APV)",
+    "cross_check": "not yet cross-checked against a second DAS query (the 2016APV preflight log of 2026-10-14 on lxplus has the nano nevents)",
+    "datasets": {
+      "tt4b": "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v2/NANOAODSIM",
+      "ttbb_Hadronic": "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM",
+      "ttbb_SemiLeptonic": "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM",
+      "ttbb_2L2Nu": "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM",
+      "TTToHadronic": "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM",
+      "TTToSemiLeptonic": "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM",
+      "TTTo2L2Nu": "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM"
+    },
+    "era": "2016APV",
+    "generated": "2026-10-15",
+    "keys": "Validation short sample names (same as filelists/*<era>/filelist_<short>.txt)",
+    "update_rule": "Only change these if the DAS dataset itself changes. A mismatch against a validation run means the run is INCOMPLETE -- do not 'fix' it by editing this file."
+  },
+  "tt4b": 4801000,
+  "ttbb_Hadronic": 2303410,
+  "ttbb_SemiLeptonic": 2991789,
+  "ttbb_2L2Nu": 1388348,
+  "TTToHadronic": 97260000,
+  "TTToSemiLeptonic": 132178000,
+  "TTTo2L2Nu": 37505000
+}

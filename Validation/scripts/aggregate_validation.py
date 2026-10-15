@@ -40,6 +40,7 @@
 #   python3 scripts/aggregate_validation.py --era 2018
 #   python3 scripts/aggregate_validation.py --era 2018 --samples ttbb_2L2Nu
 #   python3 scripts/aggregate_validation.py --era 2018 --json-out summary.json
+#   python3 scripts/aggregate_validation.py --era 2016APV   (and --era 2016; 2026-10-15)
 #
 # Exit 0 only if every requested sample passes every criterion.
 # =============================================================================
@@ -405,8 +406,8 @@ def main():
     print("OVERALL: %s" % ("ALL SAMPLES PASS" if all_ok
                            else "AT LEAST ONE SAMPLE FAILED"))
     print("=" * 92)
-    print("Reminder: 2017 reference numbers (tt+nb 1,882,170 = 1,585,810 + 296,360)")
-    print("are NOT the 2018 acceptance criteria -- the event counts differ.")
+    print("Reminder: the 2017 reference numbers (tt+nb 1,882,170 = 1,585,810 + 296,360)")
+    print("are NOT the acceptance criteria of another era -- the event counts differ.")
     print("Record the numbers above in docs/06_validation_results.md (append).")
 
     if a.json_out:

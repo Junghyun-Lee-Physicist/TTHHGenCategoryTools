@@ -15,6 +15,12 @@ import re
 #   python make_filelists_miniAOD.py            # 2017 (기존 동작: sidecar/)
 #   python make_filelists_miniAOD.py 2018       # sidecar2018/
 #   python make_filelists_miniAOD.py 2018 /pnfs/.../<다른_경로>
+# 2026-10-15: eras 2016APV and 2016 (O9). Their CRAB stage-out is T3_CH_CERNBOX
+#   (crab/site_config.yaml), so the defaults are the CERN EOS paths. Exit codes
+#   (the 2017 / 2018 runs exited 0 even when a sample was missing): 0 every one
+#   of the 7 samples has a filelist; 1 a sample is missing or empty; 2 the
+#   SAMPLE_DIR does not exist; 3 two CRAB submissions of one sample (below).
+#   The last line is RESULT OK | RESULT FAIL.
 import sys
 
 # -----------------------------------------------------------------------------
@@ -55,6 +61,10 @@ SAMPLE_DIR_BY_ERA = {
     #   바꾸지 않았다면 2번째 인자로 실제 경로를 넘길 것:
     #     python make_filelists_miniAOD.py 2018 /eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018
     "2018": "/pnfs/knu.ac.kr/data/cms/store/user/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2018",
+    # 2016APV (= UL16 preVFP) and 2016 (= UL16 postVFP), 2026-10-15: CRAB output
+    #   <out_lfn_base>/<era> on T3_CH_CERNBOX = CERN EOS (site_config.yaml)
+    "2016APV": "/eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2016APV",
+    "2016": "/eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2016",
 }
 
 ERA = sys.argv[1] if len(sys.argv) > 1 else "2017"
@@ -195,16 +205,19 @@ def main():
 
     if not os.path.exists(SAMPLE_DIR):
         print(f"[CRITICAL ERROR] SAMPLE_DIR does not exist: '{SAMPLE_DIR}'")
-        return
+        print("RESULT FAIL: no SAMPLE_DIR (exit 2) -- give the CRAB output directory as the 2nd argument")
+        sys.exit(2)
 
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
 
+    missing = []
     for dirname, short_name in sample_mapping.items():
         full_dir_path = os.path.join(SAMPLE_DIR, dirname)
 
         if not os.path.exists(full_dir_path):
             print(f"[MISSING] Directory not found: {dirname}")
+            missing.append(short_name or dirname)
             continue
 
         print(f"-> [PROCESSING] {dirname} ...")
@@ -239,11 +252,18 @@ def main():
                 stamps = check_single_crab_submission(short_name, paths)
                 if stamps:
                     print(f"    [crab] {short_name}: submission timestamp {stamps[0]}")
+            else:
+                missing.append(short_name)
             write_and_split(output_filename, paths)
 
     print("\n" + "=" * 60)
     print("All tasks finished. Check the output directory.")
     print("=" * 60)
+    if missing:
+        print("RESULT FAIL: %d of %d samples have no filelist in %s: %s (exit 1)"
+              % (len(missing), len(sample_mapping), OUTPUT_DIR, ", ".join(missing)))
+        sys.exit(1)
+    print("RESULT OK: %d filelists in %s" % (len(sample_mapping), OUTPUT_DIR))
 
 
 if __name__ == "__main__":

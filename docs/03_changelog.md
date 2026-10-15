@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15** (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (2)** (O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1505,3 +1505,27 @@ code 는 그대로 0 이었다(manager 는 exit code 만 본다). [08](08_troubl
 
 **검증 (오프라인, bash 5.2).** `bash -n`; 가짜 도구로 두 era 제출(`RESULT: SUBMITTED` + `END EXIT=0`), `--submit` 없음(`RESULT: READY` + `END EXIT=0`),
 MATCH 6/7(`STOPPED at step 4/9` + `END EXIT=13`). bash 4.2 에서의 확인은 다음 lxplus 실행(또는 manager 의 `--launch`)에서.
+
+## 2026-10-15 (2) — O9 ⑦: 검증 도구가 2016APV·2016 을 안다 (CRAB 이 도는 동안)
+
+**lxplus (사용자, 04:11 UTC).** `manager_condor.sh --era 2016APV,2016 --name extend2016` → condor cluster 13519511(감시·재제출·완료 점검).
+lxplus 의 `datasets.yaml`(두 era 열림)과 resolve log 셋을 커밋(b92e99e).
+
+**동작 변경 고지.**
+1. `Validation/filelists/make_filelists_miniAOD.py`: era `2016APV`·`2016`(기본 경로 = CERN EOS `.../ttbarIdExtend_v2/<era>`; 이 캠페인의 stage-out 이
+   `T3_CH_CERNBOX`). 끝 줄 `RESULT OK | RESULT FAIL` 과 exit code: 0 일곱 샘플 모두, 1 빠지거나 빈 샘플, 2 SAMPLE_DIR 없음, 3 CRAB timestamp 둘(예전
+   가드). 전에는 SAMPLE_DIR 이 없거나 샘플이 빠져도 exit 0 이었다.
+2. `Validation/filelists/make_nano_filelists_das.sh`: era `2016APV`(`RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11`)·`2016`
+   (`RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17`) → `nano2016APV/`, `nano2016/`.
+3. 새 `Validation/data/das_nevents_2016APV.json`, `das_nevents_2016.json`: 완결성 기준(TTHHAnalyzer `data/samples_2016{pre,post}VFP_UL.json` 의 DAS
+   nevents, dataset 이름도 `_meta` 에). 2016 의 일곱 수는 10-15 lxplus preflight 의 DAS 조회(nano nevents)와 같다.
+4. `aggregate_validation.py`: 끝의 안내문을 era 일반으로(2017 의 수치는 다른 era 의 기준이 아님). `submit_validation_condor.py` 는 era 를 경로 이름에만
+   쓰므로 그대로.
+
+**문서.** `Validation/README.md` §0.1c(2016 두 era 의 filelist·정렬·condor 검증·집계·patch 추출과 TTHHAnalyzer 의 `2016preVFP`/`2016postVFP` 로
+옮기기), [01](01_status.md) O9.
+
+**검증 (오프라인, 가짜 EOS 트리·가짜 dasgoclient).** nano: 두 era rc 0, 캠페인 문자열이 DAS 조회에 그대로, 45 파일 → 20 개씩 세 split, 모르는 era
+rc 2. extend: 일곱 샘플 rc 0 `RESULT OK`(Python 3.9 로), 기본 EOS 경로가 없을 때 rc 2, 한 샘플 디렉터리 없음 rc 1, 빈 샘플 rc 1, timestamp 둘 rc 3,
+모르는 era rc 1. 집계: 가짜 chunk JSON 으로 2016APV `ALL SAMPLES PASS`(DAS 기준 파일을 찾음), 2016 의 한 샘플 +1 event → FAIL `DIFF -1`, chunk 하나
+없음 → `all chunks present 2/3` FAIL. condor 제출기 `--dry-run --era 2016APV`: 13 job(작은 샘플 1, 큰 샘플 3 씩)의 `match.args`·`match.sub`.
