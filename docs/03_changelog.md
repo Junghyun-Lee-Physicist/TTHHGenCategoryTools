@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-14** (2016 preVFP·postVFP extend 생산 준비, D19). 그 전 2026-10-13 (AI 작업 계약 `00_PROMPT.md` §4: 진행 로그와 비정상 종료가 드러나는 로그).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-14 (3)** (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙). 그 전 2026-10-13 (AI 작업 계약 `00_PROMPT.md` §4: 진행 로그와 비정상 종료가 드러나는 로그).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1458,3 +1458,35 @@ resolve 로그는 `crab/resolve_parents_<ERA>_<시각>.log` 로 복사(커밋용
 yaml 의 2016 두 블록 열림, project dir 14, resolve 로그 복사, 화면 = launch.log), `--submit` 없음(READY, project dir 없음), MISMATCH(13, yaml 그대로),
 era modifier 다름(11), endJob missing(11), cmsRun exit 65(11), 불변조건 FAIL(12), proxy 1 h(10), CMSSW 14(10), 이미 있는 project dir(15, 제출 0),
 SUBMITREFUSED(18), task 하나 제출 실패(17, 나머지 안내), `--skip-local`(0), 잘못된 era·`--era` 없음(2), SIGTERM(130, 꼬리 있음).
+
+## 2026-10-14 (3) — 첫 lxplus 실행: 2016APV 제출, 2016 은 pset 캐시로 거부(T-36) → 제출기 수정; condor manager; §9 AI 세션 규칙
+
+**실행 기록 (lxplus931, 20:39–20:42 UTC, commit 6118faa).** `bash crab/launch_extend.sh --era 2016APV,2016 --submit`: 1 env OK; 2 로컬 cmsRun
+두 era(20000 ev 씩, era modifier `Run2_2016_HIPM`/`Run2_2016`, missing 0, 89 s); 3 불변조건 ALL PASS(2016APV: nAddBJets>=3 62 = 61 38 + 62 20 + 71 4;
+2016: 49 = 27 + 13 + 9); 4 parent MATCH 7/7 두 era; 5 `--apply` 14 + 14 줄; 6 preflight 68 PASS / 0 WARN / 0 FAIL(DAS 수와 job 수 427 + 693 이
+인벤토리와 같음); 7 dry-run 14; 8 제출: **2016APV 7 task 제출됨**(task 이름 `261014_2041xx:junghyun_crab_<sample>_2016APV_extend`), **2016 7 task 는
+모두 `A different CMSSW configuration was already cached`** 로 실패 → exit 17. 첫 제출에서 CRAB 이 grid pass phrase 를 물었다(myproxy 위임 갱신;
+사용자가 입력).
+
+**동작 변경 고지.**
+1. `crab/submit_ttbarIdExtend.py`: 제출을 task 마다 **별도 프로세스**(fork)에서 한다(T-36 의 원인과 CRAB 문서의 방식). 출력·판정(`[submitted]`/
+   `[FAILED]`)은 같다; 실패 줄에 child 의 exit code 가 붙는다. 새 `--clean-failed-shells [--yes]`: 고른 task 의 project dir 중 `.requestcache` 가
+   없는 껍데기를 찾아(목록, exit 1) `--yes` 면 `crab_projects/_failed_<UTC>/` 로 옮긴다(지우지 않음; `.requestcache` 있는 dir 은 건드리지 않음).
+2. 새 `crab/extend_manager.py`(결정론적 감시·재제출·완료 점검), `crab/manager_condor.sh`(lxplus batch 로 제출), 새
+   `Validation/scripts/check_extend_sample.C`(task 의 모든 출력 파일을 하나씩 열어 행 수·불변조건·tt+nb 수; `GetEntry` 반환값 검사). 규칙은
+   `TtbarIdExtender/README.md` §2.2d. `.gitignore` 에 `TtbarIdExtender/crab/manager/`.
+3. `crab/launch_extend.sh`: `git` 은 머리줄용이라 필수 도구 목록에서 뺐다(batch 컨테이너에 없을 수 있음).
+4. `00_PROMPT.md` §9(사용자 방향): 사람이 없을 때는 결정론적 manager 만; 디버깅 → 제출은 사용자가 볼 수 있을 때; AI 세션의 커밋은
+   `agent/<날짜>-<주제>` branch; lxplus 로그 사본은 `runlogs/lxplus/`(새 디렉터리); 사용자 확인 없이 하지 않는 일과 멈출 때.
+
+**문서.** [08](08_troubleshooting.md) T-36, README §2.2d(tmux 권고 삭제 — lxplus 에서는 ssh 가 끊기면 같이 끊김(사용자), 두 era 제출, 껍데기 정리,
+manager), [01](01_status.md) O9, [04](04_decisions.md) D20, `runlogs/README.md`.
+
+**검증 (오프라인; lxplus 실행 전).** pset 캐시를 흉내 낸 가짜 CRAB 에서 옛 제출기 `--era 2016APV,2016` = 7 제출 + 7 FAILED(같은 오류 문구),
+새 제출기 = 14 제출. 껍데기: 2016 7 개 목록(exit 1) → `--yes` 로 옮김 → 다시 목록 0 → 2016 만 재제출 7 → `.requestcache` 14. launcher 11 사례 +
+두 era 한 번 제출(14) 그대로 통과. manager 23 사례(정상, 재제출, 소진 ALERT·`--clear-alerts`, SUBMITREFUSED, 정체, status 오류, proxy, timestamp 2,
+파일 누락, 행 수 차이, 읽기 실패, 불변조건 위반, xrootd 경로, exit 75 와 이어 가기, `--launch` 의 era 별 판단·실패·이미 낸 era·dry-run) + era 별 4 사례
+(2016APV 는 감시만·2016 만 launch 해 14 task DONE, 껍데기 ALERT 둘, 일부만 있는 era ALERT) + lock 4 + SIGTERM + 인자 오류. `manager_condor.sh` 의
+job 파일을 그린 뒤 가짜 `/cvmfs` 에서 `job.sh` 를 condor 처럼 돌려 `cmssw-el7` 재실행 → cmsenv → crab-setup → manager → launch → 감시 → 점검 →
+DONE. `check_extend_sample.C` 는 진짜 ROOT 6.40 에서 합성 파일로(정상, 56 위반, 없는 파일, 빈 목록) 기대대로. 시험 중 잡은 결함 하나:
+`manager_condor.sh` 가 `/etc/os-release` 를 source 하면 `NAME`(manager 이름)과 `ID` 가 덮인다 → 서브셸에서만 읽게 고침.

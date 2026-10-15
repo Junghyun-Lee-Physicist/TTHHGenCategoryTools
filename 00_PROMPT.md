@@ -2,7 +2,7 @@
 
 > **목적**: 이 저장소에서 작업하는 모든 AI 쓰레드가 지켜야 할 프로젝트별 작업 계약. `DOCUMENTATION_GUIDELINE` §6·§8의 일반 규칙을 이 코드베이스에 맞게 구체화한다.
 > **대상 독자**: AI 기여자(필수, 최우선 읽기), 그리고 AI가 어떻게 행동하도록 기대되는지 확인하려는 사람.
-> **상태**: DECIDED 2026-07-05 (v11 병합 시 제정). 갱신 2026-10-13 (§4: 진행 로그와 비정상 종료가 드러나는 로그 — 사용자 원칙 둘). **관련 문서**: [README.md](README.md)(지도), [docs/01_status.md](docs/01_status.md)(현재 상태).
+> **상태**: DECIDED 2026-07-05 (v11 병합 시 제정). 갱신 2026-10-13 (§4: 진행 로그와 비정상 종료가 드러나는 로그 — 사용자 원칙 둘), 2026-10-14 (§9: AI 세션이 lxplus 에서 일할 때 — 일의 나눔, branch, 로그, 하면 안 되는 일, 멈출 때; 사용자 방향). **관련 문서**: [README.md](README.md)(지도), [docs/01_status.md](docs/01_status.md)(현재 상태).
 
 ## 1. 관점 / 전문성 스탠스
 
@@ -58,3 +58,25 @@ AI 실행환경에는 통상 **CMSSW도, ROOT도, grid 접근도 없다.** 따�
 - 이벤트 키는 항상 **3-key `(run, luminosityBlock, event)`** — event는 lumisection 내에서만 유일 ([docs/04](docs/04_decisions.md) D7).
 - tempTTHH loader와 `matchTtbarId`의 해시(FNV)는 **byte-identical하게 유지**되어야 한다 — analyzer의 membership 판정이 검증된 매칭을 그대로 재현한다는 보장의 근거다.
 - float 비교가 필요한 곳(과거 GenJet η)은 NanoAOD mantissa 양자화를 감안한 relative tol `5e-4·max(1,|a|)` 관행을 따른다.
+
+## 9. AI 세션이 lxplus 에서 일할 때 (2026-10-14, 사용자 방향)
+
+사용자(2026-10-14): 단순 재제출은 condor manager 가, preflight·test run 을 보며 고쳐서 제출에 이르는 디버깅은 로그를 실시간으로 보는
+에이전트가 하는 것이 낫다; 에이전트가 코드를 과하게 바꾸는 것에 대비해 git branch 를 따로 쓰고, 로그와 lxplus 에서 얻은 로그를 남긴다.
+
+- **일의 나눔.** 사람이 없어도 도는 것은 결정론적 코드뿐이다: `crab/extend_manager.py`(감시, task 당 3 회까지 재제출, ALERT 로 멈춤, 완료 점검).
+  디버깅 → 수정 → 다시 제출은 AI 세션이 **사용자가 깨어 있거나 결과를 보고 승인할 수 있을 때** 한다. 사람이 없으면 진단과 제안만 남기고 멈춘다.
+- **branch.** AI 세션의 커밋은 `agent/<YYYYMMDD>-<주제>` branch 에만 한다. `main` 에 직접 커밋·push 하지 않고, `push --force`·`rebase` 로
+  공유된 이력을 바꾸지 않는다. merge 는 사용자가 검토한 뒤 한다(GitHub 의 `main` branch protection 권장).
+- **로그.** lxplus 에서 돌린 것은 머리·꼬리가 있는 기록으로 남기고(`crab/launch_extend.sh` 의 `launch.log`, `crab/manager/<name>/manager.log`·
+  `REPORT.txt`, preflight·resolve 로그), 그 사본을 `runlogs/lxplus/<UTC>_<무엇>.log` 로 같은 branch 에 커밋한다. 결과를 판단할 때는 꼬리
+  (`=== END ... EXIT=`)와 결과 줄까지 본다(§4). CRAB 의 전체 transcript(`submit_*_20*.log`)는 지금처럼 커밋하지 않는다.
+- **사용자 확인 없이 하지 않는 일.** `crab kill`; EOS·KNU 의 출력 삭제; `crab_projects/` 의 삭제(실패한 껍데기는 `--clean-failed-shells --yes` 로
+  옮기기만); `units_per_job`·`request_name_tag`·자원 설정을 바꾼 재제출이나 전량 재생산(README §2.2c); 새 era·샘플의 제출; 물리 로직 변경(§5);
+  자격증명 다루기(비밀번호·grid pass phrase 를 받거나 입력하지 않는다; 사용자가 먼저 `kinit`·`voms-proxy-init`·ssh 키를 열어 둔 세션만 쓴다;
+  proxy 파일을 복사해 다른 곳에 두지 않는다).
+- **멈추고 물을 때.** 같은 실패가 고친 뒤에도 두 번 나올 때; 원인이 이 저장소 밖일 때(사이트, DAS, CRAB 서버, EOS 쿼터); 제출·완료 수가 예상과
+  다를 때; 무엇을 고쳐야 할지 둘 이상의 선택지가 물리 결과를 바꿀 때. 멈출 때는 무엇을 봤고(로그 경로와 줄), 무엇을 시도했고, 무엇을 권하는지를
+  `runlogs/lxplus/` 의 기록과 branch 의 커밋 메시지에 남긴다.
+- **시작할 때 읽는 순서.** 이 문서 → [docs/01_status.md](docs/01_status.md)(O9 등 진행 중인 일) → `TtbarIdExtender/README.md` §2.2d →
+  최근 `runlogs/lxplus/` 기록.

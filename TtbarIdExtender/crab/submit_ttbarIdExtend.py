@@ -264,7 +264,15 @@ def parse_args():
                         "Honors --process / --era. Prompts for confirmation "
                         "unless --yes is given. Does not remove project dirs.")
     p.add_argument("--yes",      action="store_true",
-                   help="Skip the confirmation prompt for --kill.")
+                   help="Skip the confirmation prompt for --kill; with "
+                        "--clean-failed-shells, actually move the shells.")
+    p.add_argument("--clean-failed-shells", action="store_true",
+                   help="Find crab_projects dirs of the selected tasks that have no "
+                        ".requestcache: the shell a FAILED submit leaves behind "
+                        "(docs/08 T-16), which blocks a new submit. Lists them; with "
+                        "--yes moves them to <work_area>/_failed_<UTC>/ (nothing is "
+                        "deleted). Dirs WITH .requestcache are submitted tasks and "
+                        "are never touched. Honors --process / --era.")
     return p.parse_args()
 
 
@@ -399,18 +407,45 @@ def submit_one(cfg, *, dry_run):
         return False
 
     try:
-        from CRABAPI.RawCommand import crabCommand
+        from CRABAPI.RawCommand import crabCommand  # noqa: F401  (import check only)
     except ImportError as exc:
         sys.exit(f"ERROR: CRAB client missing ({exc}).\n"
                  f"       source /cvmfs/cms.cern.ch/common/crab-setup.sh")
 
-    try:
-        crabCommand("submit", config=cfg)
-    except Exception as exc:  # noqa: BLE001
-        print(f"  [FAILED] {exc}\n")
+    # ONE PROCESS PER SUBMISSION (2026-10-14). The CRAB client imports the pset
+    # once per Python process and refuses a second import with other parameters:
+    #   "FATAL ERROR: A different CMSSW configuration was already cached. Either
+    #    configuration file name or configuration parameters have been changed."
+    # Every task of one era has the same pyCfgParams, so 2017 and 2018 (one era
+    # per call) never hit it; --era 2016APV,2016 did: the 7 year=2016APV tasks
+    # went out, all 7 year=2016 ones failed (docs/08 T-36). The CRAB
+    # documentation's answer for scripted multi-submission is a separate process
+    # per crabCommand('submit'), which is what this does (fork: the child inherits
+    # the terminal, so a grid pass-phrase prompt still works interactively).
+    import multiprocessing
+    sys.stdout.flush()
+    sys.stderr.flush()
+    child = multiprocessing.get_context("fork").Process(target=_submit_in_child, args=(cfg,))
+    child.start()
+    child.join()
+    if child.exitcode != 0:
+        print(f"  [FAILED] crab submit exited {child.exitcode} in its own process (message above)\n")
         return False
     print("  [submitted]\n")
     return True
+
+
+def _submit_in_child(cfg):
+    """Body of the per-task submit process (see submit_one)."""
+    from CRABAPI.RawCommand import crabCommand
+    try:
+        crabCommand("submit", config=cfg)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [child] crab submit raised: {exc}")
+        sys.stdout.flush()
+        sys.exit(1)
+    sys.stdout.flush()
+    sys.exit(0)
 
 
 # --- Outcome classification for bulk actions ---------------------------------
@@ -874,6 +909,58 @@ def _preflight_finish(rows, lines, log_path):
     return 1 if n_fail else 0
 
 
+# ----- Failed-submit shells -----------------------------------------------
+def clean_failed_shells(cat, site, proc_filter, era_filter, really):
+    """List (and with really=True move away) project dirs without .requestcache.
+
+    Returns 0 when nothing is left blocking (no shells, or all moved), 1 when
+    shells were found but not moved (run again with --yes), 2 on a move error.
+    """
+    work_area = Path(site.get("work_area", "crab_projects"))
+    tag = (site.get("request_name_tag") or "").strip()
+    stamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    dest = work_area / ("_failed_%s" % stamp)
+    shells, ok_tasks, absent = [], 0, 0
+    for era, block in (cat.get("eras") or {}).items():
+        if era_filter and era not in era_filter:
+            continue
+        for ds in (block.get("datasets") or []):
+            if proc_filter and ds["name"] not in proc_filter:
+                continue
+            req = "%s_%s_extend" % (ds["name"], era) + ("_%s" % tag if tag else "")
+            proj = work_area / ("crab_%s" % req)
+            if not proj.is_dir():
+                absent += 1
+                continue
+            if (proj / ".requestcache").exists():
+                ok_tasks += 1
+                print("  [task ] %-40s submitted (has .requestcache) -- left alone" % proj)
+                continue
+            shells.append(proj)
+            print("  [SHELL] %-40s no .requestcache -> a failed submit" % proj)
+            log = proj / "crab.log"
+            if log.exists():
+                tail = log.read_text(encoding="utf-8", errors="replace").splitlines()[-3:]
+                for ln in tail:
+                    print("          | " + ln[:160])
+    print("summary: %d shell(s), %d submitted task(s), %d without a project dir" % (len(shells), ok_tasks, absent))
+    if not shells:
+        return 0
+    if not really:
+        print("nothing moved -- re-run with --yes to move the shell(s) to %s/" % dest)
+        return 1
+    try:
+        dest.mkdir(parents=True, exist_ok=False)
+        for proj in shells:
+            proj.rename(dest / proj.name)
+            print("  moved %s -> %s/" % (proj, dest))
+    except OSError as exc:
+        print("ERROR: could not move a shell: %s" % exc)
+        return 2
+    print("moved %d shell(s) to %s/ -- those tasks can be submitted again" % (len(shells), dest))
+    return 0
+
+
 # ----- Main --------------------------------------------------------------
 def main():
     args = parse_args()
@@ -891,6 +978,9 @@ def main():
                    if args.process else None)
     era_filter  = ({s.strip() for s in args.era.split(",")}
                    if args.era else None)
+
+    if args.clean_failed_shells:
+        sys.exit(clean_failed_shells(cat, site, proc_filter, era_filter, args.yes))
 
     # Which mode are we in? submit (default), or a bulk action on existing tasks.
     chosen = [a for a in ("resubmit", "status", "report", "kill")

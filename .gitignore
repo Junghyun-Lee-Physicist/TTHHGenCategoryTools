@@ -13,6 +13,8 @@ status_*_20*.log
 crab_projects/
 # --- launch_extend.sh run directories (all output of one launch, local test files)
 launch_logs/
+# --- extend_manager.py state dirs (state.json, manager.log, lock, condor job files, proxy copy)
+TtbarIdExtender/crab/manager/
 
 # --- local cmsRun test outputs (see TtbarIdExtender/README.md sec.1)
 #     NB: VarParsing appends _numEventN when maxEvents is set.

@@ -174,7 +174,7 @@ main() {
   [[ -n "${CMSSW_BASE:-}" ]] || die 10 "CMSSW_BASE unset -- run cmsenv in CMSSW_10_6_32_patch1/src (inside cmssw-el7)"
   [[ "${CMSSW_VERSION:-}" == CMSSW_10_6_* ]] || die 10 "CMSSW_VERSION=${CMSSW_VERSION:-unset}, this package needs CMSSW_10_6_32_patch1"
   local tool
-  for tool in cmsRun root dasgoclient voms-proxy-info python3 git; do
+  for tool in cmsRun root dasgoclient voms-proxy-info python3; do   # git is optional (header only)
     command -v "$tool" >/dev/null 2>&1 || die 10 "'$tool' not on PATH"
   done
   if ! python3 -c "import CRABClient" >/dev/null 2>&1; then

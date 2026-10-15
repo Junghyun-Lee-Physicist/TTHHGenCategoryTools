@@ -2,7 +2,7 @@
 
 > **목적**: "왜 이 선택인가? 다른 후보는? 아직 유효한가?"의 단일 출처.
 > **대상 독자**: 설계를 바꾸려는 사람; DECIDED를 다시 열기 전 반드시 여기 확인.
-> **상태**: 살아있는 문서 — 마지막 갱신 **2026-10-14** (D19 신설: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
+> **상태**: 살아있는 문서 — 마지막 갱신 **2026-10-14** (D19: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`; D20: 사람 없이 도는 것은 결정론적 manager, AI 세션은 branch 에서). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
 > **관련**: 시간순 이력은 [03_changelog.md](03_changelog.md), 실패 사례는 [08_troubleshooting.md](08_troubleshooting.md).
 
 각 항목: 선택 / 근거 / 검토·기각된 대안 / 상태.
@@ -275,6 +275,18 @@ HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳
 - **기각한 대안**: ① yaml 을 처음부터 `enabled: true` 로 — 인벤토리는 DAS 에서 왔지만 parent 연결은 확인하지 않은 값이라 규칙 위반.
   ② `--apply` 가 MATCH 인 것만 부분 개방 — 한 era 안에서 일부만 열리면 stitching 표본이 빠진 채 제출될 수 있어 기각(전부 아니면 아무것도).
   ③ 잠금 해제 없이 `--force` 로 제출 — `verified` 의 뜻이 없어진다.
+
+## D20 — 사람 없이 도는 것은 결정론적 manager, 디버깅 → 제출은 사람이 볼 수 있을 때의 AI 세션 (branch 와 로그) · DECIDED 2026-10-14 (사용자 방향)
+
+- **결정(사용자 2026-10-14)**: 단순 재제출·감시는 condor manager 가 한다. preflight·test run 로그를 보며 고치고 제출에 이르는 일은 로그를 실시간으로
+  보는 에이전트(AI 세션)가 한다. 코드가 과하게 바뀌는 것에 대비해 AI 세션은 branch 에서 일하고 로그와 lxplus 로그를 남긴다.
+- **구체화**: manager = `crab/extend_manager.py` + `crab/manager_condor.sh`(AI 아님; ALERT 에서 멈춤). AI 세션 규칙 = `00_PROMPT.md` §9(branch
+  `agent/<날짜>-<주제>`, `runlogs/lxplus/`, 사용자 확인 없이 하지 않는 일, 멈출 때). 사람이 없으면 AI 세션은 진단·제안만 남기고 멈춘다(제출·kill·
+  삭제·물리 변경 없음).
+- **근거**: 2026-10-14 의 실패(T-36)는 로그를 보면 바로 원인이 보였지만 고치는 일은 코드 변경과 grid 제출을 함께 부른다 — 사람의 검토가 붙어야 할
+  결정이다. 반복 작업은 결정론적 코드로 충분하고 그 편이 예측 가능하다.
+- **기각한 대안**: ① 밤새 AI 세션이 고치고 다시 내기를 반복 — 잘못된 수정이 grid 자원과 산출물을 쓰고, 이 프로젝트의 비싼 실패(T-19 조용한 거부,
+  T-21 거짓 PASS)와 같은 부류를 키울 수 있다. ② tmux 로 launch·감시를 lxplus 에 맡김 — ssh 가 끊기면 같이 끊긴다(사용자 확인).
 
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 

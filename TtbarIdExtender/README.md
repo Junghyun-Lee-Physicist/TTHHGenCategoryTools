@@ -354,16 +354,50 @@ WARN 0** — 이미 있는 project dir 은 제출을 건너뛰게 하므로 멈�
 `crab/resolve_parents_<ERA>_<시각>.log` 로도 복사한다. 오프라인 시험(가짜 cmsRun·root·DAS·CRAB): 정상 1 + 멈춤 조건 11 + SIGTERM, 전부 기대대로.
 
 ```bash
-tmux new -s extend          # ssh 가 끊겨도 계속 (다시 붙기: 같은 lxplus 노드에서 tmux attach -t extend)
 cmssw-el7
 cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src && cmsenv && cd TTHHGenCategoryTools && git pull --ff-only && cd TtbarIdExtender
 source /cvmfs/cms.cern.ch/common/crab-setup.sh
-voms-proxy-init -voms cms -rfc -valid 192:00 --out $PWD/proxy.cert    # AFS 에 (gitignore; 다음의 condor manager 도 이것을 쓴다)
+voms-proxy-init -voms cms -valid 192:00 --out $PWD/proxy.cert    # AFS 에 (gitignore; condor manager 도 이것을 쓴다)
 export X509_USER_PROXY=$PWD/proxy.cert
 bash crab/launch_extend.sh --era 2016APV,2016 --submit
 ```
 
 `--submit` 없이 돌리면 dry-run 까지만 하고 `RESULT: READY` 로 끝난다(그 뒤 `--submit --skip-local` 로 이어 갈 수 있다).
+lxplus 는 ssh 가 끊기면 tmux 안의 것도 같이 끊긴다(사용자 확인 2026-10-14) — launch 는 이렇게 15 분 남짓 직접 돌리고, 오래 걸리는 감시는
+아래 condor manager 에 맡긴다. 첫 제출에서 CRAB 이 `Enter GRID pass phrase for this identity:` 를 물을 수 있다(myproxy 위임 갱신, 며칠 유효).
+
+**두 era 를 한 번에 낼 때(2026-10-14, T-36).** CRAB client 는 한 프로세스에서 pset 을 한 번만 import 하므로 `year=` 가 다른 두 번째 era 가
+`A different CMSSW configuration was already cached` 로 거부됐었다. 이제 제출기가 task 마다 별도 프로세스에서 제출한다. 실패한 제출이
+project dir 껍데기(`.requestcache` 없음)를 남겼으면 다시 내기 전에 치운다:
+
+```bash
+python3 crab/submit_ttbarIdExtend.py --era 2016 --clean-failed-shells          # 목록만 (껍데기가 있으면 exit 1)
+python3 crab/submit_ttbarIdExtend.py --era 2016 --clean-failed-shells --yes    # crab_projects/_failed_<UTC>/ 로 옮김
+```
+
+**감시·재제출·완료 점검: condor manager (2026-10-14, `crab/extend_manager.py`, `crab/manager_condor.sh`).** 사람이 없어도 도는 것은
+결정론적 코드만이다(AI 아님). 30 분마다 모든 task 의 `crab status`; 실패한 job 은 task 마다 최대 3 번 `crab resubmit`(재제출 뒤 60 분은 다시 내지
+않음); 제출이 죽은 task(SUBMITREFUSED 등)·누가 kill 한 task·재제출을 다 쓰고도 남은 실패·8 시간 동안 끝난 job 0·proxy 2 시간 미만은
+ALERT 로 멈춘다(상태는 `crab/manager/<name>/state.json`, 고친 뒤 같은 명령에 `--clear-alerts`). 모든 job 이 끝나면 완료 점검:
+task 마다 CRAB timestamp 디렉터리 1 개, 출력 파일 수 = job 수(id 1..N), 행 수 = DAS MiniAOD nevents, `Validation/scripts/check_extend_sample.C`
+로 전체 행의 불변조건과 tt+nb 수 → `crab/manager/<name>/REPORT.txt`. job 은 lxplus batch(el9 slot 에서 `cmssw-el7` 로 다시 실행, cmsenv,
+crab-setup), JobFlavour `tomorrow`, 22 시간마다 exit 75 로 다시 큐에 들어가 상태에서 이어 간다. 이미 낸 era 는 감시만 하고, `--launch` 를
+주면 아직 project dir 이 하나도 없는 era 만 `launch_extend.sh` 로 낸다(stdin 을 닫아 pass phrase 질문이 오면 멈추지 않고 실패). 로그는
+`crab/manager/<name>/manager.log`(점검마다 한 줄 + task 표; START/END 줄; 마지막 줄이 2 × 30 분보다 오래면 죽은 것).
+
+```bash
+# lxplus 호스트 셸(cmssw-el7 밖 -- condor_submit 은 호스트에만 있다), TtbarIdExtender/ 에서
+bash crab/manager_condor.sh --era 2016APV,2016 --name extend2016            # 감시만 (제출은 이미 함)
+tail -f crab/manager/extend2016/manager.log
+condor_q -constraint 'JobBatchName == "extend_manager_extend2016"'
+# 한 번만 점검(사람이 직접, cmssw-el7 + cmsenv + crab-setup 안에서): manager 가 도는 중이면 --dry-run 을 붙인다
+python3 crab/extend_manager.py --era 2016APV,2016 --name extend2016 --once --dry-run
+```
+
+오프라인 시험(가짜 CRAB·EOS·root·xrdfs·cvmfs): 정상 완료, 재제출, 재제출 소진 ALERT 와 `--clear-alerts`, SUBMITREFUSED, 정체, status 오류,
+proxy 부족, timestamp 2 개, 파일 누락, 행 수 차이, 읽을 수 없는 파일, 불변조건 위반, xrootd 경로, 시간 예산(exit 75)과 이어 가기,
+`--launch`(era 별, 실패, 이미 낸 era, 껍데기, 일부만 있는 era), lock, SIGTERM, `job.sh` 의 cmssw-el7 재실행부터 DONE 까지 — 전부 기대대로.
+lxplus 실제 실행은 아직이다.
 
 ```bash
 cmssw-el7
