@@ -62,6 +62,18 @@
 #   reads whatever the 15_0 extend files use), el9 for an el9 area. --container
 #   still overrides it.
 #
+#   2026-10-15 (docs/08 T-42): the CMSSW area the job sets up is the one this
+#   script lives in -- the area whose bin/ the jobs ship -- or --cmssw-base.
+#   NOT $CMSSW_BASE: on the lxplus host that is whatever the last cmsenv in the
+#   shell left. A cmsenv of the v15 area (CMSSW_15_0_18) left in the host shell
+#   made all 22 jobs of era 2016 set up that release in the el8 image, where the
+#   matcher built in CMSSW_10_6 could not start (exit 127, the loader's message
+#   only in the .err). A different $CMSSW_BASE is now a WARN at submission and
+#   in --preflight; the job prints its CMSSW_BASE, stops with exit 121 when
+#   `ldd -r` finds a library or a symbol of the matcher missing (the 2016 jobs
+#   had "undefined symbol: _ZN6TClass8GetClassERKSt9type_infobb" in the .err),
+#   and explains an exit 127.
+#
 # USAGE
 #   # 0) one-time: sort every sample (idempotent, skips completed ones)
 #   python3 scripts/submit_validation_condor.py --era 2018 --sort-only
@@ -236,8 +248,10 @@ def parse_args():
                    help="Do not request a container. ONLY correct if the "
                         "binaries were built against a native EL9 ROOT.")
     p.add_argument("--cmssw-base", default=None,
-                   help="CMSSW release the job should set up. Default: "
-                        "$CMSSW_BASE, else derived from this script's path.")
+                   help="CMSSW area the job should set up. Default: the area "
+                        "this script lives in (its bin/ is what the jobs ship); "
+                        "$CMSSW_BASE only when the script is not inside a CMSSW "
+                        "area (docs/08 T-42).")
     return p.parse_args()
 
 
@@ -282,6 +296,35 @@ def guess_cmssw_base():
         if (parent / "src").is_dir() and parent.name.startswith("CMSSW"):
             return str(parent)
     return ""
+
+
+def job_cmssw_base(a):
+    """(base, warning): the CMSSW area the jobs set up -- --cmssw-base when
+    given, else the area this script lives in (and with it the bin/ the jobs
+    ship: the matcher only runs with the ROOT it was built against).
+
+    $CMSSW_BASE of the submitting shell is deliberately NOT the default
+    (2026-10-15, docs/08 T-42): on the lxplus host it is whatever the last
+    `cmsenv` in that shell left. A cmsenv of the v15 area left in the host
+    shell made all 22 jobs of era 2016 set up CMSSW_15_0_18 in the el8 image,
+    where the matcher built in CMSSW_10_6 could not start (exit 127). It is used
+    only when this script is not inside a CMSSW area at all.
+    """
+    env = os.environ.get("CMSSW_BASE", "")
+    if a.cmssw_base:
+        return os.path.abspath(a.cmssw_base), None
+    base = guess_cmssw_base()
+    if not base:
+        if env:
+            return os.path.abspath(env), ("this script is not inside a CMSSW area; "
+                                          "the jobs set up $CMSSW_BASE=%s" % env)
+        return "", None
+    if env and os.path.realpath(env) != os.path.realpath(base):
+        return base, ("$CMSSW_BASE of this shell is %s, another area (a cmsenv left "
+                      "in this shell?) -- ignored: the jobs set up %s, the area of "
+                      "this script and of the bin/ they ship (--cmssw-base "
+                      "overrides)" % (env, base))
+    return base, None
 
 
 def chunks_for(nano_dir, short):
@@ -572,12 +615,12 @@ def run_preflight(a, P, shorts):
             "not on PATH -- are you inside cmssw-el7/-el8? Submit from the EL9 "
             "host (type `exit` first); the jobs still run in the area's container.")
 
+    cb, cb_warn = job_cmssw_base(a)
     if a.no_container:
         add("WARN", "container",
             "--no-container: only valid for a native-EL9 build of the tools")
     else:
-        img, arch = image_for_area(a.cmssw_base or os.environ.get("CMSSW_BASE")
-                                   or guess_cmssw_base())
+        img, arch = image_for_area(cb)
         img = a.container or img
         # Singularity images live on cvmfs; a missing path means every job would
         # fail to start, which is worth catching before 49 submissions.
@@ -592,10 +635,11 @@ def run_preflight(a, P, shorts):
         else:
             add("PASS", "container image", "%s  (from the area's arch %s)" % (img, arch))
 
-    cb = a.cmssw_base or os.environ.get("CMSSW_BASE") or guess_cmssw_base()
     ok_cb = bool(cb) and Path(cb, "src").is_dir()
     add("PASS" if ok_cb else "FAIL", "CMSSW base for job env",
         cb if ok_cb else "cannot determine -- pass --cmssw-base")
+    if cb_warn:
+        add("WARN", "$CMSSW_BASE of this shell", cb_warn)
     add("PASS" if Path("/cvmfs/cms.cern.ch/cmsset_default.sh").is_file() else "FAIL",
         "cvmfs cmsset_default.sh", "/cvmfs/cms.cern.ch/cmsset_default.sh")
     # Jobs read central NanoAOD as root://cms-xrd-global.cern.ch//store/... so a
@@ -852,6 +896,7 @@ set +u
 %(env_setup)s
 echo "[job] which root-config: $(which root-config 2>/dev/null || echo NONE)"
 echo "[job] SCRAM_ARCH=${SCRAM_ARCH:-unset}"
+echo "[job] CMSSW_BASE=${CMSSW_BASE:-unset}"
 if ! command -v root-config >/dev/null 2>&1; then
   echo "[job] FATAL: root-config not on PATH after environment setup."
   echo "[job]        The matcher links ROOT, so it cannot run. Check the .err"
@@ -866,6 +911,27 @@ if [ ! -x "${MATCH}" ]; then
   echo "[job]        expected it to be transferred into $(pwd); ls follows:"
   ls -la
   exit 127
+fi
+# The matcher only starts with the ROOT it was built against. Built in another
+# CMSSW area than the one set up above, it dies in the loader with exit 127 and
+# the reason only in the .err (2026-10-15, docs/08 T-42: "symbol lookup error:
+# ./matchTtbarIdSorted: undefined symbol: _ZN6TClass8GetClassERKSt9type_infobb"
+# -- ROOT's library names carry no version, so the other release's libCore.so
+# loads and the failure is a symbol). `ldd -r` resolves every symbol without
+# running the program: a library not found, or an undefined symbol of the
+# matcher itself (not of a ROOT library), stops the job here with its own code
+# and the reason in the .out.
+if command -v ldd >/dev/null 2>&1; then
+  LDD_OUT="$(ldd -r "${MATCH}" 2>&1)"
+  MISSING_LIBS="$(echo "${LDD_OUT}" | grep 'not found')"
+  MISSING_SYMS="$(echo "${LDD_OUT}" | grep 'undefined symbol' | grep -F "${MATCH##*/})")"
+  if [ -n "${MISSING_LIBS}" ] || [ -n "${MISSING_SYMS}" ]; then
+    echo "[job] FATAL: the matcher cannot run with CMSSW_BASE=${CMSSW_BASE:-unset}:"
+    [ -n "${MISSING_LIBS}" ] && echo "${MISSING_LIBS}" | head -n 3
+    [ -n "${MISSING_SYMS}" ] && echo "${MISSING_SYMS}" | head -n 3
+    echo "[job]        built in another CMSSW area? submit with --cmssw-base <that area>"
+    exit 121
+  fi
 fi
 if [ ! -r "${NANO_CHUNK}" ]; then
   echo "[job] FATAL: nano chunk not readable: ${NANO_CHUNK}"; exit 126
@@ -891,6 +957,12 @@ echo "[job] sorted parts in index: $(grep -cv '^#' "${SORTED_DIR}/index.txt")"
     --out            "${ROOT_OUT}"
 rc=$?
 echo "[job] matchTtbarIdSorted exit=${rc}"
+if [ ${rc} -eq 127 ] || [ ${rc} -eq 126 ]; then
+  echo "[job] exit ${rc} = the matcher could not be started (loader: a library or a"
+  echo "[job]        symbol of another ROOT; the message is in this job's .err). Usual"
+  echo "[job]        cause: the job set up another CMSSW area than the one the matcher"
+  echo "[job]        was built in (CMSSW_BASE above; docs/08 T-42)."
+fi
 # Echo the JSON into stdout too: the .out lands on AFS, so the numbers survive
 # even if the EOS copy below fails.
 if [ -f "${JSON_OUT}" ]; then
@@ -942,8 +1014,9 @@ def write_condor(a, P, plan):
     for d in (work, logdir):
         d.mkdir(parents=True, exist_ok=True)
 
-    cmssw_base = (a.cmssw_base or os.environ.get("CMSSW_BASE")
-                  or guess_cmssw_base())
+    cmssw_base, cb_warn = job_cmssw_base(a)
+    if cb_warn:
+        print("[WARN] %s" % cb_warn)
     if a.no_container:
         env_setup = ('echo "[job] --no-container: expecting root-config already '
                      'on PATH"')
@@ -1015,6 +1088,8 @@ def write_condor(a, P, plan):
                   "el8/el9 build of the tools needs --container." % (cmssw_base, image))
     image_line = ("" if a.no_container
                   else 'MY.SingularityImage = "%s"\n' % image)
+    print("[job env] %s" % ("--no-container: the worker's own environment" if a.no_container
+                            else "%s   image %s" % (cmssw_base, image)))
     sub = work / "match.sub"
     sub.write_text(SUB % {
         "era": P["era"], "run_sh": run_sh, "logdir": logdir,

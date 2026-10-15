@@ -125,6 +125,8 @@ cd ..
 2016 의 표본은 2018 의 약 1/3 규모(TTToSemiLeptonic nano 132 M / 145 M 대 2018 476 M)다.
 
 블록은 셸이 바뀌는 곳(호스트 ↔ 컨테이너)과 기다릴 곳에서 나뉜다 — 하나씩 붙이고 프롬프트가 돌아온 뒤 다음 것([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-41).
+job 은 이 스크립트가 들어 있는 CMSSW 영역(여기서는 10_6, el7)을 셋업한다 — 호스트 셸에 다른 영역의 `cmsenv` 가 남아 있으면 WARN 만 나고 무시된다
+(2026-10-15 의 2016 첫 제출은 그것 때문에 22 개 모두 exit 127, T-42). 제출 출력의 `[job env]` 줄이 그 영역과 이미지다.
 
 ```bash
 cmssw-el7
@@ -589,9 +591,11 @@ job — 다른 era 의 검증, extend manager — 을 지운다.
 | 4 | nano 파일을 재시도 후에도 못 읽음 / 읽은 entry 수 ≠ open-check 합계 | 해당 chunk 재제출 (transient AAA) |
 | 6 / 8 | `genTtbarId` 불일치 / 확장 무결성 위반 | **실제 물리 문제** — 조사 필요 |
 | 10 | `GetEntry()` 가 `<=0` — 재시도(재open+재seek 3회)까지 실패 | 남아 있으면 그 파일의 replica 문제. `.err` 의 XRootD 에러 확인 후 chunk 재제출 ([../docs/08](../docs/08_troubleshooting.md) T-24) |
+| 121 | matcher 의 라이브러리나 심볼을 `ldd -r` 가 못 찾음 — job 이 matcher 를 빌드한 것과 다른 CMSSW 영역을 셋업 | `.out` 의 `CMSSW_BASE` 와 목록; 그 영역을 `--cmssw-base` 로 ([../docs/08](../docs/08_troubleshooting.md) T-42) |
 | 122 | 계산은 정상, EOS 전송 3회 실패 | 숫자는 `.out` 의 `BEGIN/END JSON` 에 있음. 재제출 |
 | 123 | `root-config` 없음 (cvmfs/scram 세팅 실패) | `.err` 확인 |
-| 124–127 | CMSSW src / sorted `index.txt` / chunk / 바이너리 부재 | 해당 경로 확인 |
+| 124–126 | CMSSW src / sorted `index.txt` / chunk 부재 | 해당 경로 확인 |
+| 127 | matcher 가 scratch 에 없음(`.out` 의 `ls -la`) 또는 loader 가 못 띄움(메시지는 `.err`, `.out` 에 그 설명) | 제출 출력의 `[job env]`, `.out` 의 `CMSSW_BASE` — 영역이 맞는지 (T-42) |
 
 job 이 어디서 죽어도 `trap` 이 **스텁 JSON** 을 남기므로, 합산기가 그 chunk 를 **FAILED**(누락이
 아니라)로 표시한다. 그리고 각 job 은 JSON 을 stdout 에도 찍으므로 **EOS 전송이 실패해도 숫자는

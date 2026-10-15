@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (8)** (O10: 2024 CRAB 제출 3,557 job, manager `extend2024`; NanoAOD > MiniAOD 네 샘플과 DAS 확인; O9 ⑧ 진행). 그 전 2026-10-15 (7) (T-41: 명령 블록을 셸 경계와 비밀번호 프롬프트에서 나눔, `switch`; O9 ⑧ 결과). 그 전 2026-10-15 (6) (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (9)** (T-42: 검증 job 의 CMSSW 영역은 스크립트의 영역 — 2016 22 job 이 exit 127). 그 전 2026-10-15 (8) (O10: 2024 CRAB 제출 3,557 job, manager `extend2024`; NanoAOD > MiniAOD 네 샘플과 DAS 확인; O9 ⑧ 진행). 그 전 2026-10-15 (7) (T-41: 명령 블록을 셸 경계와 비밀번호 프롬프트에서 나눔, `switch`; O9 ⑧ 결과). 그 전 2026-10-15 (6) (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1682,3 +1682,22 @@ job runs in cmssw-el8`, proxy 191 h). `datasets.yaml`(2024 parent 일곱, 열림
 
 **문서만 (코드 변경 없음).** [01](01_status.md) O9·O10·O3, `TtbarIdExtender/README.md` §2.2e (i), `Validation/README.md` §0.1d(Nano > MiniAOD 인 2024 의
 unmatched 가 어디에 어떻게 나오는지).
+
+## 2026-10-15 (9) — 검증 job 이 셋업하는 CMSSW 영역은 스크립트가 들어 있는 영역(`$CMSSW_BASE` 가 아니다): 2016 22 chunk 가 exit 127 (T-42)
+
+**lxplus (사용자).** v15 clone 의 커밋은 rebase 뒤 c7d72cc 로 push, 맥 b1874f3 push. 2016 `--report`: 22 chunk 모두 `exit 127`, queue 0;
+`condor_history` 의 ExitCode 127 ×22. 원인(확인: 그 셸의 `CMSSW_BASE` 가 v15 영역, job 의 `SCRAM_ARCH=el8_amd64_gcc12`, .err 의 `symbol lookup error: ... undefined symbol: _ZN6TClass8GetClassERKSt9type_infobb`)과 즉시 조치(`--resubmit-failed --cmssw-base <10_6 영역>`):
+[08](08_troubleshooting.md) T-42.
+
+**코드 (`Validation/scripts/submit_validation_condor.py`).** `job_cmssw_base()`: job 의 영역 = `--cmssw-base`, 없으면 스크립트가 들어 있는 영역(그
+`bin/` 을 job 이 싣고 간다); `$CMSSW_BASE` 는 스크립트가 CMSSW 영역 밖일 때만. 다르면 제출·`--resubmit-failed`·`--preflight` 에 WARN(preflight 는
+`$CMSSW_BASE of this shell` 행), 제출 출력에 `[job env] <영역>   image <이미지>`. `run_match.sh`: `[job] CMSSW_BASE=` 줄, `ldd -r` 가 matcher 의
+라이브러리나 matcher 자신의 심볼을 못 찾으면 exit **121**(못 찾은 것을 .out 에; ROOT 라이브러리 안의 undefined 는 보지 않는다), matcher 가 127·126 으로 끝나면 그 뜻(loader; 메시지는 .err)을 .out 에. 10_6 영역에서
+만든 파일은 옛 코드와 그 추가 줄만 다르다(T6 d9 를 그렇게 고쳤다).
+
+**시험.** 새 T8 15/15 — 묵은 `$CMSSW_BASE`(v15) → 10_6·el7 과 WARN, `--cmssw-base` 우선, 같은 영역의 다른 철자(symlink)는 WARN 없음, 설정 없음, preflight
+의 행, 영역 밖 사본, `--resubmit-failed`, 그리고 생성된 `run_match.sh` 를 가짜 ldd·matcher·xrdcp 로 실제로 돌려 121(라이브러리 없음)·127 설명·정상 0·exit 4
+에는 설명 없음, `ldd -r` 의 matcher 심볼(121)과 라이브러리 쪽 심볼(멈추지 않음). 옛 코드로 돌리면 T8 11 FAIL(시험이 고친 것을 잡는다). T6 35/35, T7 24/24. 실제 `ldd -r` 의 줄 형식은 작은 C 프로그램으로 확인했다(심볼을 뺀 라이브러리 → `undefined symbol: foo<TAB>(./matchTtbarIdSorted)`,
+실행하면 `symbol lookup error` 와 127 — 2016 job 과 같은 모양).
+
+**문서.** [08](08_troubleshooting.md) T-42, [01](01_status.md) O9, `Validation/README.md` §0.1c 의 한 줄과 진단표(121, 127).
