@@ -2,7 +2,8 @@
 # CRAB dataset catalogue for extend production (Approach 3)
 # =============================================================================
 # Each enabled entry triggers a CRAB submission of run_ttbarIdExtend_cfg.py over the
-# given UL MiniAODv2 input.  The output is a small ROOT TTree ("Events") with
+# given UL MiniAODv2 input (era "2024": Run 3 MiniAODv6, submitted from a
+# CMSSW_15_0_X area -- see that block).  The output is a small ROOT TTree ("Events") with
 # one row per event holding
 #     (run, luminosityBlock, event, genTtbarId, Expanded_genTtbarId, nAddBJets, nAddBJetsMulti).
 #
@@ -468,3 +469,100 @@ eras:
           4FS ttbb DL, UL16 postVFP. MiniAOD 1,571,799 ev / 35 files; nano
           1,571,799 ev / 3 files. Smallest 2016 sample: use one of its files
           for the local cmsRun year=2016 check.
+
+  # ===========================================================================
+  # 2024 (Run 3, RunIII2024Summer24) -- added 2026-10-15 (docs/01 O10, docs/04 D20)
+  # ===========================================================================
+  # WHY:   TTHHAnalyzer runs 2024 without a tt+nb lookup (its D-2026-10-05-C):
+  #        tt+>=3b stays in tt+B and TT4b has stitch multiplier 0 (plan
+  #        AN_NOTT4B). With 2024 patches the analyzer can use plan AN, where
+  #        TT4b owns tt+3b / tt+4b (user, 2026-10-15).
+  # RELEASE: CMSSW_15_0_X (the v15 area ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18,
+  #        el8_amd64_gcc12, inside cmssw-el8). The 10_6 release cannot read this
+  #        MiniAOD and has no Run3_2024 era; launch_extend.sh, the preflight and
+  #        manager_condor.sh refuse a mismatch (and refuse 2024 together with a
+  #        Run 2 era in one call).
+  # INPUT: MiniAODv6 parents of the central NanoAODv15 datasets that TTHHAnalyzer
+  #        uses (data/samples_2024.json; NtupleForge DAS scan
+  #        script/das/das_ttHH_2024_v15_20260923_0851.log). The nano_child lines
+  #        are those exact datasets (TTto2L2Nu: -v3; its -v2 is INVALID in DAS).
+  #        `dataset:` starts EMPTY on purpose -- no MiniAOD name is guessed:
+  #          bash crab/resolve_parents.sh 2024 --fill   # writes the DAS parent into
+  #                                                     # each empty dataset: line
+  #          bash crab/resolve_parents.sh 2024          # read-only: MATCH 7/7
+  #          bash crab/resolve_parents.sh 2024 --apply  # enabled/verified -> true
+  #        (launch_extend.sh --era 2024 runs the last two as its steps 4 and 5.)
+  # ERA KEY: "2024" is the year= value of run_ttbarIdExtend_cfg.py (era modifier
+  #        Run3_2024 alone; run2_nanoAOD_106Xv2 is for the UL years only).
+  #        global_tag / era_modifiers are documentation (gen-level pset, no GT).
+  # SIZE:  NanoAODv15 1,486,995,493 ev / 3,052 files in total (DAS 2026-09-23);
+  #        the MiniAOD file counts (and so the job counts at units_per_job 10)
+  #        come from the preflight (--check-das); keep every task below 10,000
+  #        jobs (D15) -- the preflight FAILs above it.
+  # ===========================================================================
+  "2024":
+    global_tag: "150X_mcRun3_2024_realistic_v2"
+    era_modifiers: ["Run3_2024"]
+    datasets:
+
+      - name: "TT4b"
+        dataset:    ""
+        nano_child: "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM"
+        enabled: false
+        verified: false
+        notes: >
+          Dedicated tt4b (madgraph), Summer24. Sole source of tt+nb in the
+          stitching plan AN. NanoAODv15 9,898,300 ev / 34 files.
+
+      - name: "TTbar_SemiLep"
+        dataset:    ""
+        nano_child: "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
+        enabled: false
+        verified: false
+        notes: >
+          Inclusive ttbar SL (powheg), Summer24. NanoAODv15 484,475,057 ev /
+          790 files.
+
+      - name: "TTbar_Hadronic"
+        dataset:    ""
+        nano_child: "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
+        enabled: false
+        verified: false
+        notes: >
+          Inclusive ttbar FH (powheg), Summer24. NanoAODv15 472,535,695 ev /
+          773 files.
+
+      - name: "TTbar_DiLep"
+        dataset:    ""
+        nano_child: "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM"
+        enabled: false
+        verified: false
+        notes: >
+          Inclusive ttbar DL (powheg), Summer24. NanoAODv15 470,123,263 ev /
+          780 files (-v3; the -v2 NanoAODv15 is INVALID in DAS).
+
+      - name: "TTbb_SemiLep"
+        dataset:    ""
+        nano_child: "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
+        enabled: false
+        verified: false
+        notes: >
+          ttbb (powheg) SL, Summer24. NanoAODv15 22,473,402 ev / 283 files.
+
+      - name: "TTbb_Hadronic"
+        dataset:    ""
+        nano_child: "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
+        enabled: false
+        verified: false
+        notes: >
+          ttbb (powheg) FH, Summer24. NanoAODv15 14,990,580 ev / 189 files.
+
+      - name: "TTbb_DiLep"
+        dataset:    ""
+        nano_child: "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
+        enabled: false
+        verified: false
+        notes: >
+          ttbb (powheg) DL, Summer24. NanoAODv15 12,499,196 ev / 203 files.
+          Smallest 2024 ttbar sample: launch_extend.sh takes one of its MiniAOD
+          files for the local cmsRun year=2024 check.

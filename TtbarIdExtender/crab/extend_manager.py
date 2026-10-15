@@ -320,6 +320,14 @@ class Manager(object):
             if era not in eras:
                 raise SystemExit("ERROR: era %s not in %s" % (era, self.a.datasets))
             for d in (eras[era].get("datasets") or []):
+                # 2026-10-15 review: a new era (2024) starts with dataset: "" until
+                # resolve_parents.sh --fill; say so instead of an IndexError below.
+                if not str(d.get("dataset") or "").strip():
+                    raise SystemExit("ERROR: %s/%s has dataset: \"\" in %s -- run "
+                                     "bash crab/resolve_parents.sh %s --fill first (in the "
+                                     "era's CMSSW area, after cmsenv), check the diff, then "
+                                     "start the manager again" % (era, d.get("name", "?"),
+                                                                 self.a.datasets, era))
                 cfg = S.build_config(process_name=d["name"], era=era, dataset_entry=d,
                                      site_cfg=site, era_block=eras[era])
                 rn = cfg.General.requestName

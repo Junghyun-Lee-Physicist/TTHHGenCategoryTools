@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "purpose": "DAS nevents of the central RunIII2024Summer24 NanoAODv15 datasets of the 7 ttbar stitching samples, used by scripts/aggregate_validation.py as the completeness criterion (the sum of per-chunk nano_entries must equal this).",
+    "why_in_this_repo": "A validation tool carries its own reference data (docs/08 T-23 (7), docs/04 D16).",
+    "source": "NtupleForge script/das/das_ttHH_2024_v15_20260923_0851.log (sha256[:16] 5a4f4abeb574308d), DS| lines; the same numbers are in script/das/inventory_dumps/das_inventory_summer24_v15_20260911_0427.tsv (sha256[:16] 9cf83f0dc7a5c7eb). The datasets are the ones TTHHAnalyzer data/samples_2024.json uses.",
+    "datasets": {
+      "tt4b": "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM",
+      "ttbb_Hadronic": "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM",
+      "ttbb_SemiLeptonic": "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM",
+      "ttbb_2L2Nu": "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM",
+      "TTToHadronic": "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM",
+      "TTToSemiLeptonic": "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM",
+      "TTTo2L2Nu": "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM"
+    },
+    "era": "2024 (Run 3, RunIII2024Summer24 NanoAODv15)",
+    "generated": "2026-10-15",
+    "keys": "Validation short sample names (same as filelists/nano2024/filelist_<short>.txt); the Run 3 primaries map to them (TT4B -> tt4b, TTBBto4Q -> ttbb_Hadronic, ...)",
+    "nano_files": "34 / 189 / 283 / 203 / 773 / 790 / 780 files (same order as datasets), 3,052 in total",
+    "miniaod": "The extend rows are judged against the MiniAODv6 nevents by the manager; NanoAOD may hold fewer events than its MiniAOD parent (it did for five UL16 entries). Extend-only events are not a validation failure.",
+    "update_rule": "Only change these if the DAS dataset itself changes. A mismatch against a validation run means the run is INCOMPLETE -- do not 'fix' it by editing this file."
+  },
+  "tt4b": 9898300,
+  "ttbb_Hadronic": 14990580,
+  "ttbb_SemiLeptonic": 22473402,
+  "ttbb_2L2Nu": 12499196,
+  "TTToHadronic": 472535695,
+  "TTToSemiLeptonic": 484475057,
+  "TTTo2L2Nu": 470123263
+}

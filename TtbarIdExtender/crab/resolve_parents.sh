@@ -9,8 +9,8 @@
 # grid proxy:
 #
 #   voms-proxy-init -voms cms
-#   bash resolve_parents.sh [ERA] [--apply]
-#        ERA = 2017 (default) | 2018 | 2016APV | 2016
+#   bash resolve_parents.sh [ERA] [--apply | --fill]
+#        ERA = 2017 (default) | 2018 | 2016APV | 2016 | 2024
 #
 # 2026-07-26: made era-aware (was 2017-hardcoded). The 2018 NanoAODv9 children
 # below are the exact datasets found by NtupleForge/script/das_ul18_scan.sh
@@ -23,6 +23,14 @@
 # children are the VALID standard-campaign datasets of the NtupleForge DAS
 # inventories script/das/inventory_dumps/das_inventory_ul16{pre,post}_v9_*.tsv.
 #
+# 2026-10-15: era 2024 (Run 3, RunIII2024Summer24). The NanoAODv15 children are
+# the datasets TTHHAnalyzer uses (data/samples_2024.json; NtupleForge DAS scan
+# script/das/das_ttHH_2024_v15_20260923_0851.log). Their MiniAODv6 parents are
+# NOT written in datasets.yaml by hand: the entries start with dataset: "" and
+# --fill writes the DAS answer (below). Run 3 MiniAOD needs a Run 3 release:
+# run this inside cmssw-el8 + cmsenv in the CMSSW_15_0_X area (dasgoclient is
+# the same; only the later steps care about the release).
+#
 # For each ttbar stitching sample it:
 #   1. prints the NanoAODv9 child (from this script's list),
 #   2. asks DAS for that child's parent dataset,
@@ -30,6 +38,7 @@
 #      datasets.yaml holds for the entry with that nano_child:
 #        MATCH     identical strings
 #        MISMATCH  different -> paste the DAS parent into `dataset:` by hand
+#        EMPTY     the entry's `dataset:` is "" -> --fill writes the DAS parent
 #        ABSENT    no datasets.yaml entry has this nano_child
 #
 # It also cross-checks by querying the MiniAODv2 dataset directly when DAS
@@ -47,12 +56,24 @@
 #   identical to the DAS answer. If any sample is not MATCH nothing is written.
 #   Undo: git checkout -- crab/datasets.yaml
 #
+# --fill (2026-10-15, for a new era): after the read-only pass, write the DAS
+#   parent into every entry of the era whose `dataset:` is "" -- and ONLY if
+#   every such entry has exactly one MINIAODSIM parent with the SAME primary
+#   dataset as its nano_child and a processed name that starts with the era's
+#   MiniAOD campaign prefix (MINI_FILL_PREFIX below). Nothing is guessed: the
+#   written string is the DAS answer, printed above. Entries that already have a
+#   `dataset:` are never touched; enabled/verified stay false. The diff is
+#   printed and checked (only dataset: lines of EMPTY entries, "" -> parent).
+#   Then: the read-only run must say MATCH for all, and --apply opens them.
+#   --fill and --apply are mutually exclusive.
+#
 # Exit codes:
 #   0  every sample MATCH (and, with --apply, datasets.yaml updated or already open)
 #   1  dasgoclient not found
 #   2  bad arguments / unsupported ERA / datasets.yaml unreadable
-#   3  at least one sample is not MATCH (MISMATCH, ABSENT, or no parent)
-#   4  --apply refused by its own post-check (datasets.yaml left unchanged)
+#   3  at least one sample is not MATCH (MISMATCH, EMPTY, ABSENT, or no parent);
+#      with --fill: at least one EMPTY entry cannot be filled (nothing written)
+#   4  --apply / --fill refused by its own post-check (datasets.yaml unchanged)
 #
 # Keep it ASCII-only (docs/09_environment.md: LANG=C inside CMSSW_10_6_X).
 # =============================================================================
@@ -63,10 +84,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 YAML="${RESOLVE_PARENTS_YAML:-${HERE}/datasets.yaml}"
 
 APPLY=0
+FILL=0
 ERA=""
 for arg in "$@"; do
   case "$arg" in
     --apply) APPLY=1 ;;
+    --fill)  FILL=1 ;;
     -h|--help) awk 'NR>=2 && /^set -u/ {exit} NR>=2' "${BASH_SOURCE[0]}" | sed 's/^#\{0,1\} \{0,1\}//'; exit 0 ;;
     -*) echo "ERROR: unknown option '$arg' (try --help)" >&2; exit 2 ;;
     *)  if [[ -z "$ERA" ]]; then ERA="$arg"; else
@@ -74,6 +97,10 @@ for arg in "$@"; do
   esac
 done
 ERA="${ERA:-2017}"
+if (( APPLY && FILL )); then
+  echo "ERROR: --apply and --fill are mutually exclusive (fill first, then check, then apply)" >&2
+  exit 2
+fi
 
 # logical name  ->  NanoAODv9 child  (the known-good reference)
 # (order matches datasets.yaml)
@@ -91,6 +118,7 @@ case "$ERA" in
   2017)
     NANO_CAMPAIGN="RunIISummer20UL17NanoAODv9"
     MINI_CAMPAIGN="RunIISummer20UL17MiniAODv2-106X_mc2017_realistic_v9"
+    MINI_FILL_PREFIX="RunIISummer20UL17MiniAODv2-"
     NANO=(
       "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v2/NANOAODSIM"
       "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL17NanoAODv9-106X_mc2017_realistic_v9-v1/NANOAODSIM"
@@ -104,6 +132,7 @@ case "$ERA" in
   2018)
     NANO_CAMPAIGN="RunIISummer20UL18NanoAODv9"
     MINI_CAMPAIGN="RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1"
+    MINI_FILL_PREFIX="RunIISummer20UL18MiniAODv2-"
     NANO=(
       "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v2/NANOAODSIM"
       "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v1/NANOAODSIM"
@@ -117,6 +146,7 @@ case "$ERA" in
   2016APV)
     NANO_CAMPAIGN="RunIISummer20UL16NanoAODAPVv9"
     MINI_CAMPAIGN="RunIISummer20UL16MiniAODAPVv2-106X_mcRun2_asymptotic_preVFP_v11"
+    MINI_FILL_PREFIX="RunIISummer20UL16MiniAODAPVv2-"
     NANO=(
       "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v2/NANOAODSIM"
       "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM"
@@ -130,6 +160,7 @@ case "$ERA" in
   2016)
     NANO_CAMPAIGN="RunIISummer20UL16NanoAODv9"
     MINI_CAMPAIGN="RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17"
+    MINI_FILL_PREFIX="RunIISummer20UL16MiniAODv2-"
     NANO=(
       "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v2/NANOAODSIM"
       "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM"
@@ -140,12 +171,26 @@ case "$ERA" in
       "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM"
     )
     ;;
+  2024)
+    NANO_CAMPAIGN="RunIII2024Summer24NanoAODv15"
+    MINI_CAMPAIGN="RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2"
+    MINI_FILL_PREFIX="RunIII2024Summer24MiniAOD"
+    NANO=(
+      "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM"
+      "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
+      "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
+      "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM"
+      "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
+      "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
+      "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM"
+    )
+    ;;
   *)
-    echo "ERROR: unsupported ERA '$ERA' (expected 2017, 2018, 2016APV or 2016)" >&2
+    echo "ERROR: unsupported ERA '$ERA' (expected 2017, 2018, 2016APV, 2016 or 2024)" >&2
     exit 2
     ;;
 esac
-echo "### resolve_parents.sh -- ERA=$ERA (nano campaign: $NANO_CAMPAIGN)$( (( APPLY )) && echo '  [--apply]')"
+echo "### resolve_parents.sh -- ERA=$ERA (nano campaign: $NANO_CAMPAIGN)$( (( APPLY )) && echo '  [--apply]')$( (( FILL )) && echo '  [--fill]')"
 echo "### datasets.yaml: $YAML"
 echo "### utc: $(date -u +%FT%TZ)  host: $(hostname 2>/dev/null || echo '?')"
 
@@ -165,10 +210,12 @@ if command -v voms-proxy-info >/dev/null 2>&1; then
     echo "WARNING: no valid grid proxy detected; run 'voms-proxy-init -voms cms'." >&2
 fi
 
-# dataset: value of the datasets.yaml entry (inside the ERA block) whose
-# nano_child equals $1; empty if there is none. Same parsing conventions as
-# resolve_nano_children.sh: era key at 2 spaces, keys matched on [[:space:]]+.
+# "FOUND <dataset>" for the datasets.yaml entry (inside the ERA block) whose
+# nano_child equals $1 -- <dataset> is empty for dataset: "" -- and nothing if
+# there is no such entry. Same parsing conventions as resolve_nano_children.sh:
+# era key at 2 spaces, keys matched on [[:space:]]+. $2: another file (--fill check).
 yaml_dataset_for_nano() {
+  local file="${2:-$YAML}"
   ERA="$ERA" NANO_WANT="$1" awk '
     $0 ~ "^  \"" ENVIRON["ERA"] "\":"  { inera=1; next }
     inera && /^  "[0-9]/               { inera=0 }
@@ -176,14 +223,29 @@ yaml_dataset_for_nano() {
     /^[[:space:]]+- name:/             { ds="" }
     /^[[:space:]]+dataset:/            { ds=$2; gsub(/"/,"",ds) }
     /^[[:space:]]+nano_child:/         { nc=$2; gsub(/"/,"",nc);
-                                         if (nc == ENVIRON["NANO_WANT"]) { print ds; exit } }
-  ' "$YAML"
+                                         if (nc == ENVIRON["NANO_WANT"]) { print "FOUND " ds; exit } }
+  ' "$file"
+}
+
+# Replace datasets.yaml by the checked temp file $1 (made by mktemp next to it):
+# a rename in the same directory is atomic, so a failed write (quota, expired
+# AFS token) leaves the old file whole. 2026-10-15 review: before this,
+# 'cat tmp > yaml' truncated the file first. Mode kept from the old file.
+commit_yaml() {
+  chmod --reference="$YAML" "$1" 2>/dev/null || chmod 644 "$1"
+  if ! mv -f "$1" "$YAML"; then
+    echo "ERROR: could not replace $YAML (it is unchanged); the checked new version is $1" >&2
+    exit 4
+  fi
 }
 
 n=${#NAMES[@]}
 n_match=0
 n_bad=0
 MATCHED=()
+FILL_PAIRS=()      # "<nano_child> <DAS parent>" of EMPTY entries that --fill may write
+n_empty=0
+n_fill_bad=0
 for ((i=0; i<n; i++)); do
   name="${NAMES[$i]}"
   nano="${NANO[$i]}"
@@ -195,16 +257,33 @@ for ((i=0; i<n; i++)); do
   parents="$(dasgoclient -query="parent dataset=${nano}" 2>/dev/null | grep MINIAODSIM)"
   parent="$(printf '%s\n' "$parents" | head -n1)"
   n_par="$(printf '%s\n' "$parents" | grep -c MINIAODSIM)"
-  ymini="$(yaml_dataset_for_nano "$nano")"
+  found="$(yaml_dataset_for_nano "$nano")"
+  ymini="${found#FOUND }"
   if [[ -n "$parent" ]]; then
     echo "  PARENT (from DAS) : $parent"
     if (( n_par > 1 )); then
       echo "  datasets.yaml     : NOT CHECKED -- DAS returned $n_par MINIAODSIM parents:"
       printf '%s\n' "$parents" | sed 's/^/    /'
       n_bad=$((n_bad+1))
-    elif [[ -z "$ymini" ]]; then
+      # an EMPTY entry with two parents cannot be filled: --fill writes nothing then
+      [[ -n "$found" && -z "$ymini" ]] && { n_empty=$((n_empty+1)); n_fill_bad=$((n_fill_bad+1)); }
+    elif [[ -z "$found" ]]; then
       echo "  datasets.yaml     : ABSENT -- no entry of era $ERA has this nano_child"
       n_bad=$((n_bad+1))
+    elif [[ -z "$ymini" ]]; then
+      n_empty=$((n_empty+1))
+      n_bad=$((n_bad+1))
+      # --fill only writes a parent whose primary equals the child's and whose
+      # processed name starts with the era's MiniAOD campaign prefix.
+      p_prim="$(printf '%s' "$parent" | cut -d/ -f2)"; n_prim="$(printf '%s' "$nano" | cut -d/ -f2)"
+      p_proc="$(printf '%s' "$parent" | cut -d/ -f3)"
+      if [[ "$p_prim" == "$n_prim" && "$p_proc" == "${MINI_FILL_PREFIX}"* ]]; then
+        echo "  datasets.yaml     : EMPTY -- --fill writes this parent"
+        FILL_PAIRS+=("$nano $parent")
+      else
+        echo "  datasets.yaml     : EMPTY -- NOT fillable: primary '$p_prim' vs '$n_prim', processed '$p_proc' (want ${MINI_FILL_PREFIX}*)"
+        n_fill_bad=$((n_fill_bad+1))
+      fi
     elif [[ "$parent" == "$ymini" ]]; then
       echo "  datasets.yaml     : MATCH"
       n_match=$((n_match+1))
@@ -226,12 +305,83 @@ for ((i=0; i<n; i++)); do
     fi
     echo "  datasets.yaml     : NOT CHECKED (no parent link; check proxy / DAS)"
     n_bad=$((n_bad+1))
+    [[ -n "$found" && -z "$ymini" ]] && { n_empty=$((n_empty+1)); n_fill_bad=$((n_fill_bad+1)); }
   fi
 done
 echo "============================================================"
-echo "RESULT: ERA=$ERA  MATCH $n_match/$n  not-MATCH $n_bad"
+echo "RESULT: ERA=$ERA  MATCH $n_match/$n  not-MATCH $n_bad$( (( n_empty )) && echo "  (EMPTY $n_empty, fillable ${#FILL_PAIRS[@]})")"
+
+# ---------------------------------------------------------------------------
+# --fill: write the DAS parent into the EMPTY dataset: lines of the ERA block
+# ---------------------------------------------------------------------------
+if (( FILL )); then
+  if (( n_empty == 0 )); then
+    echo "--fill: no entry of era $ERA has an empty dataset: -- nothing to fill."
+    (( n_bad > 0 )) && exit 3
+    exit 0
+  fi
+  if (( n_fill_bad > 0 )); then
+    echo "--fill: NOTHING WRITTEN -- $n_fill_bad EMPTY entr(y/ies) cannot be filled (lines above)."
+    echo "        Paste the right MiniAOD parent by hand, or fix the nano_child."
+    exit 3
+  fi
+  ftmp="$(mktemp "${YAML}.fill.XXXXXX")" || { echo "ERROR: mktemp failed" >&2; exit 4; }
+  FILL_LIST="$(printf '%s\n' ${FILL_PAIRS[@]+"${FILL_PAIRS[@]}"})" ERA="$ERA" awk '
+    BEGIN {
+      nf = split(ENVIRON["FILL_LIST"], arr, "\n")
+      for (k = 1; k <= nf; k++) if (arr[k] != "") { split(arr[k], pq, " "); par[pq[1]] = pq[2] }
+    }
+    { line[NR] = $0 }
+    END {
+      inera = 0; dsl = 0
+      for (i = 1; i <= NR; i++) {
+        l = line[i]
+        if (l ~ "^  \"" ENVIRON["ERA"] "\":") { inera = 1; dsl = 0; continue }
+        if (inera && l ~ /^  "[0-9]/)         { inera = 0; continue }
+        if (!inera) continue
+        if (l ~ /^[[:space:]]+- name:/)       { dsl = 0 }
+        if (l ~ /^[[:space:]]+dataset:[[:space:]]*""[[:space:]]*$/) { dsl = i }
+        if (l ~ /^[[:space:]]+nano_child:/) {
+          split(l, f, /[[:space:]]+/); nc = f[3]; gsub(/"/, "", nc)
+          if (dsl > 0 && (nc in par)) { sub(/""/, "\"" par[nc] "\"", line[dsl]) }
+          dsl = 0
+        }
+      }
+      for (i = 1; i <= NR; i++) print line[i]
+    }
+  ' "$YAML" > "$ftmp"
+  # post-check: only dataset: lines may change, from "" to a /.../MINIAODSIM path,
+  # one added line per removed line, and every pair must now read back as MATCH.
+  fchanged="$(diff "$YAML" "$ftmp" | grep '^[<>]')"
+  fbad="$(printf '%s\n' "$fchanged" | grep -v '^$' \
+    | grep -Ev '^< [[:space:]]+dataset:[[:space:]]*""[[:space:]]*$' \
+    | grep -Ev '^> [[:space:]]+dataset:[[:space:]]*"/[^"]+/MINIAODSIM"[[:space:]]*$')"
+  f_minus="$(printf '%s\n' "$fchanged" | grep -c '^<')"
+  f_plus="$(printf '%s\n' "$fchanged" | grep -c '^>')"
+  f_miss=0
+  for ((k=0; k<${#FILL_PAIRS[@]}; k++)); do
+    fn="${FILL_PAIRS[$k]%% *}"; fp="${FILL_PAIRS[$k]#* }"
+    got="$(yaml_dataset_for_nano "$fn" "$ftmp")"
+    [[ "${got#FOUND }" == "$fp" ]] || { echo "  post-check: $fn -> '${got#FOUND }' (want $fp)"; f_miss=$((f_miss+1)); }
+  done
+  if [[ -n "$fbad" || "$f_minus" != "$f_plus" || "$f_plus" -ne "${#FILL_PAIRS[@]}" || "$f_miss" -ne 0 ]]; then
+    echo "ERROR: --fill post-check failed; datasets.yaml NOT modified." >&2
+    [[ -n "$fbad" ]] && { echo "  unexpected changed lines:" >&2; printf '%s\n' "$fbad" | sed 's/^/    /' >&2; }
+    echo "  removed=$f_minus added=$f_plus pairs=${#FILL_PAIRS[@]} not_read_back=$f_miss" >&2
+    rm -f "$ftmp"
+    exit 4
+  fi
+  echo "--fill: the following dataset: lines change (diff datasets.yaml):"
+  diff -u "$YAML" "$ftmp" | sed 's/^/  /'
+  commit_yaml "$ftmp"
+  echo "--fill: datasets.yaml updated -- ${#FILL_PAIRS[@]} MiniAOD parent(s) of era $ERA written; enabled/verified unchanged."
+  echo "Next: bash crab/resolve_parents.sh $ERA            # must print MATCH $n/$n"
+  echo "      bash crab/launch_extend.sh --era $ERA        # its steps 4-5 check MATCH and run --apply"
+  exit 0
+fi
 
 if (( n_bad > 0 )); then
+  (( n_empty )) && echo "EMPTY dataset: entries: bash crab/resolve_parents.sh $ERA --fill writes their DAS parents."
   echo "Not every sample is MATCH. Paste each PARENT string into the matching"
   echo "'dataset:' field in datasets.yaml by hand, then set 'verified: true' (and"
   echo "'enabled: true') for that entry, and re-run this script."
@@ -322,7 +472,7 @@ if [[ "$n_plus" -eq 0 ]]; then
 fi
 echo "--apply: the following flag lines change (diff datasets.yaml):"
 diff -u "$YAML" "$tmp" | sed 's/^/  /'
-cat "$tmp" > "$YAML" && rm -f "$tmp"
+commit_yaml "$tmp"
 echo "--apply: datasets.yaml updated -- $n_match entries of era $ERA are now enabled/verified ($n_plus flag lines)."
 echo "Next: python3 crab/submit_ttbarIdExtend.py --era $ERA --preflight --check-das"
 exit 0

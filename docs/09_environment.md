@@ -3,7 +3,7 @@
 > **목적**: release-cycle 차이로 인한 함정의 일반화 표와, Run3(14_X+) 이행 시 따라갈 체크리스트.
 > **대상 독자**: 새 환경에서 빌드하는 사람; Run3 migration 담당.
 > **상태**: 10_6_X 표는 DECIDED (v7.1–v7.2에서 전부 실측). **15_0_18 실측 완료 (2026-09-02)** — 패키지가 무수정으로 빌드·실행됐고,
-> §3 체크리스트의 2·3 은 실측으로 닫혔다. §4 에 15_0_X 에서 새로 확인된 사실을 둔다. Run3(GT/era 교체, §3 의 4–6)은 여전히 미실행.
+> §3 체크리스트의 2·3 은 실측으로 닫혔다. §4 에 15_0_X 에서 새로 확인된 사실을 둔다. Run3(GT/era 교체, §3 의 4–6): **2026-10-15 에 4 는 코드로 닫혔고(era 2024), 5·6 은 [01](01_status.md) O10 의 lxplus 단계다.**
 > **관련**: 각 함정의 발생 맥락은 [08_troubleshooting.md](08_troubleshooting.md) T-4·T-5, 원 기록(전체 표)은 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md) §13.
 
 ## 결론 먼저 (BLUF)
@@ -49,14 +49,14 @@ Makefile로 어느 ROOT 6.x에서든 빌드. `Validation/scripts/*.C`(ROOT 매�
 주의가 필요했던 단 하나의 축은 **NanoAOD python 모듈 재배치**였는데, 15_0_18 에서 실측한 결과 `PhysicsTools.NanoAOD.ttbarCategorization_cff` 의
 **import 경로도, 모듈 라벨(`categorizeGenTtbar`/`matchGenBHadron`/`matchGenCHadron`)도 그대로**다. 바뀐 것은 §4 참조.
 
-## 3. 14_X / 15_X migration 체크리스트 — 1–3 은 15_0_18 실측 통과(2026-09-02), 4–6 은 Run3 입력이 생기면
+## 3. 14_X / 15_X migration 체크리스트 — 1–3 은 15_0_18 실측 통과(2026-09-02), 4 는 2026-10-15 코드로(era 2024), 5–6 은 O10 의 lxplus 단계
 
 1. `cmsrel CMSSW_14_X_Y` + `cmsenv` → 패키지 unpack → `scram b` (컴파일 에러부터).
 2. `python3 -c "from PhysicsTools.NanoAOD.ttbarCategorization_cff import categorizeGenTtbar, matchGenBHadron, matchGenCHadron"` — 실패 시 cmssdt LXR에서 새 경로 확인 후 `python/ttbarIdExtend_cff.py`의 import 교체. **가정 말고 실측**. **→ 15_0_18 실측 통과 (2026-09-02): 경로·라벨 무변경.**
 3. `python3 -c "from TTHHGenCategoryTools.TtbarIdExtender.extendedTtbarId_cfi import extendedTtbarId"` — 우리 모듈 등록 확인. **→ 15_0_18 실측 통과.** `scram b` 도 무수정 통과(plugins 2 + bin 1).
-4. 입력 갱신: `crab/datasets.yaml`에 Run3 MiniAOD dataset + GlobalTag(`124X_mcRun3_...` 계열), `test/run_ttbarIdExtend_cfg.py`의 era modifier `Run2_2017,run2_nanoAOD_106Xv2` → Run3 대응으로 교체.
-5. gen-only 스모크: `cmsRun run_ttbarIdExtend_cfg.py inputFiles=<Run3 MiniAOD> maxEvents=10`.
-6. `bin/compareExtendToCentral`로 Run3 central NanoAOD(v12+)와 `genTtbarId` byte-identity **재검증** — `genTtbarId` 의미는 NanoAOD 버전 무관(`categorizeGenTtbar`가 원천)이지만, 검증 없이 주장하지 않는다.
+4. 입력 갱신: `crab/datasets.yaml`에 Run3 MiniAOD dataset + GlobalTag(`124X_mcRun3_...` 계열), `test/run_ttbarIdExtend_cfg.py`의 era modifier `Run2_2017,run2_nanoAOD_106Xv2` → Run3 대응으로 교체. **→ 2026-10-15 (era 2024, [04](04_decisions.md) D21)**: `datasets.yaml` 의 `"2024"` 블록(`global_tag: 150X_mcRun3_2024_realistic_v2` 는 기록용 — cfg 는 GT 를 쓰지 않는다; MiniAODv6 parent 는 `resolve_parents.sh 2024 --fill`), cfg 의 `year=2024` → `eras.Run3_2024` **하나**(Run 2 의 네 year 는 그대로 `<era> + run2_nanoAOD_106Xv2`). 오프라인 시험만; 실제 확인은 5.
+5. gen-only 스모크: `cmsRun run_ttbarIdExtend_cfg.py inputFiles=<Run3 MiniAOD> maxEvents=10`. **→ era 2024 에서는 `crab/launch_extend.sh --era 2024` 의 단계 2–3**(TTbb_DiLep 의 MiniAODv6 한 파일 20000 ev, era 줄 `Run3_2024`, endJob missing 0, `check_extend_invariants.C` ALL INVARIANTS PASS).
+6. `bin/compareExtendToCentral`로 Run3 central NanoAOD(v12+)와 `genTtbarId` byte-identity **재검증** — `genTtbarId` 의미는 NanoAOD 버전 무관(`categorizeGenTtbar`가 원천)이지만, 검증 없이 주장하지 않는다. **→ era 2024 에서는 Validation 의 전량 대조**(`matchTtbarIdSorted` + `aggregate_validation.py --era 2024`, 기준 `data/das_nevents_2024.json`; `Validation/README.md` §0.1d). 도구는 v15 영역에서 빌드한다(ROOT 6.32; condor 이미지는 영역의 arch 로 el8).
 7. ~~(enriched를 되살릴 경우에만) FlatTable 헤더 경로 + column API 재확인~~ **→ 불필요 (2026-09-02)**: 되살린 enriched 경로는 FlatTable C++ 을 쓰지 않는다. [11](11_enriched_nanoaod.md) §2.2.
 
 **ttbarId-extend 설계의 이행 비용이 낮은 이유**: NanoAOD step을 거치지 않으므로 NanoAOD가 v9→v15로 바뀌어도 ttbarId-extend 코드는 영향이 없고, 바뀌는 것은 입력 MiniAOD의 era/GT와 (재)검증 대상 central 파일뿐이다 ([05](05_architecture.md) §4).

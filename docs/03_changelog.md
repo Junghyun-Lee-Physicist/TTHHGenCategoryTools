@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (2)** (O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (6)** (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1577,3 +1577,79 @@ transferring 14); 실패 0, 재제출 0, proxy 182 h.
 SUBMITREFUSED ONCE, `--launch` DONE·실패 STOPPED, 두 era 중 2016 만 launch DONE — 16 개 모두 exit code 같고 로그는 시각(과 시험 디렉터리
 이름)만 다름. 도는 manager 의 열린 fd 중 manager.log: 옛 1, 새 0. SIGTERM: 둘 다 exit 143, END 줄, lock 지움. Python 3.11·3.9 컴파일,
 ASCII-only (3.6 전용 구문 없음).
+
+## 2026-10-15 (5) — O10: era 2024(Run 3) extend 준비 — v15 영역, `resolve_parents.sh --fill`, release 짝 검사, 검증 도구의 2024 (D21)
+
+**lxplus (사용자).** manager `extend2016`(cluster 13519526) `RESULT DONE`, `REPORT.txt` ALL PASS 14 task(O9 ⑥ 끝). ⑦ filelist: `sidecar2016APV`·
+`sidecar2016` `RESULT OK` 7/7, nano 두 era rc 0. ⑧ 정렬(`--sort-only`, cmssw-el7) 시작. 사용자 결정: 2024 도 만든다(D21; "그래야 tt+B 뿐 아니라
+tt+3b, tt+4b도 stitching을 하지"), 진행 방식은 절충([../00_PROMPT.md](../00_PROMPT.md) §10 신설).
+
+**동작 변경 고지 — 2024 를 위해.** (Run 2 의 네 era 는 그대로; 아래 "검증" 의 old/new 비교.)
+1. `test/run_ttbarIdExtend_cfg.py`: `year=2024` → `cms.Process(..., eras.Run3_2024)` 하나, 줄 `era modifier = Run3_2024`. Run 2 는 여전히
+   `<era> + run2_nanoAOD_106Xv2`. 이 release 에 era 가 없으면(10_6 의 `Run3_2024`) 이름을 대고 멈춘다.
+2. `crab/datasets.yaml`: `"2024"` 블록(GT `150X_mcRun3_2024_realistic_v2` 기록용, `era_modifiers: ["Run3_2024"]`), 일곱 항목 `dataset: ""`,
+   `nano_child` = TTHHAnalyzer `samples_2024.json` 의 NanoAODv15, `enabled`/`verified` false.
+3. `crab/resolve_parents.sh`: era 2024(Nano/MiniAOD 캠페인), `--fill`(EMPTY 항목의 `dataset: ""` 에만 DAS parent; parent 하나·같은 primary·처리 이름
+   `RunIII2024Summer24MiniAOD*` 일 때만, 하나라도 아니면 아무것도 안 씀 exit 3; 쓴 뒤 다시 읽기, diff 출력; 사후 검사 실패 exit 4). `--fill` 과
+   `--apply` 는 함께 못 씀(exit 2). EMPTY 항목은 읽기 전용 실행에서 `--fill` 을 안내.
+4. `crab/launch_extend.sh`: era 마다 release 계열(`2024` = `CMSSW_15_0_`), 다르면 한 호출에 섞지 않음(exit 10); 단계 2 의 era 줄 검사는 2024 에서
+   `Run3_2024`; resolve 실패 안내에 `--fill`.
+5. `crab/submit_ttbarIdExtend.py`: 제출 경로는 release 가 선택한 era 에 맞을 때만(bulk action 은 검사 안 함); `dataset: ""` 은 preflight 에서 닫힌 항목
+   WARN·열린 항목 FAIL, DAS 조회 안 함, 제출 루프는 `--force` 여도 건너뜀(`unresolved` 줄); preflight `--check-das` 의 "MiniAOD on disk"(DAS `site`;
+   tape 뿐이면 WARN) — **2024 만**.
+6. `crab/manager_condor.sh`: 영역의 SCRAM arch 로 job 의 container(slc7 → `cmssw-el7`, el8 → `cmssw-el8`, el9 → 그대로), era 와 영역의 짝 검사,
+   `dataset: ""` 이 남은 era 는 호스트에서 거부(exit 2, `--fill` 안내). `crab/extend_manager.py`: 같은 경우 `IndexError` 대신 안내와 exit 2.
+7. `Validation/`: `make_nano_filelists_das.sh 2024`(Run 3 primary → 같은 short name), `make_filelists_miniAOD.py 2024`(EOS `ttbarIdExtend_v2/2024`),
+   `submit_validation_condor.py` 의 이미지 = 영역의 arch(모르면 el7 + WARN; `--container` 우선), 새 `data/das_nevents_2024.json`.
+
+**독립 검토(에이전트) 반영.** 확인된 셋: ① tape 확인이 Run 2 preflight 에도 들어가 Run 2 launch 를 멈출 수 있었음 → 2024 만, 안내에 수동 경로.
+② `dataset: ""` 에서 manager 가 `IndexError` → 6. ③ `--force` 가 빈 2024 항목을 세어 Run 2 제출을 release 로 거부, `--force --era 2024` 는 빈
+`inputDataset` 을 낼 수 있었음 → 5. 의심 둘: ④ `cat tmp > yaml` 은 먼저 비우므로 쓰기 실패에 yaml 이 잘릴 수 있음 → `--fill`·`--apply` 모두 같은
+디렉터리의 `mv`(원자적), mode 유지, 실패면 exit 4 와 검사 끝난 임시 파일 이름. ⑤ arch 를 모르면 이미지가 조용히 el7 → WARN.
+
+**검증 (오프라인; 가짜 cmsRun·dasgoclient·CRABClient·cvmfs·EOS 트리).** cfg 14/14(다섯 year 의 era 줄과 Process modifier, Run 2 넷은 HEAD 와
+같음, 2022 거부, `Run3_2024` 없는 release 거부). resolve 18/18(2024 EMPTY 7 → `--fill` 7 줄만 → MATCH 7/7 → `--apply`; 잘못된 parent 넷은 아무것도
+안 씀; 2016 은 HEAD 와 같은 줄; 일부만 빈 경우; mode 유지; `mv` 실패 → exit 4, yaml 그대로). launch 13/13(15_0 에서 2024 READY·SUBMITTED,
+10_6 에서 2024 거부, 2018+2024 거부, 10_6 의 2016 READY, tape 뿐 → 단계 6 exit 15, HEAD 패키지는 2024 를 모름, `--fill` 전 → 단계 4 exit 13 과 yaml
+그대로). 제출기 13/13(release 거부·bulk 면제·빈 항목 WARN/FAIL·DAS 조회 생략·`--force` 둘·Run 2 preflight 는 HEAD 와 env·시각·era 목록 줄만 다름).
+manager 9/9(15_0 → `cmssw-el8` 재실행, 10_6 의 `job.sh` 는 HEAD 와 같음, el9 그대로, 2024 `job.sh` 가 manager 를 띄움, 빈 2024 거부 둘). 검증 도구
+35/35(2024 nano 일곱 목록·split·`-v3` 만, Run 2 다섯 era 의 출력 트리·로그가 HEAD 와 같음, 2024 extend 목록·가드, 이미지 el7/el8/el9·`lib/` arch·덮어쓰기,
+10_6 의 제출 파일·preflight 가 HEAD 와 같음, 집계 2024 PASS·DIFF·빠진 chunk). shellcheck 경고 0, `bash -n`, Python 3.6 문법(vermin), 추가 줄
+ASCII. 실제 `CMSSW_15_0_18` + Summer24 MiniAODv6 는 lxplus 의 `launch_extend.sh --era 2024` 단계 2–3 이 처음 확인한다; v15 영역의 Validation
+첫 빌드도 lxplus 에서.
+
+**문서.** `TtbarIdExtender/README.md` §2.2e, `Validation/README.md` §0.1d, [01](01_status.md) O10·O9·O5, [04](04_decisions.md) D21,
+[09](09_environment.md) §3, [../00_PROMPT.md](../00_PROMPT.md) §10(작업 블록마다 진행 방식을 묻는다).
+
+## 2026-10-15 (6) — 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다; 찍는 명령은 절대 경로; `batch_name = val_<era>` (T-40)
+
+**lxplus (사용자, 2026-10-15; condor 의 시각은 CEST).** 2016APV·2016 정렬 끝(`[sort] ... exit=0` 열넷), preflight 두 era `32 PASS, 0 WARN, 0 FAIL`, smoke 2016APV
+(cluster 13528330, ttbb_2L2Nu) 결과 ok. 전량: 2016APV 16 job(13530795), 2016 22 job(13530802). 1 분 뒤 `--report` 가 2016APV 의 idle 15 chunk 를
+missing 과 "need re-running" 으로 찍음 → `condor_rm junghyun`(38 job 모두) → 찍힌 명령은 `scripts/` 가 빠져 실패 → `scripts/` 를 붙여
+`--resubmit-failed`: 2016APV 15 chunk(13530917). 2016 은 다시 내야 한다. [08](08_troubleshooting.md) T-40.
+
+**동작 변경 고지 (`Validation/scripts/submit_validation_condor.py`).**
+1. `--report`: `condor_q -constraint 'Cmd =?= "<work base>/run_match.sh"'` 로 job 이 queue 에 있는 chunk 를 찾아 `queue` 칸에 센다(idle/running/
+   held, cluster.proc 와 함께; 예전 결과가 있어도 queue 가 이긴다 — 그 job 이 덮어쓴다); 실패가 아니라고 찍고 queue 조회 명령을, held 면
+   `condor_q -hold`·`condor_rm` 을, 한 chunk 에 job 이 둘이면 중복 WARN 을 찍는다. exit 0 모두 ok, 1 실패·job 없는 missing·held, 2 기다리기만,
+   3 condor_q 를 못 물었고 ok 아닌 chunk 가 있음(다시 내라는 명령을 찍지 않는다; 전에는 결과가 없으면 1).
+2. `--resubmit-failed`: queue 에 job 이 있는 chunk 는 내지 않고 목록만; condor_q 가 없거나 실패하면 거부(FATAL).
+3. 다음 명령(`--resubmit-failed`, `--report`, `--sort-only`, aggregate, 제출 뒤의 report·monitor·remove)을 절대 경로로, 그 호출의 옵션(`--samples`,
+   디렉터리, `--memory`·`--flavour` …)을 붙여 shell-quote 해서 찍는다. nano filelist 안내는 `cd <Validation>/filelists && ./make_nano_filelists_das.sh`.
+5. `run_match.sh` 는 옆에 쓰고 rename(다시 낼 때 queue 의 job 이 반쯤 쓴 파일을 읽지 않게).
+4. submit file 에 `batch_name = val_<era>` — `condor_q`·`condor_rm -constraint 'JobBatchName == "val_<era>"'` 로 한 캠페인만.
+`aggregate_validation.py`·job 의 `run_match.sh`·`match.args` 는 그대로.
+
+**독립 검토(에이전트) 반영.** 확인된 일곱: 찍는 명령이 `--samples`·디렉터리를 버림(실패한 smoke 뒤 붙여 넣으면 캠페인 전체 제출) → 3; condor_q 없을
+때도 "re-run them" 과 명령 → exit 3; ok 결과 + queue 의 job 을 ok 로 셈 → queue 가 이김; held 만 남아도 "wait" → exit 1; 한 chunk 의 job 둘 중
+하나만 보임 → 목록; 상대 경로 힌트 셋 → 절대; symlink 로 부르면 틀린 경로 → resolve. 의심 셋: `run_match.sh` 를 덮어쓰는 중에 시작하는 job → 5;
+myschedd 가 바뀌면 옛 job 이 안 보임 → 문서(T-40, 머리말); ClassAd `==` 은 대소문자 무시 → `=?=` 와 escape.
+
+**검증 (오프라인, 가짜 condor_q·condor_submit).** 24/24: 사용자의 경우(smoke ok + idle 5 → exit 2, 다시 내라는 말 없음; `--resubmit-failed` 는 아무것도
+안 쓰고 안 냄), 섞인 경우(running·held·job 없는 missing·exit 4·실패 뒤 다시 낸 idle → exit 1, queue 3, 실패 둘만 다시 냄), JobStatus 3·4 는 queue 밖,
+다른 work base 의 job 은 무관, condor_q 없음·실패(report exit 3·명령 없음, resubmit 거부), 절대 경로와 옵션, `batch_name`, 모두 ok → exit 0, ok 결과 +
+queue 의 job → queued, held 만 → exit 1, job 둘, 실패한 smoke 의 힌트(`--samples` 유지), `--smoke` 제출의 힌트(`--samples`·`--memory 3000`), 빈칸 있는
+경로, `run_match.sh` 의 rename. 2026-10-15 (5) 의 검증 도구
+시험 35/35 다시 통과(10_6 영역의 `match.sub` 은 `batch_name` 한 줄만 다름; `run_match.sh`·`match.args`·stdout 은 HEAD 와 같음).
+
+**문서.** [08](08_troubleshooting.md) T-40, `Validation/README.md` §4.0 3.5단계(queue 칸, 지울 때는 그 캠페인만)·§0.1c, [01](01_status.md) O9.

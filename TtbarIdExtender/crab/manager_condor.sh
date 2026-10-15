@@ -2,7 +2,7 @@
 # =============================================================================
 # manager_condor.sh -- run extend_manager.py as a condor job (lxplus batch)
 # =============================================================================
-# Run on the lxplus HOST shell (EL9), NOT inside cmssw-el7: condor_submit
+# Run on the lxplus HOST shell (EL9), NOT inside cmssw-el7/-el8: condor_submit
 # exists only on the host. Your ssh session is needed for about a minute; the
 # job does the rest on a batch node and survives logout:
 #   (with --launch) local cmsRun + invariants, resolve + --apply, preflight,
@@ -12,6 +12,12 @@
 # Usage (from TtbarIdExtender/, after git pull --ff-only):
 #   voms-proxy-init -voms cms -rfc -valid 192:00 --out $PWD/proxy.cert
 #   bash crab/manager_condor.sh --era 2016APV,2016 --name extend2016 --launch
+# Era 2024 (Run 3): the same command from the TtbarIdExtender/ of the CMSSW_15_0_X
+# area (~/TTHHGenCategoryTools_v15/CMSSW_15_0_18): the job then runs in
+# cmssw-el8. The area must fit the eras (10_6 for Run 2, 15_0 for 2024).
+# Its datasets.yaml entries start with dataset: "" -- run
+# bash crab/resolve_parents.sh 2024 --fill (inside cmssw-el8, after cmsenv)
+# first; this script refuses an era that still has such an entry.
 # Options:
 #   --launch          let the job submit the campaign first (skipped when any
 #                     task of these eras already has a crab_projects dir)
@@ -28,8 +34,9 @@
 #   state.json, manager.lock, launch.done, REPORT.txt, check/  (manager files)
 #   condor/       job.sh, job.sub, x509up.proxy, job.<cluster>.{out,err,log}
 # How the job runs: native el9 slot (MY.WantOS = "el9"); job.sh re-executes
-# itself inside /cvmfs/cms.cern.ch/common/cmssw-el7 (the condor/runTask.sh
-# pattern), then cmsenv in this CMSSW area, crab-setup.sh, and
+# itself inside /cvmfs/cms.cern.ch/common/cmssw-el<N> (the condor/runTask.sh
+# pattern; N = 7 for a slc7 area, 8 for an el8 area, none for el9 -- read from
+# the area's .SCRAM/<arch>), then cmsenv in this CMSSW area, crab-setup.sh, and
 #   python3 -u crab/extend_manager.py --era .. --name .. --lock-owner condor:<id> [--launch]
 # Exit codes of job.sh before the manager: 90 cmsset_default, 91 CMSSW dir,
 # 92 scram runtime, 93 package dir, 94 crab-setup (all logged to manager.log;
@@ -73,12 +80,48 @@ echo "    CMSSW area=$CMSSW_AREA"
 fail() { echo "FATAL: $*" >&2; exit 2; }
 # read VERSION_ID in a subshell: sourcing /etc/os-release here would overwrite NAME (and ID)
 OS_MAJOR="$( (. /etc/os-release 2>/dev/null; echo "${VERSION_ID:-}") )"; OS_MAJOR="${OS_MAJOR%%.*}"
-[[ "$OS_MAJOR" == "7" ]] && fail "this shell is el7 (cmssw-el7?) -- run on the lxplus host shell, where condor_submit exists"
+[[ "$OS_MAJOR" == "7" || "$OS_MAJOR" == "8" ]] && fail "this shell is el$OS_MAJOR (cmssw-el$OS_MAJOR?) -- run on the lxplus host shell, where condor_submit exists"
 [[ $DRY -eq 1 ]] || command -v condor_submit >/dev/null 2>&1 || fail "condor_submit not found -- run on the lxplus host shell"
-[[ -d "$CMSSW_AREA/src" && "$(basename "$CMSSW_AREA")" == CMSSW_10_6_* ]] \
-  || fail "expected the package inside CMSSW_10_6_X/src/TTHHGenCategoryTools (got CMSSW area '$CMSSW_AREA')"
+AREA_NAME="$(basename "$CMSSW_AREA")"
+case "$AREA_NAME" in
+  CMSSW_10_6_*) AREA_FAMILY="CMSSW_10_6_" ;;
+  CMSSW_15_0_*) AREA_FAMILY="CMSSW_15_0_" ;;
+  *) fail "expected the package inside CMSSW_10_6_X/src/TTHHGenCategoryTools (Run 2) or CMSSW_15_0_X/src/... (2024) (got CMSSW area '$CMSSW_AREA')" ;;
+esac
+[[ -d "$CMSSW_AREA/src" ]] || fail "no $CMSSW_AREA/src"
+# 2026-10-15: each era needs its release family (Run 2: 10_6; 2024: 15_0)
+IFS=',' read -r -a ERA_ARR <<< "$ERAS"
+for E in "${ERA_ARR[@]}"; do
+  case "$E" in
+    2016APV|2016|2017|2018) NEED="CMSSW_10_6_" ;;
+    2024)                   NEED="CMSSW_15_0_" ;;
+    *) fail "unknown era '$E' (2016APV, 2016, 2017, 2018, 2024)" ;;
+  esac
+  [[ "$NEED" == "$AREA_FAMILY" ]] || fail "era $E needs a ${NEED}X area, this package sits in $AREA_NAME (2024: ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18; Run 2: ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1)"
+done
+# container of the job = the OS of the area's SCRAM arch (.SCRAM/<arch>, else lib/<arch>)
+ARCH="$( { ls -1 "$CMSSW_AREA/.SCRAM"; ls -1 "$CMSSW_AREA/lib"; } 2>/dev/null | grep -E '^(slc7|cc7|el8|el9)_' | head -n1)"
+case "$ARCH" in
+  slc7_*|cc7_*) CONT_OS=7 ;;
+  el8_*)        CONT_OS=8 ;;
+  el9_*)        CONT_OS=9 ;;
+  *) fail "cannot tell the SCRAM arch of $CMSSW_AREA (no slc7_/el8_/el9_ dir in .SCRAM or lib)" ;;
+esac
+echo "    SCRAM arch=$ARCH  -> job runs in $( [[ $CONT_OS == 9 ]] && echo 'the native el9 slot' || echo "cmssw-el$CONT_OS" )"
 for f in "$HERE/extend_manager.py" "$HERE/launch_extend.sh" "$HERE/submit_ttbarIdExtend.py" "$HERE/datasets.yaml"; do
   [[ -f "$f" ]] || fail "missing $f (git pull --ff-only?)"
+done
+# 2026-10-15 review: a new era (2024) starts with dataset: "" in datasets.yaml
+# until resolve_parents.sh <era> --fill; the job would only stop on the batch
+# node (extend_manager.py), so refuse here. Era block = from '  "<era>":' to the
+# next era key or top-level key.
+for E in "${ERA_ARR[@]}"; do
+  N_EMPTY="$(awk -v key="  \"$E\":" '
+      index($0, key) == 1                                       { inb = 1; next }
+      inb && (/^  "[^"]*":/ || /^[^ #]/)                         { inb = 0 }
+      inb && /^[[:space:]]+dataset:[[:space:]]*""[[:space:]]*$/ { n++ }
+      END { print n + 0 }' "$HERE/datasets.yaml")"
+  [[ "$N_EMPTY" == "0" ]] || fail "era $E has $N_EMPTY entr(y/ies) with dataset: \"\" in crab/datasets.yaml -- first, after cmsenv in $AREA_NAME ($( [[ $CONT_OS == 9 ]] && echo 'on the el9 host' || echo "inside cmssw-el$CONT_OS" )): bash crab/resolve_parents.sh $E --fill (check its diff), then run this command again"
 done
 
 # --- proxy ---------------------------------------------------------------------
@@ -122,13 +165,13 @@ SELF="\$WORK/\$(basename "\${BASH_SOURCE[0]}")"
 jlog() { echo "[job] \$(date -u +%FT%TZ) \$*" | tee -a "\$MLOG"; }
 # os-release read in a subshell: sourcing it would overwrite variables (NAME, ID, ...)
 OSV="\$( (. /etc/os-release 2>/dev/null; echo "\${VERSION_ID:-?} \${PRETTY_NAME:-?}") )"
-if [[ "\${OSV%%.*}" != "7" && -z "\${TTHH_INNER:-}" ]]; then
-  jlog "condor job \$JOBID on \$(hostname) (\$OSV): re-executing inside cmssw-el7"
+if [[ "\${OSV%%.*}" != "$CONT_OS" && -z "\${TTHH_INNER:-}" ]]; then
+  jlog "condor job \$JOBID on \$(hostname) (\$OSV): re-executing inside cmssw-el$CONT_OS"
   export TTHH_INNER=1
   printf 'cd %q && exec bash %q %q\n' "\$WORK" "\$SELF" "\$JOBID" > "\$WORK/inner.sh"
-  exec /cvmfs/cms.cern.ch/common/cmssw-el7 --command-to-run bash "\$WORK/inner.sh"
+  exec /cvmfs/cms.cern.ch/common/cmssw-el$CONT_OS --command-to-run bash "\$WORK/inner.sh"
 fi
-jlog "inside el7 on \$(hostname): cmsenv in $CMSSW_AREA, crab-setup, X509_USER_PROXY=\${X509_USER_PROXY:-unset}"
+jlog "inside el$CONT_OS on \$(hostname): cmsenv in $CMSSW_AREA, crab-setup, X509_USER_PROXY=\${X509_USER_PROXY:-unset}"
 source /cvmfs/cms.cern.ch/cmsset_default.sh || { jlog "FATAL cmsset_default.sh failed (exit 90)"; exit 90; }
 cd "$CMSSW_AREA/src" || { jlog "FATAL cannot cd $CMSSW_AREA/src (AFS token?) (exit 91)"; exit 91; }
 eval "\$(scramv1 runtime -sh)" || { jlog "FATAL scram runtime failed (exit 92)"; exit 92; }

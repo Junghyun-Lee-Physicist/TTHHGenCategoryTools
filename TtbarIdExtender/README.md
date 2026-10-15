@@ -435,8 +435,77 @@ python3 crab/submit_ttbarIdExtend.py --era 2016APV,2016 2>&1 | tee crab/submit_2
 python3 crab/submit_ttbarIdExtend.py --era 2016APV,2016 --report
 ```
 
-생산이 끝난 뒤의 filelist·검증(§2.4, `../Validation`)은 아직 2017/2018 만 안다 — `make_filelists_miniAOD.py`,
-`make_nano_filelists_das.sh`, `submit_validation_condor.py` 의 era 추가가 다음 일이다([../docs/01_status.md](../docs/01_status.md) O9).
+생산이 끝난 뒤의 filelist·검증(§2.4, `../Validation`)은 2026-10-15 부터 2016APV·2016 도 안다 — 명령은
+[`../Validation/README.md`](../Validation/README.md) §0.1c([../docs/01_status.md](../docs/01_status.md) O9).
+
+### 2.2e 2024 (Run 3, `RunIII2024Summer24`) 제출 (2026-10-15 추가, [../docs/01_status.md](../docs/01_status.md) O10, [../docs/04_decisions.md](../docs/04_decisions.md) D21)
+
+**왜.** TTHHAnalyzer 의 2024 는 지금 tt+nb lookup 없이 돈다(그쪽 D-2026-10-05-C: `Expanded_genTtbarId` 꺼짐, tt+≥3b 가 tt+B 에 남음).
+사용자(2026-10-15): "24년도 run3도 만들어 두자. 그래야 tt+B 뿐 아니라 tt+3b, tt+4b도 stitching을 하지." 산출물은 Run 2 와 같은 patch
+`ttnb_<KEY>.root`(tree `TtNb`) → TTHHAnalyzer `DerivedCorr/expandedTtbarId/2024/`.
+
+**Run 2 와 다른 점.**
+
+- **release 와 영역**: `CMSSW_15_0_18`(`el8_amd64_gcc12`, `cmssw-el8`), 영역 `~/TTHHGenCategoryTools_v15/CMSSW_15_0_18`(같은 저장소의
+  clone, [../docs/11_enriched_nanoaod.md](../docs/11_enriched_nanoaod.md) §2.3 의 v15 영역). 10_6 은 Run 3 MiniAODv6 를 읽지 못하고 `Run3_2024`
+  era 도 없다. `launch_extend.sh`·제출기·`manager_condor.sh` 는 era 와 영역의 release 가 맞지 않으면 거부하고, Run 2 era 와 2024 를 한 호출에
+  섞지 않는다.
+- **cfg**: `year=2024` → era modifier `Run3_2024` 하나(`run2_nanoAOD_106Xv2` 는 UL NanoAODv9 의 것이라 Run 2 에만). 로그 줄은
+  `[run_ttbarIdExtend_cfg]   era modifier = Run3_2024`. gen-level 이라 GlobalTag 를 쓰지 않는다(`datasets.yaml` 의 `global_tag` 는 기록용).
+- **`datasets.yaml` 의 2024 블록**: `nano_child` 는 TTHHAnalyzer `data/samples_2024.json` 이 쓰는 NanoAODv15 일곱 개(DAS 2026-09-23),
+  **`dataset: ""`**(MiniAODv6 parent 미확인), `enabled`/`verified` false. `resolve_parents.sh 2024 --fill` 이 DAS 의 parent 를 그 빈 줄에만 쓴다 —
+  parent 가 하나이고 primary 가 같고 처리 이름이 `RunIII2024Summer24MiniAOD` 로 시작할 때만; 하나라도 아니면 아무것도 쓰지 않고 exit 3; 쓴 뒤
+  다시 읽어 확인하고 diff 를 찍는다. 그다음은 2016 과 같다(launch 의 resolve 가 MATCH 7/7 을 보고 `--apply`). `dataset: ""` 인 항목은 어떤
+  경로로도 제출되지 않는다(`--force` 포함; preflight 는 닫힌 항목이면 WARN, 열린 항목이면 FAIL; manager 는 시작 전에 거부).
+- **preflight 가 2024 에서 하나 더 본다**: MiniAOD 가 disk 에 있는가(DAS `site`). tape 뿐이면 WARN — CRAB 이 tape recall(TAPERECALL,
+  며칠)부터 하고 manager 는 8 시간 동안 끝난 job 이 없으면 ALERT 하므로, launch 는 거기서 멈춘다. Run 2 era 의 preflight 는 그대로다.
+
+| 항목 | NanoAODv15 dataset (`-vN`) | event | 파일 |
+|---|---|---|---|
+| TT4b | `TT4B_TuneCP5_13p6TeV_madgraph-pythia8` (v3) | 9,898,300 | 34 |
+| TTbar_SemiLep | `TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8` (v2) | 484,475,057 | 790 |
+| TTbar_Hadronic | `TTto4Q_TuneCP5_13p6TeV_powheg-pythia8` (v2) | 472,535,695 | 773 |
+| TTbar_DiLep | `TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8` (v3; v2 는 DAS 에서 INVALID) | 470,123,263 | 780 |
+| TTbb_SemiLep | `TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8` (v2) | 22,473,402 | 283 |
+| TTbb_Hadronic | `TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8` (v2) | 14,990,580 | 189 |
+| TTbb_DiLep | `TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8` (v2) | 12,499,196 | 203 |
+
+합계 1,486,995,493 event / 3,052 파일(NtupleForge `script/das/das_ttHH_2024_v15_20260923_0851.log`). MiniAOD 쪽 파일 수와 job 수는
+`--fill` 뒤 preflight 의 `job count` 줄이 알려 준다(event 는 2016 두 era 의 MiniAOD 합 589 M 의 약 2.5 배; task 당 10,000 job 상한은
+preflight 가 본다, D15).
+
+```bash
+# lxplus. (0) 호스트 셸(EL9)에서 pull -- git 원격 작업은 컨테이너 밖(../docs/08_troubleshooting.md T-30), 빌드만 안
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools && git status --short && git pull --ff-only
+cmssw-el8
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && scram b -j8
+cd TTHHGenCategoryTools/TtbarIdExtender
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+voms-proxy-init -voms cms -rfc -valid 192:00 --out $PWD/proxy.cert
+export X509_USER_PROXY=$PWD/proxy.cert
+
+# (1) MiniAODv6 parent 채우기: 읽기(EMPTY 7, exit 3 이 정상) -> --fill(diff 확인) -> 다시 읽기(MATCH 7/7, exit 0)
+bash crab/resolve_parents.sh 2024
+bash crab/resolve_parents.sh 2024 --fill
+bash crab/resolve_parents.sh 2024
+
+# (2) 단계 1-7: 로컬 cmsRun(2024 TTbb_DiLep 한 파일, 20000 ev) + 불변조건, resolve, --apply, preflight, dry-run -> RESULT: READY
+bash crab/launch_extend.sh --era 2024
+# (3) 제출(pass phrase 를 물으면 여기서 답한다) + 5 분 뒤 --report
+bash crab/launch_extend.sh --era 2024 --skip-local --submit
+exit
+
+# (4) 호스트 셸(EL9): 감시·재제출·완료 점검 manager (job 은 cmssw-el8 에서 돈다)
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender
+bash crab/manager_condor.sh --era 2024 --name extend2024
+tail -n 20 crab/manager/extend2024/manager.log
+```
+
+(1) 뒤의 `datasets.yaml` 과 (2)의 `crab/resolve_parents_2024_<시각>.log` 는 그 clone 에서 커밋한다 — 호스트 셸에서(2016 의 b92e99e 와 같은
+방식; 10_6 clone 과 맥은 그 뒤 `git pull --ff-only`). 끝나면(`RESULT DONE`, `REPORT.txt` ALL PASS) 검증과 patch 는 같은 v15 영역에서 —
+[`../Validation/README.md`](../Validation/README.md) §0.1d. 오프라인 시험(가짜 cmsRun·DAS·CRAB·cvmfs): cfg 14, resolve 18, launch 13,
+제출기 13, manager 9 — 전부 기대대로([../docs/03_changelog.md](../docs/03_changelog.md) 2026-10-15 (5)). 실제 15_0_18 + Summer24 MiniAODv6 의
+첫 확인은 (2)의 로컬 단계다.
 
 ### 2.3 진행 확인 / 재제출 / kill
 

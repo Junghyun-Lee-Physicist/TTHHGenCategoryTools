@@ -136,10 +136,11 @@ cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src/TTHHGenCategoryTools/Validati
 export X509_USER_PROXY=~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert
 python3 scripts/submit_validation_condor.py --era 2016APV --preflight
 python3 scripts/submit_validation_condor.py --era 2016APV --smoke
+python3 scripts/submit_validation_condor.py --era 2016APV --report --samples ttbb_2L2Nu   # smoke 가 끝난 뒤: ttbb_2L2Nu 의 ok 1 이면 통과
 python3 scripts/submit_validation_condor.py --era 2016APV
 python3 scripts/submit_validation_condor.py --era 2016 --preflight
 python3 scripts/submit_validation_condor.py --era 2016
-# 끝나면 (실패 chunk 는 --report / --resubmit-failed)
+# 끝나면 (job 이 queue 에서 다 빠진 뒤): 실패 chunk 는 --report / --resubmit-failed (§4.0 3.5단계; queue 에 있는 것은 queued 로 센다, T-40)
 python3 scripts/aggregate_validation.py --era 2016APV --json-out ~/val_summary_2016APV.json
 python3 scripts/aggregate_validation.py --era 2016 --json-out ~/val_summary_2016.json
 ```
@@ -169,6 +170,65 @@ ls -l lookup2016APV lookup2016; md5sum lookup2016APV/*.root lookup2016/*.root
 TTHHAnalyzer 로: lxplus 에 TTHHAnalyzer 체크아웃이 있으면 `lookup2016APV/ttnb_*.root` → 그 `DerivedCorr/expandedTtbarId/2016preVFP/`,
 `lookup2016/ttnb_*.root` → `.../2016postVFP/` 로 복사해 그 저장소에서 커밋한다. 없으면 맥으로 `scp` 해 맥의 TTHHAnalyzer 에서 커밋한다. 결과 수치는
 [`../docs/06_validation_results.md`](../docs/06_validation_results.md) 에 append.
+
+### 0.1d 2024 (Run 3, `RunIII2024Summer24`) — v15 영역에서 (2026-10-15 추가, [../docs/01_status.md](../docs/01_status.md) O10)
+
+2024 의 extend 는 `CMSSW_15_0_18` 이 쓴다(`../TtbarIdExtender/README.md` §2.2e). 검증 도구도 **같은 v15 영역**
+(`~/TTHHGenCategoryTools_v15/CMSSW_15_0_18`, `cmssw-el8`)에서 빌드하고 돌린다 — ROOT 6.32 가 그 파일을 쓴 ROOT 이고, condor 제출기는 영역의
+SCRAM arch 로 이미지를 고른다(`el8_amd64_gcc12` → `cmssw/el8:x86_64`; arch 를 모르면 el7 에 WARN, `--container` 로 덮어쓴다). 10_6 영역의 2016
+작업과는 디렉터리·출력이 겹치지 않는다(`sidecar2024/`, `nano2024/`, EOS `sorted2024/`, `valout2024/`, `condor_val2024/`).
+
+- nano 쪽: 중앙 NanoAODv15 `RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2`, Run 3 의 primary(`TT4B`, `TTBBto*`, `TTto*`)를 같은 일곱
+  short name 으로. `TTto2L2Nu` 는 `-v3`(VALID)만 — 같은 이름의 `-v2` 는 INVALID 라 `dataset=` 조회에 나오지 않는다. 3,052 파일 → 156 job(20 개씩).
+- 완결성 기준: `data/das_nevents_2024.json`(일곱 합 1,486,995,493; NtupleForge DAS 로그 2026-09-23). Nano 가 MiniAOD 보다 적어도 실패가 아니다.
+- 시작 조건: manager `extend2024` 의 `RESULT DONE`(`REPORT.txt` ALL PASS).
+
+```bash
+# 호스트 셸(EL9): filelist. proxy 는 v15 clone 의 TtbarIdExtender/proxy.cert
+export X509_USER_PROXY=~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert
+voms-proxy-info -timeleft
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/Validation/filelists
+python3 make_filelists_miniAOD.py 2024; echo "rc=$?"     # -> sidecar2024/  (RESULT OK, rc=0)
+./make_nano_filelists_das.sh 2024; echo "rc=$?"          # -> nano2024/     (rc=0, 일곱 모두 "dataset:" 한 줄)
+cd ..
+
+# 컨테이너 안: 빌드(처음 한 번 -- 이 영역의 첫 빌드이니 오류가 나면 그 줄을 그대로 붙여 줄 것)와 정렬
+cmssw-el8
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/Validation && make -j4
+python3 scripts/submit_validation_condor.py --era 2024 --sort-only --samples tt4b,ttbb_Hadronic,ttbb_SemiLeptonic,ttbb_2L2Nu
+python3 scripts/submit_validation_condor.py --era 2024 --sort-only --samples TTToHadronic
+python3 scripts/submit_validation_condor.py --era 2024 --sort-only --samples TTToSemiLeptonic
+python3 scripts/submit_validation_condor.py --era 2024 --sort-only --samples TTTo2L2Nu
+exit
+# 호스트: preflight -> smoke -> 전량 -> 집계
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/Validation
+export X509_USER_PROXY=~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert
+python3 scripts/submit_validation_condor.py --era 2024 --preflight   # container image: .../cmssw/el8:x86_64 (from the area's arch el8_amd64_gcc12)
+python3 scripts/submit_validation_condor.py --era 2024 --smoke
+python3 scripts/submit_validation_condor.py --era 2024 --report --samples ttbb_2L2Nu      # smoke 가 끝난 뒤: ttbb_2L2Nu 의 ok 1 이면 통과
+python3 scripts/submit_validation_condor.py --era 2024
+python3 scripts/aggregate_validation.py --era 2024 --json-out ~/val_summary_2024.json
+```
+
+정렬 시간은 2018 의 실측(146 M 행 ~11 분)으로 큰 셋이 각 35–40 분이다(TTbar 셋 각 470–485 M 행) — 그래서 위처럼 나눠 돌린다(ssh 가 끊기면 그
+샘플만 다시; 완료된 샘플은 건너뛴다).
+
+**patch 추출 — `OVERALL: ALL SAMPLES PASS` 뒤에만.** TTHHAnalyzer 의 2024 디렉터리 `DerivedCorr/expandedTtbarId/2024/` 로(그 README.txt):
+
+```bash
+# 컨테이너(cmssw-el8 + cmsenv) 안, Validation/ 에서
+mkdir -p lookup2024 logs2024
+for PAIR in tt4b:TT4b ttbb_Hadronic:TTbb_Hadronic ttbb_SemiLeptonic:TTbb_SemiLep ttbb_2L2Nu:TTbb_DiLep \
+            TTToHadronic:TTbar_Hadronic TTToSemiLeptonic:TTbar_SemiLep TTTo2L2Nu:TTbar_DiLep; do
+  S="${PAIR%%:*}"; KEY="${PAIR#*:}"
+  bin/extractTtbarIdPatch --filelist filelists/sidecar2024/filelist_${S}.txt \
+      --out lookup2024/ttnb_${KEY}.root --out-tree TtNb --label ${KEY}_2024 \
+      2>&1 | tee logs2024/patch_${KEY}_2024.log
+  echo "[2024 ${KEY}] exit=${PIPESTATUS[0]}" | tee -a logs2024/patch_summary_2024.log
+done
+cat logs2024/patch_summary_2024.log          # 일곱 줄 모두 exit=0
+ls -l lookup2024; md5sum lookup2024/*.root
+```
 
 ### 0.2 로컬 산출물 빠른 점검 (grid 전/후 공통)
 
@@ -391,6 +451,9 @@ python3 scripts/submit_validation_condor.py --era 2018 --preflight
 # 스모크: ttbb_2L2Nu 1 chunk = 샘플 전체. ~21분
 python3 scripts/submit_validation_condor.py --era 2018 --smoke
 condor_q
+# 확인(job 이 queue 에서 빠진 뒤): ttbb_2L2Nu 줄이 ok 1 이면 통과. --samples 없이 era 전체로 보면 아직 안 낸 chunk 가
+# miss 로 세어져 실패처럼 보인다(2026-10-15, ../docs/08_troubleshooting.md T-40)
+python3 scripts/submit_validation_condor.py --era 2018 --report --samples ttbb_2L2Nu
 
 # 소형 4샘플: 각 nano <20파일이라 샘플당 1 chunk = 샘플 전체
 python3 scripts/submit_validation_condor.py --era 2018 \
@@ -459,16 +522,24 @@ python3 scripts/submit_validation_condor.py --era 2018 --report
 ```
 
 ```
-sample                  total    ok  fail  miss  failing chunks
-TTToSemiLeptonic           20    18     1     1  file_TTToSemiLeptonic_7(exit 4), file_TTToSemiLeptonic_12(missing)
-TOTAL                      49    47     1     1
+sample                  total    ok  fail  miss queue  chunks not ok
+TTToSemiLeptonic           20    17     1     1     1  file_TTToSemiLeptonic_7(exit 4), file_TTToSemiLeptonic_12(missing), file_TTToSemiLeptonic_15(running 1234567.15)
+TOTAL                      49    46     1     1     1
 ```
 
-실패/누락된 것만 다시 보낸다:
+**`queue` 칸(2026-10-15, [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-40)**: 결과가 아직 없어도 그 chunk 의 job 이 condor
+queue 에 있으면(idle·running·held) 실패가 아니라 queued 다 — `--report` 가 `condor_q` 로 그 work base 의 job 을 찾아 따로 센다(그래서 호스트
+셸에서 돌린다; 컨테이너 안이면 WARN). 전에는 제출 직후의 idle job 도 "missing ... need re-running" 으로 찍혀, 2016 에서 job 을 전부 지우고 다시
+내는 일이 있었다. 예전 결과가 있어도 job 이 queue 에 있으면 queued 다(그 job 이 덮어쓴다). exit: 0 모두 ok, 1 실패·job 없는 missing·held, 2 기다리기만 하면 됨, 3 condor_q 를 못 물었고 ok 아닌 chunk 가 있음(그때는 다시 내라는 명령을 찍지 않는다). 찍는 다음 명령은 절대 경로이고 그 호출의 옵션(`--samples`, 디렉터리, `--memory` …)을 그대로 붙인다. condor_q 는 이 세션의 schedd 만 보므로 `myschedd bump` 뒤에는 `condor_q -name <옛 schedd>` 로 먼저 확인한다.
+
+실패/누락된 것 중 **queue 에 job 이 없는 것만** 다시 보낸다(queue 에 있는 chunk 는 목록만 찍고 내지 않는다; condor_q 가 없으면 거부):
 
 ```bash
 python3 scripts/submit_validation_condor.py --era 2018 --resubmit-failed
 ```
+
+job 을 지울 때는 그 캠페인만: `condor_rm -constraint 'JobBatchName == "val_2018"'`(또는 cluster 번호). `condor_rm <사용자>` 는 그 사용자의 모든
+job — 다른 era 의 검증, extend manager — 을 지운다.
 
 > **chunk 단위 재제출이 안전한 이유** — 각 job 은 **자기 nano chunk 하나**를 스트리밍하며
 > **정렬본 전체**를 참조한다. 그래서 chunk 는 독립적이고 경계 효과가 없다. 메모리도 chunk 크기와

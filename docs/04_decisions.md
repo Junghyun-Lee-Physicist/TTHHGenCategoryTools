@@ -2,7 +2,7 @@
 
 > **목적**: "왜 이 선택인가? 다른 후보는? 아직 유효한가?"의 단일 출처.
 > **대상 독자**: 설계를 바꾸려는 사람; DECIDED를 다시 열기 전 반드시 여기 확인.
-> **상태**: 살아있는 문서 — 마지막 갱신 **2026-10-14** (D19: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`; D20: 사람 없이 도는 것은 결정론적 manager, AI 세션은 branch 에서). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
+> **상태**: 살아있는 문서 — 마지막 갱신 **2026-10-15** (D21: 2024(Run 3) extend 를 v15 영역에서; `dataset: ""` 와 `--fill`; release 짝 검사). 그 전 **2026-10-14** (D19: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`; D20: 사람 없이 도는 것은 결정론적 manager, AI 세션은 branch 에서). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
 > **관련**: 시간순 이력은 [03_changelog.md](03_changelog.md), 실패 사례는 [08_troubleshooting.md](08_troubleshooting.md).
 
 각 항목: 선택 / 근거 / 검토·기각된 대안 / 상태.
@@ -287,6 +287,25 @@ HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳
   결정이다. 반복 작업은 결정론적 코드로 충분하고 그 편이 예측 가능하다.
 - **기각한 대안**: ① 밤새 AI 세션이 고치고 다시 내기를 반복 — 잘못된 수정이 grid 자원과 산출물을 쓰고, 이 프로젝트의 비싼 실패(T-19 조용한 거부,
   T-21 거짓 PASS)와 같은 부류를 키울 수 있다. ② tmux 로 launch·감시를 lxplus 에 맡김 — ssh 가 끊기면 같이 끊긴다(사용자 확인).
+
+## D21 — 2024(Run 3) 도 extend 를 만든다: v15 영역(`CMSSW_15_0_18`, `cmssw-el8`)에서, era `Run3_2024` 하나로; parent 는 `dataset: ""` + `resolve_parents.sh --fill` · 범위 DECIDED 2026-10-15(사용자) · 방식 2026-10-15(AI 제안, 사용자에게 고지)
+
+- **결정(사용자 2026-10-15)**: "24년도 run3도 만들어 두자. 그래야 tt+B 뿐 아니라 tt+3b, tt+4b도 stitching을 하지." TTHHAnalyzer 의 2024 는 lookup 없이
+  plan `AN_NOTT4B` 로 돈다(그쪽 D-2026-10-05-C, D-2026-10-10-C) — 2024 patch 가 생기면 Run 2 와 같은 plan `AN`(TT4b 가 61/62/71/72) 으로 간다(그쪽
+  D-2026-10-15-F). 대상은 TTHHAnalyzer `data/samples_2024.json` 의 ttbar stitching 일곱(중앙 NanoAODv15, DAS 2026-09-23).
+- **release**: `CMSSW_15_0_18`(이미 있는 v15 영역, D17 의 enriched v15 와 같은 곳). 10_6 은 Run 3 MiniAODv6 를 읽지 못하고 `Run3_2024` 도 없다. 한 영역은
+  한 release 계열이라 도구(launch·제출기·manager)가 era 와 영역의 짝을 검사하고, Run 2 와 2024 를 한 호출에 섞지 않는다. manager job 은 영역의 SCRAM
+  arch 로 container 를 고른다(slc7 → `cmssw-el7`, el8 → `cmssw-el8`, el9 → 그대로), 검증 condor 도 같다.
+- **era modifier**: `Run3_2024` 하나. `run2_nanoAOD_106Xv2` 는 UL NanoAODv9 의 modifier 라 Run 2 에만. 이 cfg 는 gen-level 이고 쓰는 module
+  (`matchGenBHadron`, `matchGenCHadron`, `categorizeGenTtbar`, `ExtendedTtbarIdProducer`)은 era 로 바뀌지 않으므로 수치에 영향이 없다(2018 때와 같은
+  provenance 문제). 수치의 확인은 중앙 NanoAODv15 의 `genTtbarId` 와의 전량 대조(검증 ⑧)다.
+- **parent 확인**: 2016(D19)처럼 사람이 붙여 넣지 않고, 블록을 `dataset: ""` 로 두고 `resolve_parents.sh 2024 --fill` 이 DAS 의 parent 를 그 빈 줄에만
+  쓴다 — parent 가 하나, primary 가 같음, 처리 이름이 `RunIII2024Summer24MiniAOD` 로 시작, 일곱 모두 그럴 때만; 쓴 뒤 다시 읽어 확인. 잠금 해제는
+  그대로 `--apply`(MATCH 7/7). 빈 `dataset:` 은 어떤 경로로도 CRAB 에 가지 않는다(`--force` 포함).
+- **기각한 대안**: ① 2024 를 10_6 영역에서 — 읽지 못한다. ② v15 영역을 새로 만들기 — 있는 영역이 같은 저장소의 clone 이고 15_0_18 실측이 끝나 있다
+  ([09](09_environment.md) §4). ③ MiniAOD parent 를 인벤토리에서 추측해 미리 적기 — "-vN 을 추측하지 않는다" 규칙(D19)에 어긋난다. ④ 2024 MiniAOD 의
+  tape 여부를 보지 않기 — tape 뿐이면 CRAB 이 recall 부터 해 manager 가 8 시간 뒤 ALERT 하므로 preflight 가 미리 본다(2024 만; Run 2 의 preflight 는
+  그대로).
 
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 

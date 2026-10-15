@@ -21,6 +21,8 @@ import re
 #   of the 7 samples has a filelist; 1 a sample is missing or empty; 2 the
 #   SAMPLE_DIR does not exist; 3 two CRAB submissions of one sample (below).
 #   The last line is RESULT OK | RESULT FAIL.
+# 2026-10-15: era 2024 (Run 3, O10): CERN EOS like 2016, and the Run 3 primary
+#   dataset names (TT4B, TTBBto*, TTto*) mapped to the same seven short names.
 import sys
 
 # -----------------------------------------------------------------------------
@@ -65,6 +67,8 @@ SAMPLE_DIR_BY_ERA = {
     #   <out_lfn_base>/<era> on T3_CH_CERNBOX = CERN EOS (site_config.yaml)
     "2016APV": "/eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2016APV",
     "2016": "/eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2016",
+    # 2024 (Run 3 Summer24), 2026-10-15: same stage-out (T3_CH_CERNBOX)
+    "2024": "/eos/user/j/junghyun/TTHHGenCategoryTools/ttbarIdExtend_v2/2024",
 }
 
 ERA = sys.argv[1] if len(sys.argv) > 1 else "2017"
@@ -81,7 +85,7 @@ print("[make_filelists_miniAOD] era=%s  SAMPLE_DIR=%s  OUTPUT_DIR=%s"
 #   - Data 샘플은 short_name 을 None 으로 두면 Run2017 period 별로 분할 처리됨.
 #   - MC 샘플은 short_name 을 그대로 filelist 파일명에 사용함.
 # ==============================================================================
-sample_mapping = {
+SAMPLE_MAPPING_RUN2 = {
 
     # ttbar (Powheg inclusive)
     "TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8":        "TTTo2L2Nu",
@@ -96,6 +100,19 @@ sample_mapping = {
     # tt4b
     "TT4b_TuneCP5_13TeV_madgraph_pythia8": "tt4b",
 }
+
+# Run 3 (era 2024): the RunIII2024Summer24 primary names, same short names
+SAMPLE_MAPPING_RUN3 = {
+    "TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8":   "TTTo2L2Nu",
+    "TTto4Q_TuneCP5_13p6TeV_powheg-pythia8":      "TTToHadronic",
+    "TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8":   "TTToSemiLeptonic",
+    "TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8":    "ttbb_Hadronic",
+    "TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8": "ttbb_SemiLeptonic",
+    "TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8": "ttbb_2L2Nu",
+    "TT4B_TuneCP5_13p6TeV_madgraph-pythia8":      "tt4b",
+}
+
+sample_mapping = SAMPLE_MAPPING_RUN3 if ERA == "2024" else SAMPLE_MAPPING_RUN2
 
 
 def find_root_files(start_path):

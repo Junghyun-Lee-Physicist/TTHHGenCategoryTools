@@ -5,12 +5,14 @@
 # Runs every step of TtbarIdExtender/README.md sec.2.2d for the given era(s),
 # in order, and STOPS at the first step whose pass condition fails:
 #
-#   1 env        CMSSW_10_6_X after cmsenv, cmsRun/root/dasgoclient on PATH,
-#                CRABClient (sources crab-setup.sh if needed), VOMS proxy with
-#                >= 24 h left, the era blocks exist in datasets.yaml
+#   1 env        the era's release after cmsenv (Run 2: CMSSW_10_6_X; 2024:
+#                CMSSW_15_0_X), cmsRun/root/dasgoclient on PATH, CRABClient
+#                (sources crab-setup.sh if needed), VOMS proxy with >= 24 h
+#                left, the era blocks exist in datasets.yaml
 #   2 local      per era: cmsRun year=<ERA> on one MiniAOD file of the smallest
 #                sample (TTbb_DiLep); needs exit 0, the expected era-modifier
-#                line, the output file, and 0 "missing" in the endJob summary
+#                line (Run 2: "<era> + run2_nanoAOD_106Xv2"; 2024: "Run3_2024"),
+#                the output file, and 0 "missing" in the endJob summary
 #   3 invariants per era: check_extend_invariants.C -> ALL INVARIANTS PASS
 #   4 resolve    per era: resolve_parents.sh <ERA>          -> MATCH 7/7, exit 0
 #   5 apply      per era: resolve_parents.sh <ERA> --apply  -> exit 0
@@ -24,6 +26,10 @@
 # Usage (lxplus, inside cmssw-el7, after cmsenv and voms-proxy-init):
 #   bash crab/launch_extend.sh --era 2016APV,2016            # steps 1-7, no submit
 #   bash crab/launch_extend.sh --era 2016APV,2016 --submit   # steps 1-9
+# Era 2024 (Run 3) runs from the CMSSW_15_0_X area instead (inside cmssw-el8,
+# ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18), after resolve_parents.sh 2024 --fill:
+#   bash crab/launch_extend.sh --era 2024 [--submit]
+# Eras that need different releases cannot share one call (step 1 stops).
 # Options:
 #   --skip-local      skip steps 2-3 (only after they passed for these eras)
 #   --max-events N    local test size per era (default 20000)
@@ -58,7 +64,19 @@ XRD="root://cms-xrd-global.cern.ch/"
 CRAB_SETUP="/cvmfs/cms.cern.ch/common/crab-setup.sh"
 
 declare -A ERA_MOD=( ["2016APV"]="Run2_2016_HIPM" ["2016"]="Run2_2016"
-                     ["2017"]="Run2_2017"         ["2018"]="Run2_2018" )
+                     ["2017"]="Run2_2017"         ["2018"]="Run2_2018"
+                     ["2024"]="Run3_2024" )
+# release family each era needs (CMSSW_VERSION prefix) and the era line that
+# run_ttbarIdExtend_cfg.py prints for it (2026-10-15: 2024 = Run 3)
+declare -A ERA_REL=( ["2016APV"]="CMSSW_10_6_" ["2016"]="CMSSW_10_6_"
+                     ["2017"]="CMSSW_10_6_"    ["2018"]="CMSSW_10_6_"
+                     ["2024"]="CMSSW_15_0_" )
+era_line() {   # the "era modifier = ..." text the pset prints for era $1
+  case "$1" in
+    2024) echo "${ERA_MOD[$1]}" ;;
+    *)    echo "${ERA_MOD[$1]} + run2_nanoAOD_106Xv2" ;;
+  esac
+}
 
 usage() { awk 'NR>=2 && /^set -u/ {exit} NR>=2' "${BASH_SOURCE[0]}" | sed 's/^#\{0,1\} \{0,1\}//'; }
 
@@ -79,7 +97,7 @@ done
 [[ "$REPORT_WAIT" =~ ^[0-9]+$ ]] || { echo "ERROR: --report-wait must be a non-negative integer" >&2; exit 2; }
 IFS=',' read -r -a ERA_LIST <<< "$ERAS"
 for E in "${ERA_LIST[@]}"; do
-  [[ -n "${ERA_MOD[$E]:-}" ]] || { echo "ERROR: unsupported era '$E' (2016APV, 2016, 2017, 2018)" >&2; exit 2; }
+  [[ -n "${ERA_MOD[$E]:-}" ]] || { echo "ERROR: unsupported era '$E' (2016APV, 2016, 2017, 2018, 2024)" >&2; exit 2; }
 done
 
 TS="$(date -u +%Y%m%d_%H%M%S)"
@@ -174,8 +192,14 @@ main() {
 
   # ---- 1 env -----------------------------------------------------------------
   step 1 env
-  [[ -n "${CMSSW_BASE:-}" ]] || die 10 "CMSSW_BASE unset -- run cmsenv in CMSSW_10_6_32_patch1/src (inside cmssw-el7)"
-  [[ "${CMSSW_VERSION:-}" == CMSSW_10_6_* ]] || die 10 "CMSSW_VERSION=${CMSSW_VERSION:-unset}, this package needs CMSSW_10_6_32_patch1"
+  local rel="" E2
+  for E2 in "${ERA_LIST[@]}"; do
+    [[ -z "$rel" || "$rel" == "${ERA_REL[$E2]}" ]] \
+      || die 10 "eras $ERAS need different releases (${rel}X and ${ERA_REL[$E2]}X) -- launch them in separate calls"
+    rel="${ERA_REL[$E2]}"
+  done
+  [[ -n "${CMSSW_BASE:-}" ]] || die 10 "CMSSW_BASE unset -- run cmsenv in the ${rel}X area first (Run 2: CMSSW_10_6_32_patch1 in cmssw-el7; 2024: CMSSW_15_0_18 in cmssw-el8)"
+  [[ "${CMSSW_VERSION:-}" == "$rel"* ]] || die 10 "CMSSW_VERSION=${CMSSW_VERSION:-unset}, era(s) $ERAS need ${rel}X (Run 2: ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1 in cmssw-el7; 2024: ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18 in cmssw-el8)"
   local tool
   for tool in cmsRun root dasgoclient voms-proxy-info python3; do   # git is optional (header only)
     command -v "$tool" >/dev/null 2>&1 || die 10 "'$tool' not on PATH"
@@ -223,8 +247,8 @@ main() {
          outputFile="ttbarIDExtend_local${E}.root") 2>&1 | tee -i "$RUN/local_${E}.log"
       rc=${PIPESTATUS[0]}
       [[ $rc -eq 0 ]] || die 11 "cmsRun year=$E exited $rc" "$RUN/local_${E}.log"
-      grep -q "era modifier = ${ERA_MOD[$E]} + run2_nanoAOD_106Xv2" "$RUN/local_${E}.log" \
-        || die 11 "no 'era modifier = ${ERA_MOD[$E]} + run2_nanoAOD_106Xv2' line" "$RUN/local_${E}.log"
+      grep -qx "\[run_ttbarIdExtend_cfg\]   era modifier = $(era_line "$E")" "$RUN/local_${E}.log" \
+        || die 11 "no '[run_ttbarIdExtend_cfg]   era modifier = $(era_line "$E")' line" "$RUN/local_${E}.log"
       out="$RUN/ttbarIDExtend_local${E}_numEvent${MAXEV}.root"
       [[ -s "$out" ]] || die 11 "output file missing or empty: $out" "$RUN/local_${E}.log"
       OUTFILE[$E]="$out"
@@ -254,7 +278,7 @@ main() {
   for E in "${ERA_LIST[@]}"; do
     bash "$RESOLVE" "$E" 2>&1 | tee -i "$RUN/resolve_${E}.log"
     rc=${PIPESTATUS[0]}
-    [[ $rc -eq 0 ]] || die 13 "resolve_parents.sh $E exited $rc (3 = not every sample MATCH; paste the DAS parent by hand)" "$RUN/resolve_${E}.log"
+    [[ $rc -eq 0 ]] || die 13 "resolve_parents.sh $E exited $rc (3 = not every sample MATCH: EMPTY entries -> bash crab/resolve_parents.sh $E --fill; otherwise paste the DAS parent by hand)" "$RUN/resolve_${E}.log"
     cp "$RUN/resolve_${E}.log" "$HERE/resolve_parents_${E}_${TSL}.log"
     RESOLVE_COPIES="$RESOLVE_COPIES TtbarIdExtender/crab/resolve_parents_${E}_${TSL}.log"
   done

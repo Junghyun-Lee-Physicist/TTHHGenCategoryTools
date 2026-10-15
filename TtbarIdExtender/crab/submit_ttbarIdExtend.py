@@ -6,7 +6,8 @@
 # builds a CRAB Configuration object and submits.
 #
 # Typical use:
-#   cmsenv                                      # inside CMSSW_10_6_X/src
+#   cmsenv                                      # inside CMSSW_10_6_X/src (Run 2 eras)
+#                                               # or CMSSW_15_0_X/src (era 2024, cmssw-el8)
 #   source /cvmfs/cms.cern.ch/common/crab-setup.sh
 #   voms-proxy-init -voms cms -valid 192:00
 #   python3 crab/submit_ttbarIdExtend.py --dry-run                    # preview
@@ -19,7 +20,9 @@
 # reliable source of typos.
 #
 # !! PYTHON 3.6 ONLY -- DO NOT USE 3.7+ APIs !!
-#   This package is pinned to CMSSW_10_6_32_patch1, whose python is 3.6.4.
+#   This package is pinned to CMSSW_10_6_32_patch1, whose python is 3.6.4
+#   (era 2024 is submitted from CMSSW_15_0_X, python 3.9; the 3.6 rules keep
+#   one file working in both).
 #   Anything newer breaks at run time, not at import, so it is easy to miss:
 #     subprocess.run(..., text=True)        -> 3.7+  ; use universal_newlines=True
 #     subprocess.run(..., capture_output=)  -> 3.7+  ; use stdout=/stderr=PIPE
@@ -583,7 +586,68 @@ _ERA_CAMPAIGN_PREFIX = {
     "2016":    ("RunIISummer20UL16MiniAODv2-",    "RunIISummer20UL16NanoAODv9-"),
     "2017":    ("RunIISummer20UL17MiniAODv2-",    "RunIISummer20UL17NanoAODv9-"),
     "2018":    ("RunIISummer20UL18MiniAODv2-",    "RunIISummer20UL18NanoAODv9-"),
+    # 2026-10-15 (Run 3): the NanoAODv15 children's MiniAOD parents; the MiniAOD
+    # version is whatever DAS says (resolve_parents.sh 2024 --fill), so only the
+    # campaign family is fixed here.
+    "2024":    ("RunIII2024Summer24MiniAOD",      "RunIII2024Summer24NanoAODv15-"),
 }
+
+# era key -> the CMSSW_VERSION prefix its submission needs (2026-10-15). The
+# 10_6 release cannot read Run 3 MiniAOD and has no Run3_2024 era; one CRAB
+# submission (one pset import) serves one release, so eras of two families are
+# never handled in one call. Era keys missing here count as Run 2 (10_6).
+_ERA_CMSSW_PREFIX = {
+    "2016APV": "CMSSW_10_6_",
+    "2016":    "CMSSW_10_6_",
+    "2017":    "CMSSW_10_6_",
+    "2018":    "CMSSW_10_6_",
+    "2024":    "CMSSW_15_0_",
+}
+
+
+def _is_run2_era(era):
+    """True for the CMSSW_10_6 (Run 2 UL) eras; unknown keys count as Run 2,
+    like release_problem() does."""
+    return _ERA_CMSSW_PREFIX.get(era, "CMSSW_10_6_") == "CMSSW_10_6_"
+
+
+def release_problem(eras):
+    """None if CMSSW_VERSION fits every era in `eras`, else the reason."""
+    eras = sorted(eras)
+    if not eras:
+        return None
+    need = sorted({_ERA_CMSSW_PREFIX.get(e, "CMSSW_10_6_") for e in eras})
+    if len(need) > 1:
+        return ("eras %s need different releases (%s) -- give --era for one "
+                "release at a time" % (",".join(eras), " and ".join(n + "X" for n in need)))
+    have = os.environ.get("CMSSW_VERSION", "")
+    if not have.startswith(need[0]):
+        return ("CMSSW_VERSION=%s, but era(s) %s need %sX (Run 2: CMSSW_10_6_32_patch1 "
+                "in cmssw-el7; 2024: ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18 in cmssw-el8)"
+                % (have or "unset", ",".join(eras), need[0]))
+    return None
+
+
+def acted_eras(cat, era_filter, proc_filter, force=False):
+    """Eras that a submission with these filters would touch: selected by
+    --era (all when absent) and holding at least one selected enabled entry
+    (any selected entry with --force). An entry whose dataset: is still ""
+    (a new era before resolve_parents.sh --fill) is never submitted, so it
+    does not count (2026-10-15 review: a closed 2024 block made --force
+    without --era refuse a Run 2 submission)."""
+    out = set()
+    for era, block in (cat.get("eras") or {}).items():
+        if era_filter and era not in era_filter:
+            continue
+        for d in (block.get("datasets") or []):
+            if proc_filter and d.get("name") not in proc_filter:
+                continue
+            if not str(d.get("dataset") or "").strip():
+                continue        # dataset: "" is never submitted (see main())
+            if force or d.get("enabled", False):
+                out.add(era)
+                break
+    return out
 
 
 def campaign_matches_era(era, camp_mini, camp_nano):
@@ -640,14 +704,21 @@ def run_preflight(args, cat, site):
     note("=" * 84)
 
     # ---- 1. environment ------------------------------------------------------
+    # 2026-10-15: the release must fit the eras (10_6 for Run 2, 15_0 for 2024).
+    # Without --era: the eras whose entries are enabled (what a submit would do).
     cmssw = os.environ.get("CMSSW_BASE", "")
+    rel_eras = (era_filter & set((cat.get("eras") or {}).keys())) if era_filter \
+        else acted_eras(cat, None, proc_filter)
     if not cmssw:
-        bad("env CMSSW_BASE", "unset -- run cmsenv inside CMSSW_10_6_32_patch1/src")
-    elif "CMSSW_10_6_" not in os.environ.get("CMSSW_VERSION", ""):
-        warn("env CMSSW_VERSION", "%s (this package is pinned to CMSSW_10_6_32_patch1)"
-             % os.environ.get("CMSSW_VERSION", "?"))
+        bad("env CMSSW_BASE", "unset -- run cmsenv in the CMSSW area of the era "
+            "(Run 2: CMSSW_10_6_32_patch1; 2024: CMSSW_15_0_18)")
     else:
-        ok("env CMSSW", "%s" % os.environ.get("CMSSW_VERSION"))
+        why = release_problem(rel_eras)
+        if why:
+            bad("env CMSSW_VERSION", why)
+        else:
+            ok("env CMSSW", "%s (fits era(s) %s)" % (os.environ.get("CMSSW_VERSION"),
+                                                    ",".join(sorted(rel_eras)) or "-"))
     try:
         import CRABClient  # noqa: F401
         ok("CRABClient import", "ok")
@@ -741,6 +812,14 @@ def run_preflight(args, cat, site):
             n_enabled += en
             n_verified += ver
             tags = []
+            # 2026-10-15: a new era starts with dataset: "" (resolve_parents.sh
+            # <era> --fill writes the DAS parent). Not resolved yet = one WARN for a
+            # closed entry (it is skipped anyway), FAIL for an open one.
+            if not str(mini).strip():
+                (bad if en else warn)("%s/%s dataset" % (era, name),
+                                      "dataset: is empty (MiniAOD parent not resolved) -- "
+                                      "bash crab/resolve_parents.sh %s --fill, then --apply" % era)
+                continue
             if not _DS_RE.match(str(mini)) or not str(mini).endswith("MINIAODSIM"):
                 bad("%s/%s dataset syntax" % (era, name), "not a MINIAODSIM path: %r" % mini)
             if not _DS_RE.match(str(nano)) or not str(nano).endswith("NANOAODSIM"):
@@ -801,6 +880,10 @@ def run_preflight(args, cat, site):
                         continue
                     for label, path in (("mini", d.get("dataset", "")),
                                         ("nano", d.get("nano_child", ""))):
+                        if not str(path).strip():
+                            note("        DAS %s/%s %s: not resolved yet (empty), not queried"
+                                 % (era, name, label))
+                            continue
                         # Must use -json: the PLAIN-TEXT output of
                         # `dasgoclient -query "summary dataset=..."` is a column
                         # layout, NOT `nevents=N`, so a regex over it never
@@ -886,6 +969,49 @@ def run_preflight(args, cat, site):
                                      % (det, format(CRAB_MAX_JOBS_PER_TASK, ",")))
                             else:
                                 ok("job count %s/%s" % (era, name), det)
+
+                        # ---- where is the MiniAOD? (2026-10-15, era 2024) -------
+                        # A MiniAOD held only on tape makes CRAB ask for a tape
+                        # recall first (task state TAPERECALL, can take days), and
+                        # the manager ALERTs after 8 h without a finished job.
+                        # Any site name not ending in _Tape/_MSS counts as disk.
+                        # Run 2 eras are not checked: their preflight stays as it
+                        # was (their MiniAODv2 launches passed without it, and a
+                        # new WARN would stop launch_extend.sh at step 6).
+                        if label == "mini" and nev is not None \
+                                and not _is_run2_era(era):
+                            try:
+                                sq = subprocess.run(["dasgoclient", "-query",
+                                                     "site dataset=%s" % path],
+                                                    stdout=subprocess.PIPE,
+                                                    stderr=subprocess.PIPE,
+                                                    universal_newlines=True,
+                                                    timeout=180)
+                                sites = sorted({s.strip() for s in
+                                                (sq.stdout or "").splitlines()
+                                                if s.strip()})
+                            except (OSError, subprocess.TimeoutExpired):
+                                sites = None
+                            if not sites:
+                                note("        sites %s/%s: DAS returned no site "
+                                     "list (not checked)" % (era, name))
+                            else:
+                                disk = [s for s in sites
+                                        if not (s.endswith("_Tape") or s.endswith("_MSS"))]
+                                if disk:
+                                    ok("MiniAOD on disk %s/%s" % (era, name),
+                                       "%d site(s): %s%s" % (len(disk), ", ".join(disk[:3]),
+                                                             " ..." if len(disk) > 3 else ""))
+                                else:
+                                    warn("MiniAOD on disk %s/%s" % (era, name),
+                                         "only on tape (%s): CRAB would start with a "
+                                         "tape recall (TAPERECALL, days) and the manager "
+                                         "ALERTs after 8 h without a finished job. "
+                                         "launch_extend.sh stops on this WARN: ask for a "
+                                         "disk copy and launch again, or submit by hand "
+                                         "after --apply (python3 crab/submit_ttbarIdExtend.py "
+                                         "--era %s) and start the manager once jobs run"
+                                         % (", ".join(sites), era))
     return _preflight_finish(rows, lines, log_path)
 
 
@@ -1004,7 +1130,16 @@ def main():
         if ans not in ("y", "yes"):
             sys.exit("Aborted (no jobs killed).")
 
+    # 2026-10-15: a submission imports the pset in THIS release, so the release
+    # must fit the eras it submits (2024 needs CMSSW_15_0_X). Bulk actions
+    # (status/report/resubmit/kill) work from any release and are not checked.
+    if bulk_action is None:
+        why = release_problem(acted_eras(cat, era_filter, proc_filter, args.force))
+        if why:
+            sys.exit("ERROR: %s" % why)
+
     n_total = n_skipped = n_attempted = n_submitted = 0
+    n_unresolved = 0
     # Per-outcome tally for bulk actions (see crab_action_one). Kept separate
     # from n_submitted because "the command ran" != "something happened".
     outcomes = {}
@@ -1021,6 +1156,15 @@ def main():
             # entry you have since toggled off). For submission we honor it.
             if bulk_action is None and not args.force and not ds.get("enabled", False):
                 n_skipped += 1
+                continue
+            # 2026-10-15 review: a new era's entry keeps dataset: "" until
+            # resolve_parents.sh --fill; CRAB must never get an empty
+            # inputDataset, so it is not submitted, not even with --force.
+            if bulk_action is None and not str(ds.get("dataset") or "").strip():
+                print("[skip] era=%s process=%s: dataset: is empty -- "
+                      "bash crab/resolve_parents.sh %s --fill, then --apply"
+                      % (era, name, era))
+                n_unresolved += 1
                 continue
 
             verb = bulk_action or "extend"
@@ -1077,6 +1221,9 @@ def main():
     print(f"  scanned   : {n_total}")
     if bulk_action is None:
         print(f"  skipped   : {n_skipped}  (enabled:false; use --force to override)")
+        if n_unresolved:
+            print("  unresolved: %d  (dataset: is empty -- run "
+                  "bash crab/resolve_parents.sh <era> --fill first)" % n_unresolved)
     print(f"  attempted : {n_attempted}")
     label = {"resubmit": "resubmitted", "status": "queried",
              "report": "queried", "kill": "killed"}.get(bulk_action, "submitted")

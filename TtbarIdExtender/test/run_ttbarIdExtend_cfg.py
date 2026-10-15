@@ -57,7 +57,7 @@ opts.register("verbose", False,
 # JobType.pyCfgParams, taking the value from the datasets.yaml era key.
 opts.register("year", "2017",
               VarParsing.multiplicity.singleton, VarParsing.varType.string,
-              "Data-taking year: 2016 | 2016APV | 2017 | 2018 (default 2017)")
+              "Data-taking year: 2016 | 2016APV | 2017 | 2018 | 2024 (default 2017; 2024 needs CMSSW_15_0_X)")
 opts.outputFile = "ttbarIDExtend.root"
 opts.maxEvents  = -1
 # Default input: leave empty.  Two ways input gets set:
@@ -99,12 +99,19 @@ from Configuration.StandardSequences.Eras import eras
 # Resolved LAZILY via getattr: only the requested year's era object is touched.
 # (A dict literal would evaluate every eras.* attribute at import time, so one
 # era name absent from this CMSSW release would break ALL years, 2017 included.)
+# 2026-10-15: year 2024 (Run 3, RunIII2024Summer24 MiniAODv6). It needs a Run 3
+# release (CMSSW_15_0_X: the 10_6 release cannot read that MiniAOD and has no
+# Run3_2024 era) and takes Run3_2024 ALONE: run2_nanoAOD_106Xv2 is the UL
+# NanoAODv9 modifier and belongs to the Run 2 years only. The Run 2 lines below
+# are unchanged.
 _ERA_NAME_BY_YEAR = {
     "2016":    "Run2_2016",
     "2016APV": "Run2_2016_HIPM",
     "2017":    "Run2_2017",
     "2018":    "Run2_2018",
+    "2024":    "Run3_2024",
 }
+_RUN2_YEARS = ("2016", "2016APV", "2017", "2018")
 if opts.year not in _ERA_NAME_BY_YEAR:
     raise ValueError(
         "[run_ttbarIdExtend_cfg] FATAL: unsupported year=%r (expected one of %s)"
@@ -115,9 +122,12 @@ if not hasattr(eras, _era_name):
         "[run_ttbarIdExtend_cfg] FATAL: era %r not available in this CMSSW release "
         "(year=%s)" % (_era_name, opts.year))
 _era = getattr(eras, _era_name)
-print("[run_ttbarIdExtend_cfg]   era modifier = %s + run2_nanoAOD_106Xv2" % _era_name)
-
-process = cms.Process("TTBARIDEXTEND", _era, eras.run2_nanoAOD_106Xv2)
+if opts.year in _RUN2_YEARS:
+    print("[run_ttbarIdExtend_cfg]   era modifier = %s + run2_nanoAOD_106Xv2" % _era_name)
+    process = cms.Process("TTBARIDEXTEND", _era, eras.run2_nanoAOD_106Xv2)
+else:
+    print("[run_ttbarIdExtend_cfg]   era modifier = %s" % _era_name)
+    process = cms.Process("TTBARIDEXTEND", _era)
 
 
 # ---- Services ---------------------------------------------------------------

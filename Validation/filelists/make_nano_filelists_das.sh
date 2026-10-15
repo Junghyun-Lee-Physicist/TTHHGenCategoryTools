@@ -18,6 +18,7 @@
 #   ./make_nano_filelists_das.sh 2018v15         # -> nano2018v15/ : CENTRAL NanoAODv15
 #   ./make_nano_filelists_das.sh 2016APV         # -> nano2016APV/ : UL16 preVFP NanoAODv9
 #   ./make_nano_filelists_das.sh 2016            # -> nano2016/    : UL16 postVFP NanoAODv9
+#   ./make_nano_filelists_das.sh 2024            # -> nano2024/    : Summer24 NanoAODv15 (Run 3)
 #
 # 2018v15 (added 2026-09-27, NtupleForge docs/12 V1): the ttHH production moved
 #   to NanoAODv15, so the 2018 patches must be re-matched against the v15 event
@@ -28,6 +29,13 @@
 # 2016APV / 2016 (added 2026-10-15, O9): the UL16 preVFP (APV) and postVFP
 #   NanoAODv9 campaigns of the 2016 extend production; the event counts are in
 #   data/das_nevents_2016APV.json / das_nevents_2016.json.
+#
+# 2024 (added 2026-10-15, O10): RunIII2024Summer24 NanoAODv15, the datasets
+#   TTHHAnalyzer uses. The short names stay the logical ones below (tt4b ...
+#   TTTo2L2Nu) so every later tool works unchanged; only the DAS primary names
+#   are the Run 3 ones (TT4B, TTBBto*, TTto*). Event counts:
+#   data/das_nevents_2024.json. TTto2L2Nu has an INVALID -v2 next to the VALID
+#   -v3; the dataset= query lists VALID datasets only, so -v3 alone is used.
 #
 # OUTPUT
 #   <outdir>/filelist_<short>.txt        one ROOT path per line (master list)
@@ -46,7 +54,7 @@ MODE="${2:-xrootd}"
 SPLIT_SIZE="${SPLIT_SIZE:-20}"          # files per split list; override via env
 
 if [[ -z "$ERA" ]]; then
-    echo "usage: $0 <era: 2017|2018|2018v15|2016APV|2016> [xrootd|lfn]" >&2
+    echo "usage: $0 <era: 2017|2018|2018v15|2016APV|2016|2024> [xrootd|lfn]" >&2
     exit 2
 fi
 
@@ -60,7 +68,8 @@ case "$ERA" in
   2018v15) CAMPAIGN="RunIISummer20UL18NanoAODv15-150X_mc2018_realistic_v1"          ; OUTDIR="nano2018v15" ; NO_CENTRAL="tt4b" ;;
   2016APV) CAMPAIGN="RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11"; OUTDIR="nano2016APV" ;;
   2016)    CAMPAIGN="RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17"         ; OUTDIR="nano2016"    ;;
-  *)       echo "ERROR: unsupported era '$ERA' (expected 2017, 2018, 2018v15, 2016APV or 2016)" >&2; exit 2 ;;
+  2024)    CAMPAIGN="RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2"     ; OUTDIR="nano2024"    ;;
+  *)       echo "ERROR: unsupported era '$ERA' (expected 2017, 2018, 2018v15, 2016APV, 2016 or 2024)" >&2; exit 2 ;;
 esac
 
 case "$MODE" in
@@ -76,15 +85,27 @@ voms-proxy-info -exists >/dev/null 2>&1 || {
 
 # short name  <-->  DAS primary dataset (same 7 stitching samples as datasets.yaml)
 SHORT=(tt4b ttbb_Hadronic ttbb_SemiLeptonic ttbb_2L2Nu TTToHadronic TTToSemiLeptonic TTTo2L2Nu)
-PRIMARY=(
-  "TT4b_TuneCP5_13TeV_madgraph_pythia8"
-  "TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8"
-  "TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8"
-  "TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8"
-  "TTToHadronic_TuneCP5_13TeV-powheg-pythia8"
-  "TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8"
-  "TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8"
-)
+if [[ "$ERA" == "2024" ]]; then        # Run 3 primaries, same order as SHORT
+  PRIMARY=(
+    "TT4B_TuneCP5_13p6TeV_madgraph-pythia8"
+    "TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8"
+    "TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8"
+    "TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8"
+    "TTto4Q_TuneCP5_13p6TeV_powheg-pythia8"
+    "TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8"
+    "TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8"
+  )
+else
+  PRIMARY=(
+    "TT4b_TuneCP5_13TeV_madgraph_pythia8"
+    "TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8"
+    "TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8"
+    "TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8"
+    "TTToHadronic_TuneCP5_13TeV-powheg-pythia8"
+    "TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8"
+    "TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8"
+  )
+fi
 
 mkdir -p "$OUTDIR"
 LOG="${OUTDIR}/summary_${ERA}.log"

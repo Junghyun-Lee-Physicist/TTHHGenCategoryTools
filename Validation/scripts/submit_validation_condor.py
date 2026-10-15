@@ -56,6 +56,12 @@
 #   EL9 ROOT (e.g. an LCG view) -- the docs do say Validation is CMSSW-agnostic
 #   -- but do NOT use it with a container-built binary.
 #
+#   2026-10-15 (era 2024, O10): the image follows the CMSSW area the job sets
+#   up -- el7 for a slc7 area (CMSSW_10_6_32_patch1), el8 for an el8 area (the
+#   v15 area CMSSW_15_0_18 that builds and runs the 2024 tools: its ROOT 6.32
+#   reads whatever the 15_0 extend files use), el9 for an el9 area. --container
+#   still overrides it.
+#
 # USAGE
 #   # 0) one-time: sort every sample (idempotent, skips completed ones)
 #   python3 scripts/submit_validation_condor.py --era 2018 --sort-only
@@ -72,11 +78,34 @@
 # Add --dry-run to any of the above to write the submit files without
 # condor_submit. --preflight checks inputs and prints a report without writing
 # anything.
+#
+# 2026-10-15 (docs/08 T-40): --report and --resubmit-failed ask condor_q which
+#   chunks are still in the queue (jobs whose executable is this work base's
+#   run_match.sh). Such a chunk is "queued" (idle/running/held), not missing:
+#   --report no longer tells you to re-run a chunk whose job simply has not run
+#   yet, and --resubmit-failed never submits a second job for a queued chunk
+#   (run it on the host shell, where condor_q is). --report exits 0 all ok,
+#   1 some chunk failed, is missing with no job, or is held, 2 nothing to do
+#   but wait (idle/running jobs), 3 the queue could not be asked (no condor_q
+#   here) and some chunk has no ok result. A chunk with a job in the queue is
+#   queued even if an older result exists (the job will overwrite it). The
+#   printed follow-up commands repeat the options in effect (--samples, the
+#   directories, --memory ...), so a pasted command acts on the same chunks.
+#   condor_q sees the schedd of this lxplus session (myschedd); after a
+#   `myschedd bump` the jobs on the old schedd are invisible here -- look with
+#   condor_q -name <old schedd> before resubmitting anything.
+#   The submit file carries batch_name = val_<era>, so one campaign can be
+#   watched or removed alone:
+#     condor_q -constraint 'JobBatchName == "val_2016APV"'
+#     condor_rm -constraint 'JobBatchName == "val_2016APV"'
+#   (condor_rm <user> removes EVERY job of the user, other campaigns included.)
+#   The printed follow-up commands carry absolute paths.
 # =============================================================================
 
 import argparse
 import os
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -99,6 +128,33 @@ DEFAULT_EOS = "/eos/user/j/junghyun/TTHHGenCategoryTools"
 # EL9 condor workers. Verified by --preflight before use.
 DEFAULT_IMAGE = ("/cvmfs/unpacked.cern.ch/registry.hub.docker.com/"
                  "cmssw/el7:x86_64")
+IMAGE_BY_OS = {
+    "7": DEFAULT_IMAGE,
+    "8": "/cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw/el8:x86_64",
+    "9": "/cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw/el9:x86_64",
+}
+
+
+def image_for_area(cmssw_base):
+    """(image, arch) for a CMSSW area: the OS of its SCRAM arch (.SCRAM/<arch>,
+    else lib/<arch>); (DEFAULT_IMAGE, None) when it cannot be told -- the
+    callers then WARN (2026-10-15 review: an el8 build must not silently get
+    the el7 image)."""
+    if not cmssw_base:
+        return DEFAULT_IMAGE, None
+    names = []
+    for sub in (".SCRAM", "lib"):
+        d = Path(cmssw_base, sub)
+        try:
+            if d.is_dir():
+                names.extend(sorted(x.name for x in d.iterdir() if x.is_dir()))
+        except OSError:          # e.g. no AFS token: treat as unknown
+            continue
+    for n in names:
+        for pre, osv in (("slc7_", "7"), ("cc7_", "7"), ("el8_", "8"), ("el9_", "9")):
+            if n.startswith(pre):
+                return IMAGE_BY_OS[osv], n
+    return DEFAULT_IMAGE, None
 
 # CERN's standard batch schedds REFUSE any /eos path inside a submit file
 # (2026-07-28: "Standard batch schedds cannot use /eos paths directly within the
@@ -106,6 +162,8 @@ DEFAULT_IMAGE = ("/cvmfs/unpacked.cern.ch/registry.hub.docker.com/"
 # condor-managed file (executable, args, output/error/log) must live on AFS.
 # See https://batchdocs.web.cern.ch/local/file_xfer_plugin.html
 EOS_URL_PREFIX = "root://eosuser.cern.ch/"
+DEFAULT_MEMORY = 2000          # MB, --memory
+DEFAULT_FLAVOUR = "workday"    # --flavour
 
 
 def parse_args():
@@ -143,30 +201,37 @@ def parse_args():
                    help="Submit ONE chunk of ONE sample (%s) and stop."
                         % SMOKE_SHORT)
     p.add_argument("--report", action="store_true",
-                   help="Per-chunk plumbing status (ok / failed / missing) from "
-                        "the result JSONs. Writes nothing. For the PHYSICS "
-                        "verdict use scripts/aggregate_validation.py.")
+                   help="Per-chunk plumbing status (ok / failed / missing / "
+                        "queued) from the result JSONs and condor_q (a chunk "
+                        "whose job is still in the queue is queued, not "
+                        "missing). Writes nothing. Exit 0 all ok, 1 a chunk "
+                        "failed or is missing with no job, 2 only queued ones "
+                        "left. For the PHYSICS verdict use "
+                        "scripts/aggregate_validation.py.")
     p.add_argument("--resubmit-failed", action="store_true",
                    help="Submit ONLY the chunks that --report calls failed or "
-                        "missing. Same command, same memory as the original job "
-                        "-- a chunk is self-contained (see chunk_status()).")
+                        "missing and that have no job in the condor queue "
+                        "(needs condor_q: run it on the host shell). Same "
+                        "command, same memory as the original job -- a chunk "
+                        "is self-contained (see chunk_status()).")
     p.add_argument("--preflight", action="store_true",
                    help="Read-only check of every input; writes nothing.")
     p.add_argument("--dry-run", action="store_true",
                    help="Write submit files but do not condor_submit.")
-    p.add_argument("--memory", type=int, default=2000,
+    p.add_argument("--memory", type=int, default=DEFAULT_MEMORY,
                    help="request_memory in MB (default 2000; the sorted "
                         "matcher keeps one ~16 MB part resident, so this is "
                         "already generous).")
-    p.add_argument("--flavour", default="workday",
+    p.add_argument("--flavour", default=DEFAULT_FLAVOUR,
                    help='+JobFlavour (default "workday" = 8 h; a 20-file chunk '
                         'measured well under 1 h, but WAN reads are variable).')
     p.add_argument("--proxy", default=None,
                    help="x509 proxy path. Default: $X509_USER_PROXY, else the "
                         "conventional /tmp/x509up_u<uid>.")
-    p.add_argument("--container", default=DEFAULT_IMAGE,
-                   help="Container image for the payload (EL7, to match the "
-                        "slc7/ROOT-6.14 build). Default: %(default)s")
+    p.add_argument("--container", default=None,
+                   help="Container image for the payload. Default: the OS of "
+                        "the job's CMSSW area (el7 for slc7 = CMSSW_10_6, el8 "
+                        "for the el8 CMSSW_15_0_18 area of era 2024).")
     p.add_argument("--no-container", action="store_true",
                    help="Do not request a container. ONLY correct if the "
                         "binaries were built against a native EL9 ROOT.")
@@ -255,11 +320,59 @@ def sorted_ready(sorted_base, short):
 # ---------------------------------------------------------------------------
 # preflight
 # ---------------------------------------------------------------------------
-def chunk_status(P, shorts):
-    """Per-chunk plumbing state from the result JSONs: (rows, failing).
+# condor JobStatus values of a job that is still in the queue and may still
+# write its result: 1 idle, 2 running, 5 held, 6 transferring output,
+# 7 suspended. 3 (removed) and 4 (completed) are on their way out.
+_INFLIGHT = {1: "idle", 2: "running", 5: "held", 6: "running", 7: "suspended"}
 
-    rows    : [(short, total, ok, fail, miss, [detail strings])]
+
+def queued_chunks(P):
+    """{chunk tag: [(state, "cluster.proc"), ...]} of this work base's jobs
+    that are still in the condor queue (a list: a chunk may have been submitted
+    twice), or None when condor_q cannot be asked here (not on PATH -- e.g.
+    inside cmssw-el7 -- or it failed).
+
+    2026-10-15 (docs/08 T-40): --report ran one minute after a submission and
+    called all 15 idle chunks "missing ... need re-running"; the jobs were then
+    removed and resubmitted. The jobs are recognised by their executable (Cmd =
+    <work base>/run_match.sh), so jobs submitted before this change count too;
+    the tag is the json name in the job's arguments.
+    """
+    exe = shutil_which("condor_q")
+    if not exe:
+        return None
+    run_sh = os.path.abspath(str(P["work_base"] / "run_match.sh"))
+    lit = run_sh.replace("\\", "\\\\").replace('"', '\\"')   # ClassAd string literal
+    try:
+        out = subprocess.check_output(
+            [exe, "-constraint", 'Cmd =?= "%s"' % lit,
+             "-af", "ClusterId", "ProcId", "JobStatus", "Args", "Arguments"],
+            stderr=subprocess.DEVNULL, timeout=180)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return None
+    q = {}
+    for line in out.decode("utf-8", "replace").splitlines():
+        f = line.split()
+        if len(f) < 4 or not (f[0].isdecimal() and f[1].isdecimal() and f[2].isdecimal()):
+            continue
+        st = int(f[2])
+        if st not in _INFLIGHT:
+            continue
+        tag = next((x[:-5] for x in f[3:] if x.endswith(".json")), None)
+        if tag:
+            q.setdefault(tag, []).append((_INFLIGHT[st], "%s.%s" % (f[0], f[1])))
+    return q
+
+
+def chunk_status(P, shorts, queued=None):
+    """Per-chunk plumbing state from the result JSONs: (rows, failing, inq).
+
+    rows    : [(short, total, ok, fail, miss, queue, [detail strings])]
     failing : [(short, chunk_path)] -- what --resubmit-failed would send
+    inq     : [(short, tag, [(state, "cluster.proc"), ...])] -- chunks with a
+              job still in the condor queue (queued_chunks()); never in
+              `failing`, and counted as queued even when an older result exists
+              (ok or not): that job will overwrite it
 
     WHY A CHUNK IS A SAFE RESUBMIT UNIT
       Each job streams ONE nano chunk against the FULL sorted extend set, so
@@ -273,67 +386,162 @@ def chunk_status(P, shorts):
     scripts/aggregate_validation.py and is deliberately not duplicated here.
     """
     import json as _json
+    queued = queued or {}
     resdir = P["out_base"] / "results"
-    rows, failing = [], []
+    rows, failing, inq = [], [], []
     for short in shorts:
         cs = chunks_for(P["nano_dir"], short)
-        ok = fail = miss = 0
+        ok = fail = miss = nq = 0
         detail = []
         for c in cs:
+            if c.stem in queued:             # a job will (re)write this result
+                jobs = queued[c.stem]
+                nq += 1
+                detail.append("%s(%s)" % (c.stem, "+".join("%s %s" % j for j in jobs)))
+                inq.append((short, c.stem, jobs))
+                continue
             jf = resdir / ("%s.json" % c.stem)
+            state = None                     # None = ok
             if not jf.is_file():
-                miss += 1
-                detail.append("%s(missing)" % c.stem)
-                failing.append((short, c))
-                continue
-            try:
-                with open(str(jf), encoding="utf-8") as fh:
-                    d = _json.load(fh)
-                ec = int(d.get("exit_code", -1))
-            except (OSError, ValueError) as exc:
-                fail += 1
-                detail.append("%s(unreadable)" % c.stem)
-                failing.append((short, c))
-                continue
-            if ec == 0 and not d.get("job_failed"):
+                state = "missing"
+            else:
+                try:
+                    with open(str(jf), encoding="utf-8") as fh:
+                        d = _json.load(fh)
+                    ec = int(d.get("exit_code", -1))
+                    if ec != 0 or d.get("job_failed"):
+                        state = "exit %d" % ec
+                except (OSError, ValueError):
+                    state = "unreadable"
+            if state is None:
                 ok += 1
             else:
-                fail += 1
-                detail.append("%s(exit %d)" % (c.stem, ec))
+                if state == "missing":
+                    miss += 1
+                else:
+                    fail += 1
+                detail.append("%s(%s)" % (c.stem, state))
                 failing.append((short, c))
-        rows.append((short, len(cs), ok, fail, miss, detail))
-    return rows, failing
+        rows.append((short, len(cs), ok, fail, miss, nq, detail))
+    return rows, failing, inq
 
 
-def print_report(P, shorts):
-    rows, failing = chunk_status(P, shorts)
+def _self_cmd():
+    """This script by absolute, resolved path (works from any directory and
+    through a symlink; 2026-10-15: the --resubmit-failed hint lacked
+    'scripts/')."""
+    return str(Path(__file__).resolve())
+
+
+def _opts_in_effect(a, shorts):
+    """The options of this call that a printed follow-up command must repeat
+    so it acts on the same chunks, directories and job settings (2026-10-15
+    review of T-40: a hint without --samples after --smoke would have sent the
+    whole campaign; one without --work-base would not see the queue)."""
+    out = ["--era", a.era]
+    if a.samples or a.smoke:
+        out += ["--samples", ",".join(shorts)]
+    for opt, val in (("--extend-filelist-dir", a.extend_filelist_dir),
+                     ("--nano-filelist-dir", a.nano_filelist_dir),
+                     ("--sorted-base", a.sorted_base),
+                     ("--out-base", a.out_base),
+                     ("--bin-dir", a.bin_dir),
+                     ("--work-base", a.work_base),
+                     ("--cmssw-base", a.cmssw_base),
+                     ("--proxy", a.proxy)):
+        if val:
+            out += [opt, os.path.abspath(val)]
+    if a.eos_url_prefix != EOS_URL_PREFIX:
+        out += ["--eos-url-prefix", a.eos_url_prefix]
+    if a.memory != DEFAULT_MEMORY:
+        out += ["--memory", str(a.memory)]
+    if a.flavour != DEFAULT_FLAVOUR:
+        out += ["--flavour", a.flavour]
+    if a.container:
+        out += ["--container", a.container]
+    if a.no_container:
+        out.append("--no-container")
+    return out
+
+
+def _cmd(a, shorts, *mode):
+    """A follow-up command of this script, shell-quoted, ready to paste."""
+    return "python3 " + " ".join(shlex.quote(x) for x in
+                                 [_self_cmd()] + _opts_in_effect(a, shorts) + list(mode))
+
+
+def _agg_cmd(a, shorts):
+    """aggregate_validation.py for the same chunks and outputs."""
+    args = [str(THIS_DIR / "aggregate_validation.py"), "--era", a.era]
+    if a.samples or a.smoke:
+        args += ["--samples", ",".join(shorts)]
+    if a.out_base:
+        args += ["--out-base", os.path.abspath(a.out_base)]
+    if a.nano_filelist_dir:
+        args += ["--nano-filelist-dir", os.path.abspath(a.nano_filelist_dir)]
+    return "python3 " + " ".join(shlex.quote(x) for x in args)
+
+
+def print_report(a, P, shorts):
+    queued = queued_chunks(P)
+    rows, failing, inq = chunk_status(P, shorts, queued)
     print("=" * 88)
     print("per-chunk report   results = %s" % (P["out_base"] / "results"))
+    if queued is None:
+        print("[WARN] condor_q is not available here (or failed): the queue was not "
+              "asked, so a chunk without a result may still have a job.")
     print("=" * 88)
-    print("%-22s %6s %5s %5s %5s  %s"
-          % ("sample", "total", "ok", "fail", "miss", "failing chunks"))
+    print("%-22s %6s %5s %5s %5s %5s  %s"
+          % ("sample", "total", "ok", "fail", "miss", "queue", "chunks not ok"))
     print("-" * 88)
-    tt = to = tf = tm = 0
-    for short, n, ok, fail, miss, detail in rows:
+    tt = to = tf = tm = tq = 0
+    for short, n, ok, fail, miss, nq, detail in rows:
         d = ", ".join(detail[:4]) + (" ..." if len(detail) > 4 else "")
-        print("%-22s %6d %5d %5d %5d  %s" % (short, n, ok, fail, miss, d))
-        tt += n; to += ok; tf += fail; tm += miss
+        print("%-22s %6d %5d %5d %5d %5d  %s" % (short, n, ok, fail, miss, nq, d))
+        tt += n; to += ok; tf += fail; tm += miss; tq += nq
     print("-" * 88)
-    print("%-22s %6d %5d %5d %5d" % ("TOTAL", tt, to, tf, tm))
-    if failing:
-        print("\n%d chunk(s) need re-running. Same cost as the first run"
-              " (a chunk is self-contained; memory does not depend on its size):"
+    print("%-22s %6d %5d %5d %5d %5d" % ("TOTAL", tt, to, tf, tm, tq))
+    held = [qid for _, _, jobs in inq for qs, qid in jobs if qs == "held"]
+    if inq:
+        by = {}
+        for _, _, jobs in inq:
+            for qs, _ in jobs:
+                by[qs] = by.get(qs, 0) + 1
+        print("\n%d chunk(s) have a job in the condor queue (%s) -- NOT failures; "
+              "wait for them, then run the report again:"
+              % (len(inq), ", ".join("%s %d" % kv for kv in sorted(by.items()))))
+        print("  condor_q -constraint 'Cmd =?= \"%s\"'"
+              % os.path.abspath(str(P["work_base"] / "run_match.sh")))
+        print("  " + _cmd(a, shorts, "--report"))
+        if held:
+            print("  HELD (never finish by themselves): condor_q -hold %s ; after fixing "
+                  "the cause: condor_rm %s , then --resubmit-failed"
+                  % (" ".join(held[:8]), " ".join(held[:8])))
+        dup = [(tag, jobs) for _, tag, jobs in inq if len(jobs) > 1]
+        for tag, jobs in dup:
+            print("  [WARN] %s has %d jobs in the queue (%s): a duplicate submission -- "
+                  "condor_rm the extra one(s)" % (tag, len(jobs), " ".join(j[1] for j in jobs)))
+    if failing and queued is None:
+        print("\nqueue state UNKNOWN: %d chunk(s) have no ok result -- they may still have "
+              "a job. Run the report on the lxplus host shell before re-running anything:"
               % len(failing))
-        print("  python3 %s --era %s --resubmit-failed"
-              % (Path(__file__).name, P.get("era", "<era>")))
-        print("\nFor the PHYSICS verdict (unmatched/disagree/DAS completeness):")
-        print("  python3 scripts/aggregate_validation.py --era %s"
-              % P.get("era", "<era>"))
-    else:
+        print("  " + _cmd(a, shorts, "--report"))
+    elif failing:
+        print("\n%d chunk(s) have no ok result and no job in the queue (never submitted, "
+              "or the job ended without an ok result) -- submit them (same cost as the "
+              "first run; a chunk is self-contained):" % len(failing))
+        print("  " + _cmd(a, shorts, "--resubmit-failed"))
+    if not failing and not inq:
         print("\nAll chunks produced a result. Now check the PHYSICS verdict:")
-        print("  python3 scripts/aggregate_validation.py --era %s"
-              % P.get("era", "<era>"))
-    return 1 if failing else 0
+    else:
+        print("\nFor the PHYSICS verdict (unmatched/disagree/DAS completeness), "
+              "once every chunk is ok:")
+    print("  " + _agg_cmd(a, shorts))
+    if failing and queued is None:
+        return 3
+    if failing or held:
+        return 1
+    return 2 if inq else 0
 
 
 def run_preflight(a, P, shorts):
@@ -361,18 +569,28 @@ def run_preflight(a, P, shorts):
         # the EL9 host only. Submitting is a host-side action; the payload runs
         # in a container (see the header).
         add("FAIL", "condor_submit",
-            "not on PATH -- are you inside cmssw-el7? Submit from the EL9 host "
-            "(type `exit` first); the jobs still run in an EL7 container.")
+            "not on PATH -- are you inside cmssw-el7/-el8? Submit from the EL9 "
+            "host (type `exit` first); the jobs still run in the area's container.")
 
     if a.no_container:
         add("WARN", "container",
             "--no-container: only valid for a native-EL9 build of the tools")
     else:
-        img = a.container
+        img, arch = image_for_area(a.cmssw_base or os.environ.get("CMSSW_BASE")
+                                   or guess_cmssw_base())
+        img = a.container or img
         # Singularity images live on cvmfs; a missing path means every job would
         # fail to start, which is worth catching before 49 submissions.
-        add("PASS" if Path(img).exists() else "FAIL", "container image",
-            img if Path(img).exists() else "%s NOT FOUND on cvmfs" % img)
+        if not Path(img).exists():
+            add("FAIL", "container image", "%s NOT FOUND on cvmfs" % img)
+        elif a.container:
+            add("PASS", "container image", img)
+        elif arch is None:
+            add("WARN", "container image",
+                "%s  (the SCRAM arch of the CMSSW area is unknown -> el7 default; "
+                "an el8/el9 build needs --container)" % img)
+        else:
+            add("PASS", "container image", "%s  (from the area's arch %s)" % (img, arch))
 
     cb = a.cmssw_base or os.environ.get("CMSSW_BASE") or guess_cmssw_base()
     ok_cb = bool(cb) and Path(cb, "src").is_dir()
@@ -682,6 +900,7 @@ exit ${rc}
 """
 
 SUB = """universe                = vanilla
+batch_name              = val_%(era)s
 executable              = %(run_sh)s
 arguments               = $(chunk) $(label) $(json) $(rootout)
 should_transfer_files   = YES
@@ -758,8 +977,11 @@ def write_condor(a, P, plan):
                      "double slash between host and path:\n    %s\n"
                      "  Expected the form root://<host>//<abs-path>." % dest_url)
 
+    # written next to it and renamed: queued jobs of an earlier submission read
+    # this file when they start, so it must never be seen half-written
     run_sh = work / "run_match.sh"
-    run_sh.write_text(RUN_SH % {
+    tmp_sh = work / (".run_match.sh.%d" % os.getpid())
+    tmp_sh.write_text(RUN_SH % {
         "match_name": "matchTtbarIdSorted",
         "sorted_base": P["sorted_base"],
         "env_setup": env_setup,
@@ -767,7 +989,8 @@ def write_condor(a, P, plan):
         "dest_dir": dest_dir,
         "eos_host": prefix.rstrip("/"),
     })
-    run_sh.chmod(0o755)
+    tmp_sh.chmod(0o755)
+    os.replace(str(tmp_sh), str(run_sh))
 
     argsfile = work / "match.args"
     with open(argsfile, "w") as fh:
@@ -784,11 +1007,17 @@ def write_condor(a, P, plan):
     print("[proxy] %s%s" % (proxy,
           "" if left is None else "  (%.0f h left)" % (left / 3600.0)))
 
+    image = a.container
+    if not a.no_container and not image:
+        image, arch = image_for_area(cmssw_base)
+        if arch is None:
+            print("[WARN] the SCRAM arch of %s is unknown -> container %s (el7). An "
+                  "el8/el9 build of the tools needs --container." % (cmssw_base, image))
     image_line = ("" if a.no_container
-                  else 'MY.SingularityImage = "%s"\n' % a.container)
+                  else 'MY.SingularityImage = "%s"\n' % image)
     sub = work / "match.sub"
     sub.write_text(SUB % {
-        "run_sh": run_sh, "logdir": logdir,
+        "era": P["era"], "run_sh": run_sh, "logdir": logdir,
         "match_bin": P["bin_dir"] / "matchTtbarIdSorted",
         "memory": a.memory, "flavour": a.flavour,
         "image_line": image_line,
@@ -807,6 +1036,18 @@ def write_condor(a, P, plan):
                  + "\n    ".join(bad))
     print("results -> %s/" % dest_url)
     return sub, argsfile, logdir
+
+
+def print_next_steps(a, shorts, logdir):
+    """What to run after a submission (2026-10-15, T-40): absolute paths, the
+    options in effect, and the batch name instead of condor_rm <user>."""
+    print("\nmonitor:   condor_q -constraint 'JobBatchName == \"val_%s\"'" % a.era)
+    print("logs:      %s" % logdir)
+    print("report:    %s" % _cmd(a, shorts, "--report"))
+    print("           (a chunk whose job is still queued shows as queued, not missing)")
+    print("aggregate: %s   (when every chunk is ok)" % _agg_cmd(a, shorts))
+    print("remove:    condor_rm -constraint 'JobBatchName == \"val_%s\"'   (not "
+          "condor_rm <user>: that removes every job of yours)" % a.era)
 
 
 def main():
@@ -829,7 +1070,7 @@ def main():
     print()
 
     if a.report:
-        return print_report(P, shorts)
+        return print_report(a, P, shorts)
 
     if a.preflight:
         return run_preflight(a, P, shorts)
@@ -852,10 +1093,27 @@ def main():
                  % P["out_base"])
 
     if a.resubmit_failed:
-        _, failing = chunk_status(P, shorts)
+        queued = queued_chunks(P)
+        if queued is None:
+            sys.exit("FATAL: condor_q is not available here (or failed), so a chunk "
+                     "whose job is still queued cannot be told from a failed one.\n"
+                     "  Run --resubmit-failed on the lxplus host shell (not inside "
+                     "cmssw-el7/-el8); if condor_q itself failed, try again in a minute.")
+        _, failing, inq = chunk_status(P, shorts, queued)
+        if inq:
+            print("not resubmitted -- a job is in the condor queue (%d):" % len(inq))
+            for short, tag, jobs in inq:
+                print("   %-22s %-28s %s" % (short, tag, " ".join("%s %s" % j for j in jobs)))
+            print()
         if not failing:
-            print("Nothing to resubmit: every chunk already produced a result.")
-            print("Check the physics verdict with aggregate_validation.py.")
+            if inq:
+                print("Nothing to resubmit: every chunk has an ok result or a job in "
+                      "the queue. When the queue is empty:")
+                print("  " + _cmd(a, shorts, "--report"))
+            else:
+                print("Nothing to resubmit: every chunk already produced a result. "
+                      "Check the physics verdict:")
+                print("  " + _agg_cmd(a, shorts))
             return 0
         plan = []
         for short, c in failing:
@@ -875,20 +1133,21 @@ def main():
             return 0
         rc = subprocess.call(["condor_submit", str(sub)])
         print("condor_submit exit=%d" % rc)
+        if rc == 0:
+            print_next_steps(a, shorts, logdir)
         return rc
 
     plan = []
     for s in shorts:
         if not sorted_ready(P["sorted_base"], s):
             sys.exit("FATAL: %s is not sorted yet (%s/index.txt missing).\n"
-                     "  Run:  python3 %s --era %s --sort-only%s"
-                     % (s, P["sorted_base"] / s, Path(__file__).name, a.era,
-                        "" if not a.samples else " --samples " + s))
+                     "  Run (inside the area's container, after cmsenv):\n  %s"
+                     % (s, P["sorted_base"] / s, _cmd(a, shorts, "--sort-only")))
         cs = chunks_for(P["nano_dir"], s)
         if not cs:
             sys.exit("FATAL: no nano chunks for %s under %s\n"
-                     "  Run:  ./filelists/make_nano_filelists_das.sh %s"
-                     % (s, P["nano_dir"], a.era))
+                     "  Run:  cd %s && ./make_nano_filelists_das.sh %s"
+                     % (s, P["nano_dir"], shlex.quote(str(VAL_ROOT / "filelists")), a.era))
         if a.smoke:
             cs = cs[:1]
         for c in cs:
@@ -914,11 +1173,7 @@ def main():
     rc = subprocess.call(["condor_submit", str(sub)])
     print("condor_submit exit=%d" % rc)
     if rc == 0:
-        print("\nmonitor:   condor_q")
-        print("logs:      %s" % logdir)
-        print("aggregate: python3 %s --era %s%s"
-              % (THIS_DIR / "aggregate_validation.py", a.era,
-                 " --samples " + ",".join(shorts) if a.samples or a.smoke else ""))
+        print_next_steps(a, shorts, logdir)
     return rc
 
 
