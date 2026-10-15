@@ -1,0 +1,43 @@
+### resolve_parents.sh -- ERA=2016 (nano campaign: RunIISummer20UL16NanoAODv9)
+### datasets.yaml: /afs/cern.ch/user/j/junghyun/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src/TTHHGenCategoryTools/TtbarIdExtender/crab/datasets.yaml
+### utc: 2026-10-15T03:09:35Z  host: lxplus989.cern.ch
+============================================================
+[TT4b]  (1/7)
+  nano_child : /TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v2/NANOAODSIM
+  PARENT (from DAS) : /TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v2/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbar_SemiLep]  (2/7)
+  nano_child : /TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM
+  PARENT (from DAS) : /TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbar_Hadronic]  (3/7)
+  nano_child : /TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM
+  PARENT (from DAS) : /TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbar_DiLep]  (4/7)
+  nano_child : /TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM
+  PARENT (from DAS) : /TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbb_SemiLep]  (5/7)
+  nano_child : /TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM
+  PARENT (from DAS) : /TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbb_Hadronic]  (6/7)
+  nano_child : /TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM
+  PARENT (from DAS) : /TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+[TTbb_DiLep]  (7/7)
+  nano_child : /TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM
+  PARENT (from DAS) : /TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM
+  datasets.yaml     : MATCH
+============================================================
+RESULT: ERA=2016  MATCH 7/7  not-MATCH 0
+Every dataset: field already equals its DAS parent.
+To open these entries (enabled/verified -> true) run:
+  bash crab/resolve_parents.sh 2016 --apply

@@ -326,8 +326,8 @@ eras:
       - name: "TT4b"
         dataset:    "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL16MiniAODAPVv2-106X_mcRun2_asymptotic_preVFP_v11-v2/MINIAODSIM"
         nano_child: "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v2/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Dedicated tt4b, UL16 preVFP. Sole source of tt+nb
           (Expanded_genTtbarId%100 in {61,62,71,72}). MiniAOD 4,801,000 ev /
@@ -337,8 +337,8 @@ eras:
       - name: "TTbar_SemiLep"
         dataset:    "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16MiniAODAPVv2-106X_mcRun2_asymptotic_preVFP_v11-v1/MINIAODSIM"
         nano_child: "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar SL, UL16 preVFP. MiniAOD 132,178,000 ev / 1,979
           files (198 jobs at units_per_job 10); nano 132,178,000 ev / 117
@@ -348,8 +348,8 @@ eras:
       - name: "TTbar_Hadronic"
         dataset:    "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16MiniAODAPVv2-106X_mcRun2_asymptotic_preVFP_v11-v1/MINIAODSIM"
         nano_child: "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar FH, UL16 preVFP. MiniAOD 97,600,000 ev / 1,458
           files; nano 97,260,000 ev / 79 files (nano has 340,000 fewer events;
@@ -358,8 +358,8 @@ eras:
       - name: "TTbar_DiLep"
         dataset:    "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16MiniAODAPVv2-106X_mcRun2_asymptotic_preVFP_v11-v1/MINIAODSIM"
         nano_child: "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar DL, UL16 preVFP. MiniAOD 37,505,000 ev / 594 files;
           nano 37,505,000 ev / 33 files. The PU35ForTRK / PUForTRK variants of
@@ -368,8 +368,8 @@ eras:
       - name: "TTbb_SemiLep"
         dataset:    "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16MiniAODAPVv2-106X_mcRun2_asymptotic_preVFP_v11-v1/MINIAODSIM"
         nano_child: "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           4FS ttbb SL, UL16 preVFP. MiniAOD 2,991,789 ev / 44 files; nano
           2,991,789 ev / 4 files -> in-memory matchTtbarId path. The
@@ -378,8 +378,8 @@ eras:
       - name: "TTbb_Hadronic"
         dataset:    "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16MiniAODAPVv2-106X_mcRun2_asymptotic_preVFP_v11-v1/MINIAODSIM"
         nano_child: "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           4FS ttbb FH, UL16 preVFP. MiniAOD 2,303,410 ev / 33 files; nano
           2,303,410 ev / 3 files -> in-memory path.
@@ -387,8 +387,8 @@ eras:
       - name: "TTbb_DiLep"
         dataset:    "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16MiniAODAPVv2-106X_mcRun2_asymptotic_preVFP_v11-v1/MINIAODSIM"
         nano_child: "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           4FS ttbb DL, UL16 preVFP. MiniAOD 1,388,348 ev / 21 files; nano
           1,388,348 ev / 3 files. Smallest 2016APV sample: use one of its files
@@ -403,8 +403,8 @@ eras:
       - name: "TT4b"
         dataset:    "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v2/MINIAODSIM"
         nano_child: "/TT4b_TuneCP5_13TeV_madgraph_pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v2/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Dedicated tt4b, UL16 postVFP. Sole source of tt+nb. MiniAOD
           4,848,000 ev / 90 files; nano 4,848,000 ev / 10 files.
@@ -412,8 +412,8 @@ eras:
       - name: "TTbar_SemiLep"
         dataset:    "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM"
         nano_child: "/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar SL, UL16 postVFP. Largest 2016 task: MiniAOD
           144,974,000 ev / 3,192 files (320 jobs at units_per_job 10); nano
@@ -423,8 +423,8 @@ eras:
       - name: "TTbar_Hadronic"
         dataset:    "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM"
         nano_child: "/TTToHadronic_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar FH, UL16 postVFP. MiniAOD 109,380,000 ev / 2,434
           files; nano 107,067,000 ev / 146 files (2,313,000 fewer, 2.1%;
@@ -433,8 +433,8 @@ eras:
       - name: "TTbar_DiLep"
         dataset:    "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM"
         nano_child: "/TTTo2L2Nu_TuneCP5_13TeV-powheg-pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           Inclusive ttbar DL, UL16 postVFP. MiniAOD 43,630,000 ev / 1,013
           files; nano 43,546,000 ev / 49 files (84,000 fewer; expected).
@@ -442,8 +442,8 @@ eras:
       - name: "TTbb_SemiLep"
         dataset:    "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM"
         nano_child: "/TTbb_4f_TTToSemiLeptonic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           4FS ttbb SL, UL16 postVFP. MiniAOD 3,337,118 ev / 73 files; nano
           3,223,118 ev / 8 files (114,000 fewer; expected). Not the _ext1-v3
@@ -453,8 +453,8 @@ eras:
       - name: "TTbb_Hadronic"
         dataset:    "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM"
         nano_child: "/TTbb_4f_TTToHadronic_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           4FS ttbb FH, UL16 postVFP. MiniAOD 2,597,868 ev / 57 files; nano
           2,597,868 ev / 3 files -> in-memory path.
@@ -462,8 +462,8 @@ eras:
       - name: "TTbb_DiLep"
         dataset:    "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16MiniAODv2-106X_mcRun2_asymptotic_v17-v1/MINIAODSIM"
         nano_child: "/TTbb_4f_TTTo2L2Nu_TuneCP5-Powheg-Openloops-Pythia8/RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1/NANOAODSIM"
-        enabled: false
-        verified: false
+        enabled: true
+        verified: true
         notes: >
           4FS ttbb DL, UL16 postVFP. MiniAOD 1,571,799 ev / 35 files; nano
           1,571,799 ev / 3 files. Smallest 2016 sample: use one of its files
