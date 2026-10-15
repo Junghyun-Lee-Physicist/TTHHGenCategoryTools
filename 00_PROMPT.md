@@ -2,7 +2,7 @@
 
 > **목적**: 이 저장소에서 작업하는 모든 AI 쓰레드가 지켜야 할 프로젝트별 작업 계약. `DOCUMENTATION_GUIDELINE` §6·§8의 일반 규칙을 이 코드베이스에 맞게 구체화한다.
 > **대상 독자**: AI 기여자(필수, 최우선 읽기), 그리고 AI가 어떻게 행동하도록 기대되는지 확인하려는 사람.
-> **상태**: DECIDED 2026-07-05 (v11 병합 시 제정). 갱신 2026-10-13 (§4: 진행 로그와 비정상 종료가 드러나는 로그 — 사용자 원칙 둘), 2026-10-14 (§9: AI 세션이 lxplus 에서 일할 때 — 일의 나눔, branch, 로그, 하면 안 되는 일, 멈출 때; 사용자 방향), 2026-10-15 (§10: 작업 블록마다 진행 방식을 먼저 묻는다; 사용자 지시). **관련 문서**: [README.md](README.md)(지도), [docs/01_status.md](docs/01_status.md)(현재 상태).
+> **상태**: DECIDED 2026-07-05 (v11 병합 시 제정). 갱신 2026-10-13 (§4: 진행 로그와 비정상 종료가 드러나는 로그 — 사용자 원칙 둘), 2026-10-14 (§9: AI 세션이 lxplus 에서 일할 때 — 일의 나눔, branch, 로그, 하면 안 되는 일, 멈출 때; 사용자 방향), 2026-10-15 (§10: 작업 블록마다 진행 방식을 먼저 묻는다; 사용자 지시; §6: 명령 블록은 셸 경계와 비밀번호 프롬프트에서 나눈다, T-41). **관련 문서**: [README.md](README.md)(지도), [docs/01_status.md](docs/01_status.md)(현재 상태).
 
 ## 1. 관점 / 전문성 스탠스
 
@@ -46,6 +46,10 @@ AI 실행환경에는 통상 **CMSSW도, ROOT도, grid 접근도 없다.** 따�
 - `TtbarIdExtender/python/`, `TtbarIdExtender/test/`의 Python은 **Python 2.7 호환 필수** (f-string 금지, `from __future__ import print_function` 유지). `TtbarIdExtender/crab/*.py`와 `Validation/scripts/*.py`는 Python 3 (README 명령이 `python3` 명시).
 - C++: C++17, `-Wall -Wextra` clean (10_6_X gcc7의 `-Werror=unused-variable` 이력 있음).
 - 코드 주석에 서사적 버전 번호(v7.2 등) 박지 말 것 — dataset/GT 경로의 버전 토큰은 예외 (실식별자).
+- **사용자에게 주는 명령 블록**(2026-10-15, [docs/08_troubleshooting.md](docs/08_troubleshooting.md) T-41): 셸이 바뀌는 곳(호스트 ↔ `cmssw-el7`/`-el8`)과
+  비밀번호를 묻는 곳(`switch`, `voms-proxy-init`, 첫 CRAB 제출)에서 블록을 나누고, 그 명령은 한 줄짜리 블록으로 준다; `exit` 는 따로(다른 줄과
+  함께 붙이면 호스트에서 돌아 lxplus 를 로그아웃할 수 있다). lxplus 의 git 원격 작업(pull, push) 앞에는 `switch` 블록. 블록마다 어디서(호스트/컨테이너)
+  돌리는지와 기대 출력을 적는다.
 
 ## 7. 변경 규율
 

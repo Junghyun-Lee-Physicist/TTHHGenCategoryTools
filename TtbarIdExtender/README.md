@@ -474,34 +474,60 @@ python3 crab/submit_ttbarIdExtend.py --era 2016APV,2016 --report
 `--fill` 뒤 preflight 의 `job count` 줄이 알려 준다(event 는 2016 두 era 의 MiniAOD 합 589 M 의 약 2.5 배; task 당 10,000 job 상한은
 preflight 가 본다, D15).
 
+**블록은 셸이 바뀌는 곳(호스트 ↔ 컨테이너)과 비밀번호를 묻는 곳에서 나뉜다 — 하나씩 붙이고, 프롬프트가 돌아온 뒤 다음 것.** 한 번에 붙이면
+`cmssw-el8` 뒤의 줄이 컨테이너가 아니라 나온 뒤의 호스트에서 돌고, pass phrase 를 묻는 명령이 뒤따르는 줄을 비밀번호로 읽고, 블록 안의 `exit` 가
+lxplus 를 로그아웃하려 한다(2026-10-15 실제로 일어남, [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-41).
+
 ```bash
-# lxplus. (0) 호스트 셸(EL9)에서 pull -- git 원격 작업은 컨테이너 밖(../docs/08_troubleshooting.md T-30), 빌드만 안
-cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools && git status --short && git pull --ff-only
+# (a) 호스트 셸(EL9): SSH 키 -- 이 줄만 (passphrase 를 묻는다; 없으면 git 이 Permission denied (publickey))
+switch
+```
+```bash
+# (b) 호스트 셸: pull -- git 원격 작업은 컨테이너 밖(T-30)
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools && git status --short && git pull --ff-only && git log --oneline -1
+```
+```bash
+# (c) 컨테이너로 -- 이 줄만
 cmssw-el8
+```
+```bash
+# (d) Singularity> 에서: 빌드
 cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && scram b -j8
-cd TTHHGenCategoryTools/TtbarIdExtender
+```
+```bash
+# (e) 같은 컨테이너: proxy -- 이 줄만 (GRID pass phrase). 24 h 넘게 남은 proxy.cert 가 있으면 건너뛴다:
+#     voms-proxy-info -file ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert -timeleft
+voms-proxy-init -voms cms -rfc -valid 192:00 --out ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert
+```
+```bash
+# (f) 같은 컨테이너: MiniAODv6 parent 채우기 -> 단계 1-7 (제출 없음)
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender
 source /cvmfs/cms.cern.ch/common/crab-setup.sh
-voms-proxy-init -voms cms -rfc -valid 192:00 --out $PWD/proxy.cert
 export X509_USER_PROXY=$PWD/proxy.cert
-
-# (1) MiniAODv6 parent 채우기: 읽기(EMPTY 7, exit 3 이 정상) -> --fill(diff 확인) -> 다시 읽기(MATCH 7/7, exit 0)
-bash crab/resolve_parents.sh 2024
-bash crab/resolve_parents.sh 2024 --fill
-bash crab/resolve_parents.sh 2024
-
-# (2) 단계 1-7: 로컬 cmsRun(2024 TTbb_DiLep 한 파일, 20000 ev) + 불변조건, resolve, --apply, preflight, dry-run -> RESULT: READY
-bash crab/launch_extend.sh --era 2024
-# (3) 제출(pass phrase 를 물으면 여기서 답한다) + 5 분 뒤 --report
+bash crab/resolve_parents.sh 2024          # EMPTY 7, exit 3 이 정상
+bash crab/resolve_parents.sh 2024 --fill   # dataset: 7 줄의 diff
+bash crab/resolve_parents.sh 2024          # MATCH 7/7, exit 0
+bash crab/launch_extend.sh --era 2024      # 로컬 cmsRun(TTbb_DiLep 한 파일, 20000 ev) + 불변조건, resolve, --apply, preflight, dry-run -> RESULT: READY
+```
+```bash
+# (g) 같은 컨테이너: 제출 + 5 분 뒤 --report -- 이 줄만 (CRAB 이 GRID pass phrase 를 물을 수 있다)
 bash crab/launch_extend.sh --era 2024 --skip-local --submit
+```
+```bash
+# (h) 컨테이너를 나온다 -- 이 줄만 (exit 를 다른 줄과 함께 붙이면 호스트에서 돌아 lxplus 를 로그아웃할 수 있다)
 exit
-
-# (4) 호스트 셸(EL9): 감시·재제출·완료 점검 manager (job 은 cmssw-el8 에서 돈다)
+```
+```bash
+# (i) 호스트 셸: 감시·재제출·완료 점검 manager (job 은 cmssw-el8 에서 돈다) + 커밋 (새 셸이면 switch 먼저)
 cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender
 bash crab/manager_condor.sh --era 2024 --name extend2024
 tail -n 20 crab/manager/extend2024/manager.log
+git add crab/datasets.yaml crab/resolve_parents_2024_*.log
+git commit -m "extend: 2024 MiniAODv6 parents (resolve_parents --fill), entries opened; resolve log"
+git push
 ```
 
-(1) 뒤의 `datasets.yaml` 과 (2)의 `crab/resolve_parents_2024_<시각>.log` 는 그 clone 에서 커밋한다 — 호스트 셸에서(2016 의 b92e99e 와 같은
+(f) 뒤의 `datasets.yaml` 과 `crab/resolve_parents_2024_<시각>.log` 는 (i) 에서 그 clone 으로 커밋한다 — 호스트 셸에서(2016 의 b92e99e 와 같은
 방식; 10_6 clone 과 맥은 그 뒤 `git pull --ff-only`). 끝나면(`RESULT DONE`, `REPORT.txt` ALL PASS) 검증과 patch 는 같은 v15 영역에서 —
 [`../Validation/README.md`](../Validation/README.md) §0.1d. 오프라인 시험(가짜 cmsRun·DAS·CRAB·cvmfs): cfg 14, resolve 18, launch 13,
 제출기 13, manager 9 — 전부 기대대로([../docs/03_changelog.md](../docs/03_changelog.md) 2026-10-15 (5)). 실제 15_0_18 + Summer24 MiniAODv6 의

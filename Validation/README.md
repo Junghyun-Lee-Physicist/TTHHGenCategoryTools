@@ -124,23 +124,38 @@ cd ..
 그다음은 §4.0 과 같고 `--era` 만 바꾼다(정렬 → preflight → smoke → 전량 → `--report` → aggregate). job 수는 nano 파일 수 / 20 이다.
 2016 의 표본은 2018 의 약 1/3 규모(TTToSemiLeptonic nano 132 M / 145 M 대 2018 476 M)다.
 
+블록은 셸이 바뀌는 곳(호스트 ↔ 컨테이너)과 기다릴 곳에서 나뉜다 — 하나씩 붙이고 프롬프트가 돌아온 뒤 다음 것([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-41).
+
 ```bash
-# 컨테이너 안: 빌드(한 번)와 정렬
 cmssw-el7
+```
+```bash
+# Singularity> 에서: 빌드(한 번)와 정렬
 cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src && cmsenv && cd TTHHGenCategoryTools/Validation && make -j4
 python3 scripts/submit_validation_condor.py --era 2016APV --sort-only
 python3 scripts/submit_validation_condor.py --era 2016 --sort-only
+```
+```bash
 exit
-# 호스트: preflight -> smoke -> 전량 (컨테이너를 나오면 export 가 사라지므로 다시)
+```
+```bash
+# 호스트: preflight -> smoke (컨테이너를 나오면 export 가 사라지므로 다시)
 cd ~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src/TTHHGenCategoryTools/Validation
 export X509_USER_PROXY=~/TTHHGenCategoryTools/CMSSW_10_6_32_patch1/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert
 python3 scripts/submit_validation_condor.py --era 2016APV --preflight
-python3 scripts/submit_validation_condor.py --era 2016APV --smoke
-python3 scripts/submit_validation_condor.py --era 2016APV --report --samples ttbb_2L2Nu   # smoke 가 끝난 뒤: ttbb_2L2Nu 의 ok 1 이면 통과
-python3 scripts/submit_validation_condor.py --era 2016APV
 python3 scripts/submit_validation_condor.py --era 2016 --preflight
+python3 scripts/submit_validation_condor.py --era 2016APV --smoke
+```
+```bash
+# smoke job 이 queue 에서 빠진 뒤: ttbb_2L2Nu 줄이 ok 1 이면 통과 -> 전량
+python3 scripts/submit_validation_condor.py --era 2016APV --report --samples ttbb_2L2Nu
+python3 scripts/submit_validation_condor.py --era 2016APV
 python3 scripts/submit_validation_condor.py --era 2016
-# 끝나면 (job 이 queue 에서 다 빠진 뒤): 실패 chunk 는 --report / --resubmit-failed (§4.0 3.5단계; queue 에 있는 것은 queued 로 센다, T-40)
+```
+```bash
+# job 이 queue 에서 다 빠진 뒤: report(실패 chunk 는 --resubmit-failed; §4.0 3.5단계, T-40) -> 집계
+python3 scripts/submit_validation_condor.py --era 2016APV --report
+python3 scripts/submit_validation_condor.py --era 2016 --report
 python3 scripts/aggregate_validation.py --era 2016APV --json-out ~/val_summary_2016APV.json
 python3 scripts/aggregate_validation.py --era 2016 --json-out ~/val_summary_2016.json
 ```
@@ -150,7 +165,7 @@ python3 scripts/aggregate_validation.py --era 2016 --json-out ~/val_summary_2016
 yml 의 `path_expanded_ttbarid_dir`). label 은 TTHHAnalyzer 의 기간 이름으로.
 
 ```bash
-# 컨테이너 안 (bin/extractTtbarIdPatch), Validation/ 에서
+# cmssw-el7 의 Singularity> 에서, cmsenv 와 Validation/ 로 cd 한 뒤 (bin/extractTtbarIdPatch)
 for ERA_HALF in 2016APV:2016preVFP 2016:2016postVFP; do
   ERA="${ERA_HALF%%:*}"; HALF="${ERA_HALF#*:}"
   mkdir -p lookup${ERA} logs${ERA}
@@ -183,6 +198,8 @@ SCRAM arch 로 이미지를 고른다(`el8_amd64_gcc12` → `cmssw/el8:x86_64`; 
 - 완결성 기준: `data/das_nevents_2024.json`(일곱 합 1,486,995,493; NtupleForge DAS 로그 2026-09-23). Nano 가 MiniAOD 보다 적어도 실패가 아니다.
 - 시작 조건: manager `extend2024` 의 `RESULT DONE`(`REPORT.txt` ALL PASS).
 
+블록은 셸이 바뀌는 곳과 기다릴 곳에서 나뉜다 — 하나씩 붙이고 프롬프트가 돌아온 뒤 다음 것([../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-41).
+
 ```bash
 # 호스트 셸(EL9): filelist. proxy 는 v15 clone 의 TtbarIdExtender/proxy.cert
 export X509_USER_PROXY=~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert
@@ -190,23 +207,36 @@ voms-proxy-info -timeleft
 cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/Validation/filelists
 python3 make_filelists_miniAOD.py 2024; echo "rc=$?"     # -> sidecar2024/  (RESULT OK, rc=0)
 ./make_nano_filelists_das.sh 2024; echo "rc=$?"          # -> nano2024/     (rc=0, 일곱 모두 "dataset:" 한 줄)
-cd ..
-
-# 컨테이너 안: 빌드(처음 한 번 -- 이 영역의 첫 빌드이니 오류가 나면 그 줄을 그대로 붙여 줄 것)와 정렬
+```
+```bash
 cmssw-el8
+```
+```bash
+# Singularity> 에서: 빌드(이 영역의 첫 Validation 빌드 -- 오류가 나면 그 줄을 그대로 붙여 줄 것)와 정렬
 cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/Validation && make -j4
 python3 scripts/submit_validation_condor.py --era 2024 --sort-only --samples tt4b,ttbb_Hadronic,ttbb_SemiLeptonic,ttbb_2L2Nu
 python3 scripts/submit_validation_condor.py --era 2024 --sort-only --samples TTToHadronic
 python3 scripts/submit_validation_condor.py --era 2024 --sort-only --samples TTToSemiLeptonic
 python3 scripts/submit_validation_condor.py --era 2024 --sort-only --samples TTTo2L2Nu
+```
+```bash
 exit
-# 호스트: preflight -> smoke -> 전량 -> 집계
+```
+```bash
+# 호스트: preflight -> smoke
 cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/Validation
 export X509_USER_PROXY=~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert
 python3 scripts/submit_validation_condor.py --era 2024 --preflight   # container image: .../cmssw/el8:x86_64 (from the area's arch el8_amd64_gcc12)
 python3 scripts/submit_validation_condor.py --era 2024 --smoke
-python3 scripts/submit_validation_condor.py --era 2024 --report --samples ttbb_2L2Nu      # smoke 가 끝난 뒤: ttbb_2L2Nu 의 ok 1 이면 통과
+```
+```bash
+# smoke job 이 queue 에서 빠진 뒤: ttbb_2L2Nu 줄이 ok 1 이면 통과 -> 전량
+python3 scripts/submit_validation_condor.py --era 2024 --report --samples ttbb_2L2Nu
 python3 scripts/submit_validation_condor.py --era 2024
+```
+```bash
+# job 이 queue 에서 다 빠진 뒤
+python3 scripts/submit_validation_condor.py --era 2024 --report
 python3 scripts/aggregate_validation.py --era 2024 --json-out ~/val_summary_2024.json
 ```
 
@@ -216,7 +246,7 @@ python3 scripts/aggregate_validation.py --era 2024 --json-out ~/val_summary_2024
 **patch 추출 — `OVERALL: ALL SAMPLES PASS` 뒤에만.** TTHHAnalyzer 의 2024 디렉터리 `DerivedCorr/expandedTtbarId/2024/` 로(그 README.txt):
 
 ```bash
-# 컨테이너(cmssw-el8 + cmsenv) 안, Validation/ 에서
+# cmssw-el8 의 Singularity> 에서, cmsenv 와 Validation/ 로 cd 한 뒤
 mkdir -p lookup2024 logs2024
 for PAIR in tt4b:TT4b ttbb_Hadronic:TTbb_Hadronic ttbb_SemiLeptonic:TTbb_SemiLep ttbb_2L2Nu:TTbb_DiLep \
             TTToHadronic:TTbar_Hadronic TTToSemiLeptonic:TTbar_SemiLep TTTo2L2Nu:TTbar_DiLep; do

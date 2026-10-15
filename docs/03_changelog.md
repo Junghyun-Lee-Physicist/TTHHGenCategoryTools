@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (6)** (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (7)** (T-41: 명령 블록을 셸 경계와 비밀번호 프롬프트에서 나눔, `switch`; O9 ⑧ 결과). 그 전 2026-10-15 (6) (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1653,3 +1653,13 @@ queue 의 job → queued, held 만 → exit 1, job 둘, 실패한 smoke 의 힌�
 시험 35/35 다시 통과(10_6 영역의 `match.sub` 은 `batch_name` 한 줄만 다름; `run_match.sh`·`match.args`·stdout 은 HEAD 와 같음).
 
 **문서.** [08](08_troubleshooting.md) T-40, `Validation/README.md` §4.0 3.5단계(queue 칸, 지울 때는 그 캠페인만)·§0.1c, [01](01_status.md) O9.
+
+## 2026-10-15 (7) — 명령 블록을 셸 경계와 비밀번호 프롬프트에서 나눈다; lxplus 의 git 에 `switch` (T-41); O9 ⑧ 진행
+
+**lxplus (사용자).** 2016APV 다시 낸 15 chunk(13530917) 끝: 16 중 15 ok, `file_TTToSemiLeptonic_4` exit 4(nano 를 재시도 후에도 못 읽었거나 읽은
+entry 수 ≠ open-check — 보통 일시적 AAA; 로그 확인 뒤 그 하나만 다시). 2016 은 아직 다시 내지 않음(22 missing, queue 0). 맥의 4bf41b6 은 push 됨.
+2024 준비 블록을 한 번에 붙인 결과는 [08](08_troubleshooting.md) T-41: `switch` 없어 pull 실패, `cmssw-el8` 뒤의 줄이 호스트에서 돎, v15 clone 이 옛 코드.
+
+**문서만 (코드 변경 없음).** `TtbarIdExtender/README.md` §2.2e 와 `Validation/README.md` §0.1c·§0.1d 의 블록을 셸 경계(호스트 ↔ 컨테이너)와 비밀번호를
+묻는 명령(`switch`, `voms-proxy-init`, 첫 CRAB 제출)에서 나누고 `exit` 를 따로 뒀다; §2.2e 에 `switch`. smoke 와 전량, 끝난 뒤의 report·집계도 기다릴 곳에서
+나눴다. 규칙: [../00_PROMPT.md](../00_PROMPT.md) §6. [01](01_status.md) O9·O10.
