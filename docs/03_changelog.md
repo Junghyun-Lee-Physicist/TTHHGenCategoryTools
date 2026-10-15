@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-14 (3)** (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙). 그 전 2026-10-13 (AI 작업 계약 `00_PROMPT.md` §4: 진행 로그와 비정상 종료가 드러나는 로그).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15** (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1490,3 +1490,18 @@ manager), [01](01_status.md) O9, [04](04_decisions.md) D20, `runlogs/README.md`.
 job 파일을 그린 뒤 가짜 `/cvmfs` 에서 `job.sh` 를 condor 처럼 돌려 `cmssw-el7` 재실행 → cmsenv → crab-setup → manager → launch → 감시 → 점검 →
 DONE. `check_extend_sample.C` 는 진짜 ROOT 6.40 에서 합성 파일로(정상, 56 위반, 없는 파일, 빈 목록) 기대대로. 시험 중 잡은 결함 하나:
 `manager_condor.sh` 가 `/etc/os-release` 를 source 하면 `NAME`(manager 이름)과 `ID` 가 덮인다 → 서브셸에서만 읽게 고침.
+
+## 2026-10-15 — 2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 에서 안 찍힘 (T-37)
+
+**lxplus (사용자, 03:07–03:15 UTC, commit 3f76932).** `--era 2016APV --report`: 6 task COMPLETED, TTbar_SemiLep RUNNING(198 job 중 173
+done). `--era 2016 --clean-failed-shells --yes`: 10-14 의 껍데기 7 개를 `crab_projects/_failed_20261015_030819/` 로. `launch_extend.sh --era 2016
+--submit`: 1–9 단계 모두 OK(로컬 20000 ev 와 불변조건 PASS, MATCH 7/7, preflight 40 PASS, 7 task 제출, 5 분 뒤 report 에서 6 RUNNING · 1
+SUBMITTED). 두 era 의 14 task 가 모두 CRAB 에 있다.
+
+**동작 변경 고지.** `crab/launch_extend.sh`: `main` 이 성공하면 `return 0` 대신 `exit 0` 으로 끝난다(`--submit` 없는 실행도). 위 실행은 9 단계를
+다 OK 로 찍고 끝났는데 끝 요약(`RESULT: SUBMITTED`, 커밋 안내, `=== END ... EXIT=0`)이 없었다 — `main | tee` 의 subshell 에 건 EXIT trap 을 bash 4.2
+(cmssw-el7)는 함수가 그냥 `return` 하면 돌리지 않는다(`exit` 하면 돌린다: 실패 경로는 늘 찍혔다). 오프라인 시험은 bash 5.2 라 못 잡았다. exit
+code 는 그대로 0 이었다(manager 는 exit code 만 본다). [08](08_troubleshooting.md) T-37.
+
+**검증 (오프라인, bash 5.2).** `bash -n`; 가짜 도구로 두 era 제출(`RESULT: SUBMITTED` + `END EXIT=0`), `--submit` 없음(`RESULT: READY` + `END EXIT=0`),
+MATCH 6/7(`STOPPED at step 4/9` + `END EXIT=13`). bash 4.2 에서의 확인은 다음 lxplus 실행(또는 manager 의 `--launch`)에서.

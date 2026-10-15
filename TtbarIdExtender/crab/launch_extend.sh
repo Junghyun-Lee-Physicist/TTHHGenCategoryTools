@@ -156,6 +156,9 @@ on_exit() {
 }
 
 # ---------------------------------------------------------------------------
+# main runs in a subshell (main | tee below) and ends with `exit`, never `return`: bash 4.2 (cmssw-el7) does not
+# run a subshell's EXIT trap when a function there just returns -- on 2026-10-15 a successful --submit on lxplus
+# ended without the summary, the commit hints and the END line (docs/08 T-37). `exit` runs the trap in every bash.
 main() {
   trap on_exit EXIT
   trap 'echo "[launch] INTERRUPTED (SIGINT) during step $STEP_K ($STEP_NAME)"; exit 130' INT
@@ -288,7 +291,7 @@ main() {
   grep -Eq "skipped +: +0 " "$RUN/dryrun.log" || die 16 "dry-run skipped entries (enabled:false)" "$RUN/dryrun.log"
   step_ok "($expected tasks planned)"
 
-  (( DO_SUBMIT )) || return 0
+  (( DO_SUBMIT )) || exit 0
 
   # ---- 8 submit / 9 report ---------------------------------------------------------
   step 8 submit
@@ -323,7 +326,7 @@ main() {
   else
     step_ok
   fi
-  return 0
+  exit 0
 }
 
 main 2>&1 | tee -i -a "$LOG"
