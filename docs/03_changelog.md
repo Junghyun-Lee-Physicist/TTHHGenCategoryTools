@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (9)** (T-42: 검증 job 의 CMSSW 영역은 스크립트의 영역 — 2016 22 job 이 exit 127). 그 전 2026-10-15 (8) (O10: 2024 CRAB 제출 3,557 job, manager `extend2024`; NanoAOD > MiniAOD 네 샘플과 DAS 확인; O9 ⑧ 진행). 그 전 2026-10-15 (7) (T-41: 명령 블록을 셸 경계와 비밀번호 프롬프트에서 나눔, `switch`; O9 ⑧ 결과). 그 전 2026-10-15 (6) (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-15 (11)** (O9 ⑨: 2016 patch 열넷 추출·행 수 대조·md5; O10: 2024 patch 를 검증과 병렬로 — 사용자 "run3 먼저"). 그 전 2026-10-15 (10) (O9 ⑧: 2016 두 era 대조 ALL PASS, [06](06_validation_results.md) 에 수치). 그 전 2026-10-15 (9) (T-42: 검증 job 의 CMSSW 영역은 스크립트의 영역 — 2016 22 job 이 exit 127). 그 전 2026-10-15 (8) (O10: 2024 CRAB 제출 3,557 job, manager `extend2024`; NanoAOD > MiniAOD 네 샘플과 DAS 확인; O9 ⑧ 진행). 그 전 2026-10-15 (7) (T-41: 명령 블록을 셸 경계와 비밀번호 프롬프트에서 나눔, `switch`; O9 ⑧ 결과). 그 전 2026-10-15 (6) (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1701,3 +1701,26 @@ unmatched 가 어디에 어떻게 나오는지).
 실행하면 `symbol lookup error` 와 127 — 2016 job 과 같은 모양).
 
 **문서.** [08](08_troubleshooting.md) T-42, [01](01_status.md) O9, `Validation/README.md` §0.1c 의 한 줄과 진단표(121, 127).
+
+## 2026-10-15 (10) — O9 ⑧ 끝: 2016APV·2016 대조 두 era 모두 `OVERALL: ALL SAMPLES PASS` (14 표본)
+
+**lxplus (사용자).** T-42 의 재제출(`--cmssw-base`·`--container` 명시, 이미지 el7·영역 10_6 확인): 2016 22 job(cluster 13535253), 2016APV 1 job(13535254).
+`--report` 두 era 모두 `All chunks produced a result`(16/16, 22/22), `aggregate_validation.py` 두 era 모두 **`OVERALL: ALL SAMPLES PASS`** — unmatched·disagree·
+불변식 위반 0, nano 합 = DAS, 61/62/71/72 와 53/54/55 의 합이 `nAddBJets≥3` 과 같다(14 행). 수치: [06](06_validation_results.md) 맨 끝 절. 다음: ⑨ patch 추출.
+
+**곁가지(같은 날, lxplus).** AFS 홈이 95 % — 원인은 원격 편집기 서버(`~/.vscode-server` 787 MB, `~/.cursor-server` 620 MB)와 캐시(`~/.cache/pip` 430 MB,
+`~/.cache/vscode-cpptools` 122 MB), 예전 프로젝트; 이 저장소의 두 clone 은 합 237 MB. 사용자가 그것들을 지워 70 %. O10: manager check 9(18:20 UTC) jobs
+3552/3557, task 5/7, 실패 0.
+
+**문서만 (코드 변경 없음).** [06](06_validation_results.md), [01](01_status.md) O9·O10.
+
+## 2026-10-15 (11) — O9 ⑨: 2016 patch 열넷 (끝); O10: 2024 는 patch 를 검증과 병렬로
+
+- **O9 ⑨ 끝.** lxplus `cmssw-el7`(CMSSW_10_6_32_patch1)에서 `extractTtbarIdPatch --out-tree TtNb --label <KEY>_<2016preVFP|2016postVFP>` 열넷, 모두 exit 0과
+  `selection consistent`. extend = DAS nano 인 아홉 표본은 patch 행 = 검증의 `nAddBJets≥3` 이 정확히 같고, extend 가 큰 다섯은 차가 (extend − nano) × 율과
+  맞는다(2016APV TTbar_Hadronic +51 대 36 ± 6 이 가장 멀다 — nano 에 없는 event). 맥으로 scp, md5 열넷 일치 → TTHHAnalyzer
+  `DerivedCorr/expandedTtbarId/2016{preVFP,postVFP}/`(그쪽 README.txt; `*.root` 는 gitignore 라 `git add -f`). 수치: [06](06_validation_results.md) 맨 끝.
+- **O10.** manager `extend2024` check 11(10-15 19:20 UTC) 3,552/3,557 — TTbar_SemiLep 4·TTbar_Hadronic 1 job 이 18:20 부터 run, 실패 0. 사용자가 2024 의
+  tt+nb control plot 을 가장 먼저 원함 → `RESULT DONE` 뒤 filelist(⑥)와 patch 추출을 검증보다 먼저 하고, 검증(정렬 + condor 대조)은 병렬로 돌려 최종 plot 의
+  문으로 둔다(TTHHAnalyzer D-2026-10-15-J). 코드 변경 없음.
+

@@ -2,7 +2,7 @@
 
 > **목적**: 이 프로젝트가 신뢰 가능함을 입증하는 **측정된** 결과 전부. 다른 문서는 여기로 링크만 한다.
 > **대상 독자**: `Expanded_genTtbarId`를 분석에 쓰기 전 근거를 확인하려는 사람.
-> **상태**: DECIDED (2017 UL 캠페인 완료 2026-06; 수치는 검증 로그에서 전사). 새 era/샘플 결과는 이 문서에 append. 마지막 append **2026-09-28** (2018 UL 중앙 NanoAODv15 재검증, 맨 끝 절).
+> **상태**: DECIDED (2017 UL 캠페인 완료 2026-06; 수치는 검증 로그에서 전사). 새 era/샘플 결과는 이 문서에 append. 마지막 append **2026-10-15 (11)** (2016 patch 추출 열넷, 행 수 대조; 그 전 2026-10-15: 2016 preVFP·postVFP — 중앙 NanoAODv9 전량 대조, 맨 끝 절), 그 전 2026-09-28 (2018 UL 중앙 NanoAODv15 재검증).
 > **관련**: 검사 로직은 [05](05_architecture.md) §3, 도구 사용법은 [Validation/README.md](../Validation/README.md), 명령 원문과 로그 맥락은 동결 원본 [legacy/Validation_pre-merge_ARCHITECTURE.md](legacy/Validation_pre-merge_ARCHITECTURE.md) §8.
 
 ## 결론 먼저 (BLUF)
@@ -291,3 +291,70 @@ nano 쪽 목록은 `Validation/filelists/nano2018v15`(`make_nano_filelists_das.s
 뽑은 것이고, v9 FAIL 의 원인은 검증 쪽 읽기(`GetEntry()` 반환값 미검사, [08](08_troubleshooting.md) T-23 ⑧)였으며, 이번에는 읽기 검사와 재시도가 있는
 도구로 v15 전량에서 통과했다. `ttnb_TT4b.root` 는 중앙 v15 가 없어 이 검사 밖이다(v15 의 `TT4b` 는 enriched 생산이고 확장 id 열을 직접 싣는 설계, D17).
 v9 쪽 `TTToSemiLeptonic` 재실행은 하지 않는다(2018 v9 ntuple 보류, NtupleForge D-2026-09-17-ul18-v9-parked).
+
+## 2016 preVFP(`2016APV`)·postVFP(`2016`): 중앙 NanoAODv9 전량 대조 (16 + 22 job, 2026-10-15), **14/14 PASS**
+
+**무엇을**: UL16 의 ttbarId-extend(MiniAODv2 → sidecar, CRAB `ttbarIdExtend_v2/2016APV`·`/2016`, manager `REPORT.txt` ALL PASS 14 task)를 중앙
+NanoAODv9(`RunIISummer20UL16NanoAODAPVv9-106X_mcRun2_asymptotic_preVFP_v11`, `RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17`)에
+`matchTtbarIdSorted` 로 대조([01](01_status.md) O9 ⑧, `Validation/README.md` §0.1c). 완결성 기준 `Validation/data/das_nevents_2016APV.json`,
+`das_nevents_2016.json`.
+
+**실행**: 2016APV 16 chunk — 15 개는 cluster 13530917 에서 ok, `file_TTToSemiLeptonic_4` 는 xrootd open 이 1813 s 뒤 `Operation expired`(exit 4)
+→ 다시 낸 job 은 셸에 남은 v15 의 cmsenv 때문에 exit 127([08](08_troubleshooting.md) T-42) → `--cmssw-base`·`--container` 를 적어 cluster 13535254
+에서 ok. 2016 22 chunk — 첫 제출(13532885) 22 개 모두 같은 이유로 exit 127 → cluster 13535253 에서 22/22 ok. `--report` 두 era 모두
+`All chunks produced a result`, 합산 `aggregate_validation.py --era 2016APV|2016` 의 끝줄 둘 다 **`OVERALL: ALL SAMPLES PASS`**
+(`~/val_summary_2016APV.json`, `~/val_summary_2016.json`, lxplus).
+
+| era | sample | chunks | nano total == DAS | unmatched | disagree | 불변식 4종 | `nAddBJets≥3` (= extended) | 61 / 62 | 71 / 72 | 재분류된 event 의 원 sub-code 53 / 54 / 55 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2016APV | tt4b | 1 | 4,801,000 ✓ | 0 | 0 | 0 | **951,209** | 603,102 / 197,724 | 133,947 / 16,436 | 736,843 / 206,481 / 7,885 |
+| 2016APV | ttbb_Hadronic | 1 | 2,303,410 ✓ | 0 | 0 | 0 | **9,278** | 5,417 / 2,751 | 950 / 160 | 6,368 / 2,814 / 96 |
+| 2016APV | ttbb_SemiLeptonic | 1 | 2,991,789 ✓ | 0 | 0 | 0 | **10,919** | 6,471 / 3,230 | 1,087 / 131 | 7,554 / 3,275 / 90 |
+| 2016APV | ttbb_2L2Nu | 1 | 1,388,348 ✓ | 0 | 0 | 0 | **4,521** | 2,673 / 1,310 | 490 / 48 | 3,162 / 1,320 / 39 |
+| 2016APV | TTToHadronic | 4 | 97,260,000 ✓ | 0 | 0 | 0 | **10,384** | 6,475 / 2,837 | 993 / 79 | 7,464 / 2,865 / 55 |
+| 2016APV | TTToSemiLeptonic | 6 | 132,178,000 ✓ | 0 | 0 | 0 | **12,381** | 7,697 / 3,401 | 1,170 / 113 | 8,854 / 3,453 / 74 |
+| 2016APV | TTTo2L2Nu | 2 | 37,505,000 ✓ | 0 | 0 | 0 | **3,150** | 1,967 / 852 | 306 / 25 | 2,273 / 857 / 20 |
+| 2016 | tt4b | 1 | 4,848,000 ✓ | 0 | 0 | 0 | **956,533** | 606,875 / 198,831 | 134,193 / 16,634 | 740,886 / 207,945 / 7,702 |
+| 2016 | ttbb_Hadronic | 1 | 2,597,868 ✓ | 0 | 0 | 0 | **10,668** | 6,333 / 3,061 | 1,149 / 125 | 7,479 / 3,090 / 99 |
+| 2016 | ttbb_SemiLeptonic | 1 | 3,223,118 ✓ | 0 | 0 | 0 | **11,819** | 6,956 / 3,477 | 1,229 / 157 | 8,184 / 3,503 / 132 |
+| 2016 | ttbb_2L2Nu | 1 | 1,571,799 ✓ | 0 | 0 | 0 | **5,040** | 2,968 / 1,487 | 528 / 57 | 3,496 / 1,492 / 52 |
+| 2016 | TTToHadronic | 8 | 107,067,000 ✓ | 0 | 0 | 0 | **11,486** | 7,209 / 3,097 | 1,091 / 89 | 8,287 / 3,119 / 80 |
+| 2016 | TTToSemiLeptonic | 7 | 144,722,000 ✓ | 0 | 0 | 0 | **13,505** | 8,421 / 3,671 | 1,308 / 105 | 9,717 / 3,694 / 94 |
+| 2016 | TTTo2L2Nu | 3 | 43,546,000 ✓ | 0 | 0 | 0 | **3,494** | 2,153 / 958 | 365 / 18 | 2,516 / 961 / 17 |
+
+읽는 법:
+
+- **두 분해의 합이 모두 `nAddBJets≥3` 과 같다**(61+62+71+72 와 53+54+55, 14 행 모두): 재분류는 전부 표준 tt+B 버킷(53/54/55)에서 왔다.
+- **tt+nb 비율이 2018 과 같은 크기**: tt4b 19.81 % / 19.73 %(2018 19.8 %), ttbb_* 0.32–0.41 %(2018 v15 0.32–0.41 %), TTTo* 0.008–0.011 %(2018 v15
+  0.008–0.011 %). era 합 2016APV 1,001,842, 2016 1,012,545.
+- **unmatched 0 은 nano 의 모든 event 가 extend 에 있다는 뜻이다.** UL16 에서는 MiniAOD 가 nano 보다 많은 항목이 다섯이라([01](01_status.md) O9) 그 표본의
+  patch(extend 전체에서 뽑는다)는 위 `nAddBJets≥3` 보다 조금 클 수 있다(2018 의 "extract ≥ validation" 과 같은 관계); extend 행 = DAS nano 인 표본은 같아야 한다 —
+  patch 추출(⑨)의 행 수로 확인한다.
+
+## 2016 preVFP·postVFP — patch 추출(extractTtbarIdPatch), **14/14 완료** 2026-10-15
+
+lxplus `cmssw-el7`(CMSSW_10_6_32_patch1), `Validation/` 에서 era 마다 `bin/extractTtbarIdPatch --filelist filelists/sidecar<ERA>/filelist_<short>.txt
+--out lookup<ERA>/ttnb_<KEY>.root --out-tree TtNb --label <KEY>_<2016preVFP|2016postVFP>`(TTHHAnalyzer 의 이름·tree 규약 = 2018). 열넷 모두 exit 0,
+요약마다 `>>> OK: selection consistent (sub in {61,62,71,72} <=> nAddBJets>=3)`. 맥으로 scp 한 뒤 md5 열넷이 lxplus 값과 같음 → TTHHAnalyzer
+`DerivedCorr/expandedTtbarId/2016{preVFP,postVFP}/`(그쪽 README.txt 에 md5; `git add -f`).
+
+| era | KEY (short) | extend 입력 행 | DAS nano | patch 행 | 검증 `nAddBJets≥3` | 차 | 기대(extend−nano)×(율) | 61 / 62 / 71 / 72 |
+|---|---|---|---|---|---|---|---|---|
+| 2016APV | TT4b (tt4b) | 4,801,000 | 4,801,000 | **951,209** | 951,209 | 0 | 0 | 603,102 / 197,724 / 133,947 / 16,436 |
+| 2016APV | TTbb_Hadronic | 2,303,410 | 2,303,410 | **9,278** | 9,278 | 0 | 0 | 5,417 / 2,751 / 950 / 160 |
+| 2016APV | TTbb_SemiLep | 2,991,789 | 2,991,789 | **10,919** | 10,919 | 0 | 0 | 6,471 / 3,230 / 1,087 / 131 |
+| 2016APV | TTbb_DiLep | 1,388,348 | 1,388,348 | **4,521** | 4,521 | 0 | 0 | 2,673 / 1,310 / 490 / 48 |
+| 2016APV | TTbar_Hadronic | 97,600,000 | 97,260,000 | **10,435** | 10,384 | +51 | 36 ± 6 | 6,507 / 2,851 / 998 / 79 |
+| 2016APV | TTbar_SemiLep | 132,178,000 | 132,178,000 | **12,381** | 12,381 | 0 | 0 | 7,697 / 3,401 / 1,170 / 113 |
+| 2016APV | TTbar_DiLep | 37,505,000 | 37,505,000 | **3,150** | 3,150 | 0 | 0 | 1,967 / 852 / 306 / 25 |
+| 2016 | TT4b (tt4b) | 4,848,000 | 4,848,000 | **956,533** | 956,533 | 0 | 0 | 606,875 / 198,831 / 134,193 / 16,634 |
+| 2016 | TTbb_Hadronic | 2,597,868 | 2,597,868 | **10,668** | 10,668 | 0 | 0 | 6,333 / 3,061 / 1,149 / 125 |
+| 2016 | TTbb_SemiLep | 3,337,118 | 3,223,118 | **12,231** | 11,819 | +412 | 418 ± 20 | 7,200 / 3,596 / 1,277 / 158 |
+| 2016 | TTbb_DiLep | 1,571,799 | 1,571,799 | **5,040** | 5,040 | 0 | 0 | 2,968 / 1,487 / 528 / 57 |
+| 2016 | TTbar_Hadronic | 109,380,000 | 107,067,000 | **11,722** | 11,486 | +236 | 248 ± 16 | 7,348 / 3,165 / 1,118 / 91 |
+| 2016 | TTbar_SemiLep | 144,974,000 | 144,722,000 | **13,536** | 13,505 | +31 | 24 ± 5 | 8,436 / 3,684 / 1,311 / 105 |
+| 2016 | TTbar_DiLep | 43,630,000 | 43,546,000 | **3,500** | 3,494 | +6 | 7 ± 3 | 2,156 / 961 / 365 / 18 |
+
+읽는 법: extend = DAS nano 인 아홉 행은 patch 행 = 검증의 `nAddBJets≥3` 이 **정확히** 같다(같은 event 집합). extend 가 큰 다섯 행은 patch 가 그만큼
+크고, 그 차는 (extend − nano) × (검증의 tt+nb 율)과 맞는다(가장 먼 것: 2016APV TTbar_Hadronic +51 대 36 ± 6, +2.4σ — nano 에 없는 event 라 analyzer 는
+그 행을 만나지 않는다). 각 칸(61/62/71/72)도 patch ≥ 검증.
