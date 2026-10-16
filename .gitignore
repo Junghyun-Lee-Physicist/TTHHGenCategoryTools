@@ -11,6 +11,9 @@ preflight_*.log
 submit_*_20*.log
 status_*_20*.log
 crab_projects/
+# CRAB client log that crab commands leave in the directory they are run from
+# (TtbarIdExtender/crab.log seen 2026-10-16) -- a transcript, never committed
+crab.log
 # --- launch_extend.sh run directories (all output of one launch, local test files)
 launch_logs/
 # --- extend_manager.py state dirs (state.json, manager.log, lock, condor job files, proxy copy)

@@ -2,7 +2,7 @@
 
 > **목적**: "왜 이 선택인가? 다른 후보는? 아직 유효한가?"의 단일 출처.
 > **대상 독자**: 설계를 바꾸려는 사람; DECIDED를 다시 열기 전 반드시 여기 확인.
-> **상태**: 살아있는 문서 — 마지막 갱신 **2026-10-15** (D21: 2024(Run 3) extend 를 v15 영역에서; `dataset: ""` 와 `--fill`; release 짝 검사). 그 전 **2026-10-14** (D19: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`; D20: 사람 없이 도는 것은 결정론적 manager, AI 세션은 branch 에서). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
+> **상태**: 살아있는 문서 — 마지막 갱신 **2026-10-16** (D20 보탬: lxplus 에서 오래 걸리는 단계는 condor job — tmux 에 걸지 않는다, T-44; D22: 2024 TTbar_Hadronic job 1012 의 출력을 같은 입력·코드로 lxplus 에서 만들어 CRAB 자리에 두고 manager 완료 점검으로 받는다; 나중에 CRAB 재생산과 비교, O11). 그 전 **2026-10-15** (D21: 2024(Run 3) extend 를 v15 영역에서; `dataset: ""` 와 `--fill`; release 짝 검사). 그 전 **2026-10-14** (D19: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`; D20: 사람 없이 도는 것은 결정론적 manager, AI 세션은 branch 에서). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
 > **관련**: 시간순 이력은 [03_changelog.md](03_changelog.md), 실패 사례는 [08_troubleshooting.md](08_troubleshooting.md).
 
 각 항목: 선택 / 근거 / 검토·기각된 대안 / 상태.
@@ -287,6 +287,7 @@ HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳
   결정이다. 반복 작업은 결정론적 코드로 충분하고 그 편이 예측 가능하다.
 - **기각한 대안**: ① 밤새 AI 세션이 고치고 다시 내기를 반복 — 잘못된 수정이 grid 자원과 산출물을 쓰고, 이 프로젝트의 비싼 실패(T-19 조용한 거부,
   T-21 거짓 PASS)와 같은 부류를 키울 수 있다. ② tmux 로 launch·감시를 lxplus 에 맡김 — ssh 가 끊기면 같이 끊긴다(사용자 확인).
+- **보탬(사용자 2026-10-16)**: "1-2시간 걸리는건 내가 condor로 하라고 했을텐데 왜 tmux로 했냐." — 기각 ② 는 launch·감시만이 아니다: lxplus 에서 30 분을 넘길 수 있는 단계(직접 돌리는 cmsRun, patch 추출, 정렬, 큰 DAS 조회)는 condor job 으로 낸다. 접속해 있는 셸에서 바로 돌리는 것은 짧은 단계뿐. 계기: [08](08_troubleshooting.md) T-44(1012 직접 실행을 tmux 에 걸었다가 출근길 ssh 끊김과 함께 잃음). 규칙의 자리: `00_PROMPT.md` §10.
 
 ## D21 — 2024(Run 3) 도 extend 를 만든다: v15 영역(`CMSSW_15_0_18`, `cmssw-el8`)에서, era `Run3_2024` 하나로; parent 는 `dataset: ""` + `resolve_parents.sh --fill` · 범위 DECIDED 2026-10-15(사용자) · 방식 2026-10-15(AI 제안, 사용자에게 고지)
 
@@ -306,6 +307,14 @@ HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳
   ([09](09_environment.md) §4). ③ MiniAOD parent 를 인벤토리에서 추측해 미리 적기 — "-vN 을 추측하지 않는다" 규칙(D19)에 어긋난다. ④ 2024 MiniAOD 의
   tape 여부를 보지 않기 — tape 뿐이면 CRAB 이 recall 부터 해 manager 가 8 시간 뒤 ALERT 하므로 preflight 가 미리 본다(2024 만; Run 2 의 preflight 는
   그대로).
+
+## D22 — 2024 TTbar_Hadronic job 1012 의 출력은 lxplus 에서 같은 입력·같은 코드로 만들어 CRAB 자리에 둔다; 받는 기준은 manager 완료 점검; 나중에 CRAB 재생산과 비교(O11) · DECIDED 2026-10-16(AI 제안, 사용자가 실행·승인)
+
+- **배경**: [08](08_troubleshooting.md) T-43 — job 1012 가 T2_FR_GRIF 에서 12.4 h 동안 멈춤(CPU 효율 1.2 %), `crab kill` 뒤 서버가 KILLED task 의 resubmit 을 거부. 1,080 job 의 출력은 이미 EOS 에 있다.
+- **결정**: 1012 의 입력 10 파일(`crab report` 의 `results/filesToProcess.json` 의 `"1012"`, DAS nevents 합 442,200)을 같은 `CMSSW_15_0_18`, 같은 pset(`TtbarIdExtender/test/run_ttbarIdExtend_cfg.py year=2024`)으로 lxplus `cmssw-el8` 에서 돌리고, 출력 이름을 CRAB 규약(`ttbarIDExtend_1012.root`)으로 해 원래 timestamp 디렉터리 `TTbar_Hadronic_2024_extend/261015_141145/0001/` 에 둔다(`xrdcp --posc`). task 가 KILLED 라 그 자리에 다른 쓰기는 없다. manager `state.json` 에 이 task 를 `done`, `jobs 1081`, `note`(경위)로 적고(원본 `.before_manual_1012`) manager 를 다시 띄워 완료 점검(timestamp 1 개, 파일 = job·id 1..1081, 행 = DAS MiniAOD nevents, 불변조건 전부)을 통과해야 받는다. 기대 행 수 475,006,856(= crab report 의 1,080 job 474,564,656 + 442,200). 직접 돌린 결과(cmsRun 의 `total rows`, `check_extend_invariants.C` 의 entries·VERDICT)는 올리기 전에 이 합과 맞춘다.
+- **물리 영향 없음**: 입력·코드·release 가 같으면 행(`run, luminosityBlock, event` 와 네 id)이 같다. 파일 안 행 순서는 다를 수 있으나 소비자(정렬 대조, patch 추출)는 순서를 보지 않는다(D7, D15).
+- **기각한 대안**: ① `maxJobRuntimeMin`(1440 분)까지 기다렸다 resubmit — kill 전이면 가능했으나 kill 뒤에는 불가. ② CRAB recovery task(`crab recover` 또는 `Data.userInputFiles` 새 task) — 출력이 새 timestamp 디렉터리에 생겨 filelist 가드와 완료 점검의 'timestamp 1 개'에 걸리고 CRAB 대기가 붙는다; `crab recover` 가 쓰는 Recover job type 은 client 소스(2026-06)에 '실험적, 충분히 시험되지 않음'으로 적혀 있다. ③ whitelist 로 CERN 지정(사용자 제안 검토, 10-16) — resubmit 불가라 적용할 곳이 없고, 새 task 라도 CRAB 은 입력이 있는 site(와 근처 overflow)에서만 돌려 데이터가 없는 site 만 지정하면 `ignoreLocality` 없이는 idle; client 의 site 이름 검사는 T1–T3 만 받는다(T0 불가).
+- **후속(O11)**: 사용자(10-16) "언젠가는 이걸 그냥 crab job으로 다시 만들어서 결과 비교해보자 … 2024 플랏 만들고 run2 작업 돌아가면서 하면 될듯." — 방법은 [01](01_status.md) O11.
 
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 
