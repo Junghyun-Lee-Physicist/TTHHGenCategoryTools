@@ -1741,3 +1741,11 @@ unmatched 가 어디에 어떻게 나오는지).
 - **규칙(사용자).** "1-2시간 걸리는건 내가 condor로 하라고 했을텐데 왜 tmux로 했냐." — [../00_PROMPT.md](../00_PROMPT.md) §10 에 넣음: lxplus 에서 30 분을 넘길 수 있는 단계는 condor job, tmux·screen·`nohup` 에 걸어 두지 않는다. [04](04_decisions.md) D20 에 보탬.
 - **저장소 위생(사용자, v15 clone 75bfa2d 의 `git status --short`).** `?? TtbarIdExtender/crab.log` — crab 명령이 그 디렉터리에 남긴 CRAB client 로그(transcript 라 커밋하지 않는다) → `.gitignore` 에 `crab.log`. `?? Validation/lookup2024/` — [../Validation/README.md](../Validation/README.md) §0.1d 의 대화형 patch 블록이 쓰는 자리라 그 블록을 앞서 돌린 흔적으로 보인다: 내용을 확인한 뒤 저장소 밖으로 옮기고, 2024 lookup 은 condor job 의 EOS `lookup2024/` 것을 쓴다.
 - **코드 변경 없음**(`.gitignore` 한 줄 외). OPEN: `prep_job.sh`·`prep.sub` 를 era 인자로 일반화해 저장소에(결과 확인 뒤); condor_rm 뒤에 남은 lock(T-45); 앞 항목의 둘(`dbStatus`, `max_runtime_min`).
+
+## 2026-10-16 (3) — O10: lookup 일곱 → TTHHAnalyzer; 검증 ⑥ 제출(preflight READY, smoke PASS, 전량 156 job); O12 신설
+
+- **prep2024 결과(사용자 lxplus, cluster 13538989).** 일곱 job 모두 `RESULT=OK`; 입력 행·tt+nb 행·61/62/71/72 = `REPORT.txt`; md5 job = EOS `lookup2024/` = 맥 → TTHHAnalyzer `DerivedCorr/expandedTtbarId/2024/`(그쪽 801f059). 수치: [06](06_validation_results.md) '2024'.
+- **대화형 추출의 흔적.** v15 clone 의 추적 안 되는 `Validation/lookup2024/`·`logs2024/`(TTbar_DiLep 63 bytes, TTbar_Hadronic 없음 — 끊긴 tmux 실행, [08](08_troubleshooting.md) T-44)는 `~/TTHHGenCategoryTools_v15/aborted_interactive_extract2024/` 로 옮김(지우지 않음).
+- **검증 ⑥(사용자 lxplus).** `submit_validation_condor.py --era 2024 --preflight` READY(32 PASS; 정렬은 prep job 의 EOS `sorted2024/` 를 그대로 — `--sort-only` 안 씀) → `--smoke`(cluster 13540386, ttbb_2L2Nu chunk 0, nano 20 파일): 787,920 event 모두 matched·agree, unmatched·disagree·위반 0 → 전량 156 job(cluster 13540390). TTHHAnalyzer 의 2024 prescan(DAG cluster 13540391)과 병렬.
+- **O12 신설(미래).** TTHHAnalyzer D-2026-10-16-B(Run 2 는 v9·v15 둘 다) → v15 mode 에는 2016·2017 lookup 을 중앙 NanoAODv15 와 다시 대조 — [01](01_status.md) O12.
+- **코드 변경 없음.**

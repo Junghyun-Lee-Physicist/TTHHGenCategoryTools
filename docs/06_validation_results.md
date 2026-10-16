@@ -358,3 +358,53 @@ lxplus `cmssw-el7`(CMSSW_10_6_32_patch1), `Validation/` 에서 era 마다 `bin/e
 읽는 법: extend = DAS nano 인 아홉 행은 patch 행 = 검증의 `nAddBJets≥3` 이 **정확히** 같다(같은 event 집합). extend 가 큰 다섯 행은 patch 가 그만큼
 크고, 그 차는 (extend − nano) × (검증의 tt+nb 율)과 맞는다(가장 먼 것: 2016APV TTbar_Hadronic +51 대 36 ± 6, +2.4σ — nano 에 없는 event 라 analyzer 는
 그 행을 만나지 않는다). 각 칸(61/62/71/72)도 patch ≥ 검증.
+
+## 2024(Run 3, `RunIII2024Summer24`): extend `REPORT.txt` ALL PASS, lookup 일곱(condor `prep2024`), 중앙 NanoAODv15 대조(156 job, 진행 중)
+
+extend(CMSSW_15_0_18, `year=2024`, manager `extend2024`, `REPORT.txt` 2026-10-16 07:21:16 UTC; TTbar_Hadronic job 1012 는 lxplus 에서 직접 —
+[04](04_decisions.md) D22):
+
+| task | jobs | rows = MiniAOD ev | ge3 | 61 | 62 | 71 | 72 |
+|---|---|---|---|---|---|---|---|
+| 2024/TT4b | 46 | 9,898,300 | 1,958,250 | 1,246,292 | 402,583 | 275,596 | 33,779 |
+| 2024/TTbar_SemiLep | 1,102 | 484,298,177 | 47,600 | 29,545 | 13,038 | 4,616 | 401 |
+| 2024/TTbar_Hadronic | 1,081 | 475,006,856 | 53,889 | 33,541 | 14,598 | 5,301 | 449 |
+| 2024/TTbar_DiLep | 1,093 | 470,080,053 | 40,336 | 25,112 | 10,924 | 3,994 | 306 |
+| 2024/TTbb_SemiLep | 100 | 22,478,238 | 85,959 | 51,135 | 24,601 | 9,209 | 1,014 |
+| 2024/TTbb_Hadronic | 64 | 14,988,225 | 63,776 | 38,101 | 17,924 | 6,942 | 809 |
+| 2024/TTbb_DiLep | 71 | 12,498,392 | 42,693 | 25,332 | 12,215 | 4,638 | 508 |
+
+`RESULT: ALL PASS`(7 task, 3,557 job, 모두 PASS).
+
+**lookup**(condor `prep2024`, cluster 13538989; `extractTtbarIdPatch --out-tree TtNb --label <KEY>_2024`, 같은 job 에서 `sortSplitExtend` → EOS
+`sorted2024/<short>/`, `index.txt` 마지막): 일곱 job 모두 `RESULT=OK` — patch 행 = ge3, 61/62/71/72 = 위 표, 입력 행 = rows = 정렬 행.
+md5(job = EOS `lookup2024/` = 맥 = TTHHAnalyzer 801f059 의 `DerivedCorr/expandedTtbarId/2024/`):
+
+| KEY | md5 |
+|---|---|
+| TT4b | 7c1d9627f650e67c449e098f97d528e4 |
+| TTbb_Hadronic | 7bd8bda6d70cf31caccee8dcfe486351 |
+| TTbb_SemiLep | beef3085984f2028363fded52b1d5699 |
+| TTbb_DiLep | 799303ed6e6abfa0e53f8e38a3d50c19 |
+| TTbar_Hadronic | 860bfaa7b82f7d9334e6174a13180b5a |
+| TTbar_SemiLep | 50c4c939ad1bad0520554d7d14287c50 |
+| TTbar_DiLep | cff7b32e041a25a35f7d0514e8f4777f |
+
+**DAS nevents, Nano 대 MiniAOD**(TTHHAnalyzer `make_manifest.py`, lxplus 2026-10-16; Nano 합 1,486,995,493 = `Validation/data/das_nevents_2024.json`):
+
+| KEY | Nano | MiniAOD (= extend rows) | Nano − MiniAOD |
+|---|---|---|---|
+| TT4b | 9,898,300 | 9,898,300 | 0 |
+| TTbar_SemiLep | 484,475,057 | 484,298,177 | +176,880 |
+| TTbar_Hadronic | 472,535,695 | 475,006,856 | −2,471,161 |
+| TTbar_DiLep | 470,123,263 | 470,080,053 | +43,210 |
+| TTbb_SemiLep | 22,473,402 | 22,478,238 | −4,836 |
+| TTbb_Hadronic | 14,990,580 | 14,988,225 | +2,355 |
+| TTbb_DiLep | 12,499,196 | 12,498,392 | +804 |
+
+음수(Nano < MiniAOD)는 extend ⊇ nano 라 정상(2016 의 다섯과 같은 방향). 양수 넷은 [01](01_status.md) O10 의 (i)/(ii) — 대조의 unmatched 가 가른다.
+
+**중앙 NanoAODv15 대조**([../Validation/README.md](../Validation/README.md) §0.1d): preflight READY, 32 PASS(156 job: tt4b 2, ttbb_Hadronic 10,
+ttbb_SemiLeptonic 15, ttbb_2L2Nu 11, TTToHadronic 39, TTToSemiLeptonic 40, TTTo2L2Nu 39). smoke(cluster 13540386, `file_ttbb_2L2Nu_0`, nano 20 파일):
+nano_entries 787,920 = matched = agree, unmatched 0, disagree 0, 위반 넷 0, `ext_consistent` true, exit 0. 전량 156 job: cluster 13540390(2026-10-16
+17:45 UTC 제출) — 결과는 aggregate 뒤 이 절에.
