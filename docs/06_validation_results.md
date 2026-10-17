@@ -359,7 +359,7 @@ lxplus `cmssw-el7`(CMSSW_10_6_32_patch1), `Validation/` 에서 era 마다 `bin/e
 크고, 그 차는 (extend − nano) × (검증의 tt+nb 율)과 맞는다(가장 먼 것: 2016APV TTbar_Hadronic +51 대 36 ± 6, +2.4σ — nano 에 없는 event 라 analyzer 는
 그 행을 만나지 않는다). 각 칸(61/62/71/72)도 patch ≥ 검증.
 
-## 2024(Run 3, `RunIII2024Summer24`): extend `REPORT.txt` ALL PASS, lookup 일곱(condor `prep2024`), 중앙 NanoAODv15 대조(156 job, 진행 중)
+## 2024(Run 3, `RunIII2024Summer24`): extend `REPORT.txt` ALL PASS, lookup 일곱(condor `prep2024`), 중앙 NanoAODv15 대조(156 job) — **matched 전부 일치, unmatched 다섯 표본(nano 의 0.06 % 이하)**
 
 extend(CMSSW_15_0_18, `year=2024`, manager `extend2024`, `REPORT.txt` 2026-10-16 07:21:16 UTC; TTbar_Hadronic job 1012 는 lxplus 에서 직접 —
 [04](04_decisions.md) D22):
@@ -408,3 +408,33 @@ md5(job = EOS `lookup2024/` = 맥 = TTHHAnalyzer 801f059 의 `DerivedCorr/expand
 ttbb_SemiLeptonic 15, ttbb_2L2Nu 11, TTToHadronic 39, TTToSemiLeptonic 40, TTTo2L2Nu 39). smoke(cluster 13540386, `file_ttbb_2L2Nu_0`, nano 20 파일):
 nano_entries 787,920 = matched = agree, unmatched 0, disagree 0, 위반 넷 0, `ext_consistent` true, exit 0. 전량 156 job: cluster 13540390(2026-10-16
 17:45 UTC 제출) — 결과는 aggregate 뒤 이 절에.
+
+**전량 대조 결과**(2026-10-17, lxplus `--report`: TOTAL `156 156 0 0 0`; `aggregate_validation.py --era 2024 --json-out ~/val_summary_2024.json`):
+
+| sample | nano = DAS | matched | unmatched | disagree | 보존 ge3 = extended | 위반 넷 | MiniAOD − matched | 판정 |
+|---|---|---|---|---|---|---|---|---|
+| tt4b | 9,898,300 | 9,898,300 | 0 | 0 | 1,958,250 | 0 | 0 | PASS |
+| ttbb_Hadronic | 14,990,580 | 14,988,225 | 2,355 | 0 | 63,776 | 0 | 0 | FAIL(unmatched 만) |
+| ttbb_SemiLeptonic | 22,473,402 | 22,473,402 | 0 | 0 | 85,937 | 0 | 4,836 | PASS |
+| ttbb_2L2Nu | 12,499,196 | 12,498,392 | 804 | 0 | 42,693 | 0 | 0 | FAIL(unmatched 만) |
+| TTToHadronic | 472,535,695 | 472,248,265 | 287,430 | 0 | 53,580 | 0 | 2,758,591 | FAIL(unmatched 만) |
+| TTToSemiLeptonic | 484,475,057 | 484,276,067 | 198,990 | 0 | 47,598 | 0 | 22,110 | FAIL(unmatched 만) |
+| TTTo2L2Nu | 470,123,263 | 470,080,053 | 43,210 | 0 | 40,336 | 0 | 0 | FAIL(unmatched 만) |
+
+`OVERALL: AT LEAST ONE SAMPLE FAILED` — 실패한 검사는 다섯 표본 모두 `unmatched == 0` 하나뿐이다. 모든 chunk exit 0, chunk 이상 없음.
+(보존 열은 matched 사건 안의 ge3 라, 위 extend 표의 ge3 보다 extend 에만 있는 사건의 ge3 만큼 작을 수 있다: ttbb_SemiLeptonic 22, TTToHadronic 309,
+TTToSemiLeptonic 2.)
+
+**해석.**
+1. **lookup 의 내용은 겹치는 모든 사건에서 맞다:** 일곱 표본 모두 disagree 0, 위반 넷 0, 보존 ge3 == extended.
+2. **unmatched 는 '어느 쪽 dataset 에 어떤 파일이 VALID 인가' 의 차이다, 중복이 아니다:** ttbb_Hadronic 2,355, ttbb_2L2Nu 804, TTTo2L2Nu 43,210 은
+   위 DAS 표의 Nano − MiniAOD 와 정확히 같고 extend 행은 모두 nano 에서 찾혔다(MiniAOD − matched = 0) → nano 에는 지금의 VALID MiniAOD 에 없는 parent
+   파일의 사건이 들어 있다([01](01_status.md) O10 의 (i)). (ii) NanoAOD 중복이었다면 그 사건들도 matched 로 잡혀 unmatched 는 0 이었을 것이다.
+   TTToSemiLeptonic(nano 에만 198,990, extend 에만 22,110)과 TTToHadronic(nano 에만 287,430, extend 에만 2,758,591)은 **양쪽 모두에** 상대에 없는 파일이
+   있다 — 두 dataset 에서 무효가 된 파일이 다르다는 뜻. 파일 단위 확인(`scripts/das_lineage.py`, 아직 실사용 안 됨 — O3)은 남은 일.
+3. **분석에 주는 영향:** analyzer 의 lookup 은 tt+nb 행만 갖고, 없는 사건은 NanoAOD 의 `genTtbarId` 를 그대로 쓴다(TTHHAnalyzer `ExpandedTtbarId.h`
+   `resolve`). 그래서 잘못 분류될 수 있는 것은 unmatched 중 진짜 tt+≥3b 사건뿐 — 기대 수 = unmatched × (ge3 / matched): TTToHadronic 33, TTToSemiLeptonic
+   20, TTTo2L2Nu 4, ttbb_Hadronic 10, ttbb_2L2Nu 3 사건(가중 전), 각 표본 ge3 의 0.06 % 이하. prescan(stitch 의 합)과 production 이 같은 lookup·같은 규칙을
+   쓰므로 정규화는 서로 맞는다.
+4. **판정 제안(사용자 결정):** "matched 전부 일치 + unmatched 는 DAS 파일 유효성 차이(영향 < 0.1 % of ge3)" 로 2024 lookup 을 쓴다 — TTHHAnalyzer 의
+   plan `AN` 전환(그쪽 D-2026-10-15-F)의 문을 연다. 워크스페이스 `coord/DECISIONS_PENDING.md` D1·A1.
