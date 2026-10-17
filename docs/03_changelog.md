@@ -1749,3 +1749,8 @@ unmatched 가 어디에 어떻게 나오는지).
 - **검증 ⑥(사용자 lxplus).** `submit_validation_condor.py --era 2024 --preflight` READY(32 PASS; 정렬은 prep job 의 EOS `sorted2024/` 를 그대로 — `--sort-only` 안 씀) → `--smoke`(cluster 13540386, ttbb_2L2Nu chunk 0, nano 20 파일): 787,920 event 모두 matched·agree, unmatched·disagree·위반 0 → 전량 156 job(cluster 13540390). TTHHAnalyzer 의 2024 prescan(DAG cluster 13540391)과 병렬.
 - **O12 신설(미래).** TTHHAnalyzer D-2026-10-16-B(Run 2 는 v9·v15 둘 다) → v15 mode 에는 2016·2017 lookup 을 중앙 NanoAODv15 와 다시 대조 — [01](01_status.md) O12.
 - **코드 변경 없음.**
+
+## 2026-10-17 — 문서: 워크스페이스의 여러 세션용 문서 체계를 가리키는 줄
+
+- [01](01_status.md) 머리에 한 줄: 워크스페이스 전체의 진행은 맥 워크스페이스 최상단의 `coord/BOARD.md`, 공통 규칙은 `AGENTS.md`(이 저장소 밖). 이 저장소의 2024 검증 흐름 = `coord/streams/S2_tgc_validation.md`(사용자 요청 2026-10-16, 10-17 새벽 승인).
+- **코드 변경 없음.**
