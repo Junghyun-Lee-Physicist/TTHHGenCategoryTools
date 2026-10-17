@@ -436,5 +436,5 @@ TTToSemiLeptonic 2.)
    `resolve`). 그래서 잘못 분류될 수 있는 것은 unmatched 중 진짜 tt+≥3b 사건뿐 — 기대 수 = unmatched × (ge3 / matched): TTToHadronic 33, TTToSemiLeptonic
    20, TTTo2L2Nu 4, ttbb_Hadronic 10, ttbb_2L2Nu 3 사건(가중 전), 각 표본 ge3 의 0.06 % 이하. prescan(stitch 의 합)과 production 이 같은 lookup·같은 규칙을
    쓰므로 정규화는 서로 맞는다.
-4. **판정 제안(사용자 결정):** "matched 전부 일치 + unmatched 는 DAS 파일 유효성 차이(영향 < 0.1 % of ge3)" 로 2024 lookup 을 쓴다 — TTHHAnalyzer 의
+4. **판정 — [04](04_decisions.md) D23 DECIDED(사용자 2026-10-17: 권고대로 그대로 쓴다).** 제안이었던 문장: "matched 전부 일치 + unmatched 는 DAS 파일 유효성 차이(영향 < 0.1 % of ge3)" 로 2024 lookup 을 쓴다 — TTHHAnalyzer 의
    plan `AN` 전환(그쪽 D-2026-10-15-F)의 문을 연다. 워크스페이스 `coord/DECISIONS_PENDING.md` D1·A1.

@@ -316,6 +316,18 @@ HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳
 - **기각한 대안**: ① `maxJobRuntimeMin`(1440 분)까지 기다렸다 resubmit — kill 전이면 가능했으나 kill 뒤에는 불가. ② CRAB recovery task(`crab recover` 또는 `Data.userInputFiles` 새 task) — 출력이 새 timestamp 디렉터리에 생겨 filelist 가드와 완료 점검의 'timestamp 1 개'에 걸리고 CRAB 대기가 붙는다; `crab recover` 가 쓰는 Recover job type 은 client 소스(2026-06)에 '실험적, 충분히 시험되지 않음'으로 적혀 있다. ③ whitelist 로 CERN 지정(사용자 제안 검토, 10-16) — resubmit 불가라 적용할 곳이 없고, 새 task 라도 CRAB 은 입력이 있는 site(와 근처 overflow)에서만 돌려 데이터가 없는 site 만 지정하면 `ignoreLocality` 없이는 idle; client 의 site 이름 검사는 T1–T3 만 받는다(T0 불가).
 - **후속(O11)**: 사용자(10-16) "언젠가는 이걸 그냥 crab job으로 다시 만들어서 결과 비교해보자 … 2024 플랏 만들고 run2 작업 돌아가면서 하면 될듯." — 방법은 [01](01_status.md) O11.
 
+## D23 — 2024 tt+nb lookup 은 검증 ⑥ 의 unmatched(파일 유효성 차이)에도 그대로 쓴다 · DECIDED 2026-10-17(사용자; AI 권고)
+
+- **사용자(2026-10-17):** "해당 사항을 기록해 두되 네 권고대로 2024 lookup을 그대로 쓴다."
+- **근거**([06](06_validation_results.md) '2024'): matched 사건은 일곱 표본 모두 disagree 0, 위반 0, 보존 일치 — lookup 의 내용은 맞다. `unmatched == 0` 만 다섯
+  표본에서 실패: ttbb_Hadronic 2,355, ttbb_2L2Nu 804, TTTo2L2Nu 43,210 은 DAS 의 Nano − MiniAOD 와 정확히 같고, TTToSemiLeptonic 198,990·TTToHadronic 287,430 은
+  양쪽 dataset 모두에 상대에 없는 파일이 있다 → NanoAOD 중복이 아니라 두 dataset 의 VALID 파일 차이(O10 의 (i)).
+- **영향**: analyzer 는 lookup 에 없는 사건의 NanoAOD `genTtbarId` 를 그대로 쓴다 → 잘못 분류될 수 있는 것은 unmatched 중 진짜 tt+≥3b 뿐, 표본마다 ge3 의
+  0.06 % 이하(최대 TTToHadronic 약 33 사건). prescan(stitch 의 합)과 production 이 같은 lookup·같은 규칙이라 정규화는 일관.
+- **기각한 대안**: ① unmatched 사건을 위해 extend 를 다시 만든다 — 그 parent MiniAOD 파일이 지금 VALID 가 아니어서(추정) 같은 입력을 만들 수 없고 영향이
+  통계보다 훨씬 작다. ② 2024 의 plan AN 을 미룬다 — 사용자의 우선순위(TT4b 사용, TTHHAnalyzer D-2026-10-15-F)에 어긋난다.
+- **남은 일**: 파일 단위 확인(`Validation/scripts/das_lineage.py`, O3 — 아직 실사용 안 됨). 결과가 (i) 와 다르면 이 항목을 다시 본다.
+
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 
 - 폐기 사유는 D1 참조. **검증됐던 사실**과 emit된 cfg 4편은 [10_enriched_nanoaod_archive.md](10_enriched_nanoaod_archive.md)와 `TtbarIdExtender/archive/enriched_nanoaod/`에 보존 — 지식은 버리지 않는다.

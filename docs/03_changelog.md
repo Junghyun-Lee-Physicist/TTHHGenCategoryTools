@@ -1760,3 +1760,8 @@ unmatched 가 어디에 어떻게 나오는지).
 - `--report` TOTAL `156 156 0 0 0`; `aggregate_validation.py --era 2024` → tt4b·ttbb_SemiLeptonic PASS, 나머지 다섯은 `unmatched == 0` 만 FAIL. matched 사건은 일곱 표본 모두 disagree 0, 위반 0, 보존 일치 — 숫자와 해석은 [06](06_validation_results.md) '2024'.
 - unmatched 는 Nano 와 MiniAOD 의 VALID 파일 차이(O10 의 (i)); 셋은 Nano − MiniAOD 와 정확히 같고, TTToSemiLeptonic·TTToHadronic 은 양쪽 모두에 상대에 없는 파일이 있다. 분석 영향(tt+≥3b 의 오분류)은 표본마다 ge3 의 0.06 % 이하.
 - **코드 변경 없음.** 사용 여부는 사용자 결정(워크스페이스 `coord/DECISIONS_PENDING.md` D1).
+
+## 2026-10-17 (3) — D23: 2024 lookup 을 그대로 쓴다(사용자 결정)
+
+- 사용자(10-17): "해당 사항을 기록해 두되 네 권고대로 2024 lookup을 그대로 쓴다." → [04](04_decisions.md) D23(근거·영향·기각한 대안), [06](06_validation_results.md)·[01](01_status.md) O10 에 표시.
+- **코드 변경 없음.**
