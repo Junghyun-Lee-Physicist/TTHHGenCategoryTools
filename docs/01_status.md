@@ -1,6 +1,6 @@
 # 01 — Status: 지금 우리는 어디인가
 
-> **[2026-10-17] 워크스페이스 전체(여러 세션·흐름)의 진행은 맥 워크스페이스 최상단의 [`coord/BOARD.md`](../../coord/BOARD.md), 공통 규칙은 [`AGENTS.md`](../../AGENTS.md)** (이 저장소 밖, `~/claude/NtuplizerDev/`). 이 저장소의 2024 검증 흐름은 `coord/streams/S2_tgc_validation.md`.
+> **[2026-10-17] 워크스페이스 전체(여러 세션·흐름)의 진행은 맥 워크스페이스 최상단의 [`HQ_Office/BOARD.md`](../../HQ_Office/BOARD.md), 공통 규칙은 [`AGENTS.md`](../../AGENTS.md)** (이 저장소 밖, `~/claude/NtuplizerDev/`). 이 저장소의 2024 검증 흐름은 `HQ_Office/streams/S2_tgc_validation.md`.
 
 > **목적**: 임의의 에이전트가 "현재 상태"를 확인하는 단일 지점.
 > **대상 독자**: 모든 기여자 (사람·AI).

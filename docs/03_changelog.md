@@ -1752,14 +1752,14 @@ unmatched 가 어디에 어떻게 나오는지).
 
 ## 2026-10-17 — 문서: 워크스페이스의 여러 세션용 문서 체계를 가리키는 줄
 
-- [01](01_status.md) 머리에 한 줄: 워크스페이스 전체의 진행은 맥 워크스페이스 최상단의 `coord/BOARD.md`, 공통 규칙은 `AGENTS.md`(이 저장소 밖). 이 저장소의 2024 검증 흐름 = `coord/streams/S2_tgc_validation.md`(사용자 요청 2026-10-16, 10-17 새벽 승인).
+- [01](01_status.md) 머리에 한 줄: 워크스페이스 전체의 진행은 맥 워크스페이스 최상단의 `HQ_Office/BOARD.md`, 공통 규칙은 `AGENTS.md`(이 저장소 밖). 이 저장소의 2024 검증 흐름 = `HQ_Office/streams/S2_tgc_validation.md`(사용자 요청 2026-10-16, 10-17 새벽 승인).
 - **코드 변경 없음.**
 
 ## 2026-10-17 (2) — O10: 검증 ⑥ 의 결과(156/156 chunk), 해석과 사용 제안
 
 - `--report` TOTAL `156 156 0 0 0`; `aggregate_validation.py --era 2024` → tt4b·ttbb_SemiLeptonic PASS, 나머지 다섯은 `unmatched == 0` 만 FAIL. matched 사건은 일곱 표본 모두 disagree 0, 위반 0, 보존 일치 — 숫자와 해석은 [06](06_validation_results.md) '2024'.
 - unmatched 는 Nano 와 MiniAOD 의 VALID 파일 차이(O10 의 (i)); 셋은 Nano − MiniAOD 와 정확히 같고, TTToSemiLeptonic·TTToHadronic 은 양쪽 모두에 상대에 없는 파일이 있다. 분석 영향(tt+≥3b 의 오분류)은 표본마다 ge3 의 0.06 % 이하.
-- **코드 변경 없음.** 사용 여부는 사용자 결정(워크스페이스 `coord/DECISIONS_PENDING.md` D1).
+- **코드 변경 없음.** 사용 여부는 사용자 결정(워크스페이스 `HQ_Office/DECISIONS_PENDING.md` D1).
 
 ## 2026-10-17 (3) — D23: 2024 lookup 을 그대로 쓴다(사용자 결정)
 
