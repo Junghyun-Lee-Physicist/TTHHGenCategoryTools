@@ -8,6 +8,7 @@
 <use name="DataFormats/JetReco"/>
 <use name="DataFormats/HepMCCandidate"/>
 <use name="DataFormats/NanoAOD"/>
+<use name="SimDataFormats/GeneratorProducts"/>
 <use name="CommonTools/UtilAlgos"/>
 <use name="root"/>
 <flags EDM_PLUGIN="1"/>

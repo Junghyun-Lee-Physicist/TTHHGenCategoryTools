@@ -66,6 +66,8 @@
 #include "FWCore/Utilities/interface/Exception.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 
+#include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
+
 #include <TFile.h>
 #include <TTree.h>
 
@@ -88,12 +90,15 @@ class TtbarIdExtendAnalyzer
 
   // Input tags (kept for log messages on errors).
   const edm::InputTag tagGenTtbarId_, tagExpandedId_, tagNAddB_, tagNAddBMulti_;
+  // [2026-11-05, TTHHAnalyzer STEP 46] the generator fingerprint of an event: GenEventInfoProduct::pdf()
+  const edm::InputTag tagGenInfo_;
 
   // Tokens.
   const edm::EDGetTokenT<int> tokGenTtbarId_;
   const edm::EDGetTokenT<int> tokExpandedId_;
   const edm::EDGetTokenT<int> tokNAddB_;
   const edm::EDGetTokenT<int> tokNAddBMulti_;
+  const edm::EDGetTokenT<GenEventInfoProduct> tokGenInfo_;
 
   // Output configuration.
   const std::string outputFile_;
@@ -110,6 +115,12 @@ class TtbarIdExtendAnalyzer
   Int_t     b_expandedId_;
   Int_t     b_nAddBJets_;
   Int_t     b_nAddBJetsMulti_;
+  // NanoAOD genTable names: Generator_x1/x2 (Float_t: pdf()->x.first/second as they are; NanoAOD stores them
+  // with a 14-bit mantissa), Generator_id1/id2 (Int_t: pdf()->id.first/second); -1 when the event has no pdf.
+  Float_t   b_genX1_;
+  Float_t   b_genX2_;
+  Int_t     b_genId1_;
+  Int_t     b_genId2_;
 
   // We own these directly (no TFileService).
   TFile* file_ = nullptr;
@@ -120,6 +131,7 @@ class TtbarIdExtendAnalyzer
   unsigned long long nMissingExpandedId_     = 0;
   unsigned long long nMissingNAddB_      = 0;
   unsigned long long nMissingNAddBMulti_ = 0;
+  unsigned long long nMissingPdf_       = 0;
 };
 
 TtbarIdExtendAnalyzer::TtbarIdExtendAnalyzer(const edm::ParameterSet& iConfig)
@@ -127,10 +139,12 @@ TtbarIdExtendAnalyzer::TtbarIdExtendAnalyzer(const edm::ParameterSet& iConfig)
       tagExpandedId_       (iConfig.getParameter<edm::InputTag>("Expanded_genTtbarId")),
       tagNAddB_        (iConfig.getParameter<edm::InputTag>("nAddBJets")),
       tagNAddBMulti_   (iConfig.getParameter<edm::InputTag>("nAddBJetsMulti")),
+      tagGenInfo_      (iConfig.getUntrackedParameter<edm::InputTag>("generator", edm::InputTag("generator"))),
       tokGenTtbarId_   (consumes<int>(tagGenTtbarId_)),
       tokExpandedId_       (consumes<int>(tagExpandedId_)),
       tokNAddB_        (consumes<int>(tagNAddB_)),
       tokNAddBMulti_   (consumes<int>(tagNAddBMulti_)),
+      tokGenInfo_      (consumes<GenEventInfoProduct>(tagGenInfo_)),
       outputFile_      (iConfig.getParameter<std::string>("outputFile")),
       treeName_        (iConfig.getUntrackedParameter<std::string>("treeName",  "Events")),
       treeTitle_       (iConfig.getUntrackedParameter<std::string>("treeTitle", "ttbar HF categorization extend")),
@@ -146,6 +160,7 @@ TtbarIdExtendAnalyzer::TtbarIdExtendAnalyzer(const edm::ParameterSet& iConfig)
       << "  Expanded_genTtbarId="      << tagExpandedId_.encode()
       << "  nAddBJets="   << tagNAddB_.encode()
       << "  nAddBJetsMulti=" << tagNAddBMulti_.encode()
+      << "  generator=" << tagGenInfo_.encode()
       << "  buildIndex="  << (buildIndex_ ? "yes" : "no")
       << "  verbose="     << (verbosePerEvent_ ? "yes" : "no");
 }
@@ -171,11 +186,16 @@ void TtbarIdExtendAnalyzer::beginJob() {
   tree_->Branch("Expanded_genTtbarId",   &b_expandedId_,   "Expanded_genTtbarId/I");           // Int_t
   tree_->Branch("nAddBJets",       &b_nAddBJets_,       "nAddBJets/I");        // Int_t
   tree_->Branch("nAddBJetsMulti",  &b_nAddBJetsMulti_,  "nAddBJetsMulti/I");   // Int_t
+  tree_->Branch("Generator_x1",    &b_genX1_,           "Generator_x1/F");     // Float_t
+  tree_->Branch("Generator_x2",    &b_genX2_,           "Generator_x2/F");     // Float_t
+  tree_->Branch("Generator_id1",   &b_genId1_,          "Generator_id1/I");    // Int_t
+  tree_->Branch("Generator_id2",   &b_genId2_,          "Generator_id2/I");    // Int_t
 
   edm::LogInfo("TtbarIdExtendAnalyzer")
       << "beginJob: opened '" << outputFile_ << "', created top-level TTree '"
-      << treeName_ << "' with 7 branches "
-      << "(run/luminosityBlock/event/genTtbarId/Expanded_genTtbarId/nAddBJets/nAddBJetsMulti)";
+      << treeName_ << "' with 11 branches "
+      << "(run/luminosityBlock/event/genTtbarId/Expanded_genTtbarId/nAddBJets/nAddBJetsMulti/"
+      << "Generator_x1/Generator_x2/Generator_id1/Generator_id2)";
 }
 
 int TtbarIdExtendAnalyzer::safeGetInt(const edm::Event& iEvent,
@@ -209,6 +229,19 @@ void TtbarIdExtendAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
   if (!iEvent.getHandle(tokNAddB_).isValid())      ++nMissingNAddB_;
   if (!iEvent.getHandle(tokNAddBMulti_).isValid()) ++nMissingNAddBMulti_;
 
+  // The generator fingerprint (STEP 46): the same quantities as NanoAOD's genTable Generator_x1/x2/id1/id2.
+  b_genX1_ = -1.f; b_genX2_ = -1.f; b_genId1_ = -1; b_genId2_ = -1;
+  const auto hGen = iEvent.getHandle(tokGenInfo_);
+  if (hGen.isValid() && hGen->hasPDF()) {
+    const auto* pdf = hGen->pdf();
+    b_genX1_  = pdf->x.first;
+    b_genX2_  = pdf->x.second;
+    b_genId1_ = pdf->id.first;
+    b_genId2_ = pdf->id.second;
+  } else {
+    ++nMissingPdf_;
+  }
+
   if (verbosePerEvent_) {
     edm::LogVerbatim("TtbarIdExtendAnalyzer")
         << "evt run=" << b_run_
@@ -217,7 +250,8 @@ void TtbarIdExtendAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSe
         << "  genTtbarId="     << b_genTtbarId_
         << "  Expanded_genTtbarId="         << b_expandedId_
         << "  nAddBJets="      << b_nAddBJets_
-        << "  nAddBJetsMulti=" << b_nAddBJetsMulti_;
+        << "  nAddBJetsMulti=" << b_nAddBJetsMulti_
+        << "  Generator_x1=" << b_genX1_ << " x2=" << b_genX2_ << " id1=" << b_genId1_ << " id2=" << b_genId2_;
   }
 
   tree_->Fill();
@@ -262,6 +296,7 @@ void TtbarIdExtendAnalyzer::endJob() {
       << "  missing Expanded_genTtbarId="          << nMissingExpandedId_
       << "  missing nAddBJets="       << nMissingNAddB_
       << "  missing nAddBJetsMulti="  << nMissingNAddBMulti_
+      << "  missing pdf (Generator_* = -1)=" << nMissingPdf_
       << "  (output written to '" << outputFile_ << "', tree at top level)";
 }
 
