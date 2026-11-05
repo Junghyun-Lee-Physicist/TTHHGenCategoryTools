@@ -2,7 +2,7 @@
 
 > **목적**: 분석 프레임워크(tempTTHH의 `ttHHanalyzer_unified`)가 이 저장소의 산출물을 어떻게 읽어 per-event 확장 id와 stitch weight로 바꾸는지 — 계약과 실제 구현.
 > **대상 독자**: analyzer 쪽을 만지는 사람; patch 파일 명명을 바꾸려는 사람(필독).
-> **상태**: 소비 방식 DECIDED (D9) · 구현은 tempTTHH에 반영 완료(2026-06) · **명명 rename의 analyzer측 반영은 PROPOSED** (§4).
+> **상태**: 소비 방식 DECIDED (D9) · 구현은 tempTTHH에 반영 완료(2026-06) · **명명 rename의 analyzer측 반영은 PROPOSED** (§4) · **2026-11-05: format 2 — key 에 NanoAOD dataset (TTHHAnalyzer STEP 45, §5)**: 2022–23 은 format 2 만, Run 2·2024 는 format 1 그대로.
 > **관련**: 개념·검증 논리의 원전은 tempTTHH `docs/ttbarCategorization.md` §9–§11 (분석 저장소); 생산측 규칙은 [02](02_physics.md) §5, 수치는 [06](06_validation_results.md).
 
 ## 결론 먼저 (BLUF)
@@ -92,3 +92,76 @@ if (_stitch.inPlan()) {
 ```
 
 **적용 전까지의 현행 계약 = 구 규약.** `Validation/lookup/`의 기존 7편(ttnb_*/TtNb)이 그대로 유효하다. 신규 규약으로 재추출하려면: `bin/extractTtbarIdPatch --filelist filelists/ttbarId-extend/filelist_<S>.txt --out ttbarIdPatch_<S>.root --label <S>` (구 규약 재생산은 `--out ttnb_<S>.root --out-tree TtNb`). 두 규약을 섞지 말 것 — loader의 정확명 매칭이 접두로 갈리기 때문. 사용자가 어느 쪽을 확정하면 이 항목을 DECIDED로 승격하고 [01_status.md](01_status.md) O2를 닫는다.
+
+## 5. format 2 — key 에 NanoAOD dataset (2026-11-05, TTHHAnalyzer STEP 45)
+
+> **왜**: 2022·2022EE 의 ttbar 표본은 main 과 ext1 두 NanoAOD dataset 을 읽는데, 두 dataset 이 **같은 (run, luminosityBlock, event) 를
+> 다른 사건에** 쓴다(여섯 표본에 공유 key 350,885 개, 예: 2022EE TTbar_SemiLep 231,401 — TTHHAnalyzer
+> `docs/claude-remote/daily/lxplus/files/2026-11-04_dup_scan/main_ext_overlap.tsv`). key 가 (run, lumi, event) 이면 ext1 사건이 main 사건의
+> 범주를 받거나, 값이 다른 중복 key 로 load 가 멈춘다(E72). 또 2022–23 lookup 은 NanoAOD dataset 하나에 CRAB 출력 여럿 — MiniAODv4(main,
+> ext1)와 판 A 의 MiniAODv3 — 에서 뽑는다(TTHHAnalyzer `docs/DECISIONS.md` D-2026-11-04-E/F, D-2026-11-05-B). §1–§3 의 key 3 개 규약
+> (00_PROMPT §8, docs/04 D7)은 **format 1 의 것**이고 그대로다; format 2 는 dataset 을 key 의 넷째 칸으로 더한다.
+
+### 5.1 파일 (생산: `extractTtbarIdPatch --input`, [Validation/README.md](../Validation/README.md) §4.2)
+
+| 항목 | format 1 (지금까지, `--filelist`) | format 2 (`--input`) |
+|---|---|---|
+| 파일 이름·tree | `ttnb_<sample>.root` / `TtNb` (`--out`, `--out-tree TtNb`) | 같다 |
+| branch | `run/i luminosityBlock/i event/l genTtbarId/I Expanded_genTtbarId/I nAddBJets/I nAddBJetsMulti/I` | 같은 일곱 + **`datasetIdx/I`** |
+| TNamed `lookup_format` | 없음 | `"tthh-ttnb/2"` |
+| TNamed `nano_datasets` | 없음 | 추출이 처리한 NanoAOD dataset 모두(tt+nb 행이 0 인 것도), 한 줄에 하나, 이름 순; `datasetIdx` = 줄 번호(0 부터) |
+| TNamed `sources` | 없음 | 입력마다 한 줄(TSV): datasetIdx, dataset, priority, filelist, 파일 수, entries, 낮은 번호에 밀린 행, 쓴 tt+nb 행; 끝에 공유 key·conflict 수 |
+| 행 | 입력 순서, 중복 그대로 | `(datasetIdx, run, lumi, event)` 순 정렬, dataset 안에서 key 하나에 한 행 |
+
+**우선순위 규칙**: 한 NanoAOD dataset 안에서 같은 key 가 두 입력에 있으면 **priority 숫자가 낮은 입력의 행**을 쓴다(MiniAODv4 = 0 이
+MiniAODv3 = 1 을 이긴다; 같은 숫자면 먼저 준 `--input`). **모든 행을 비교한다** — 두 입력의 행끼리도, **한 입력 안의 두 행**끼리도, 범주와
+무관하게(v4 의 53 과 v3 의 61 은 conflict), 어느 입력이 메모리에 들든 흘려 읽히든. genTtbarId 나 Expanded_genTtbarId 가 다르면 **멈춘다**(exit 8,
+아무것도 쓰지 않음); 같은 두 행은 하나로. `--on-conflict report` 는 세기만 하고(RESULT WARN) 기본값이 아니다. 다른 dataset 의 같은 key 는 두 행이다.
+입력마다 entries 가 있어야 하고(0 이면 exit 6), `--expect <dataset>=<entries>` 를 주면 그 dataset 의 entries 합과 견준다(다르면 exit 6); sidecar 파일
+하나가 두 입력에(또는 한 입력에 두 번) 있으면 exit 2(정규화한 경로로 비교). 출력은 임시 파일에 쓰고 성공할 때만 `--out` 으로 이름을 바꾼다(있는
+`--out` 은 `--replace` 로만). 0 이 아닌 모든 exit 는 마지막 줄 `RESULT FAIL … (exit N)`.
+메모리·읽기: dataset 마다 가장 큰 입력(v4)을 흘려 읽고(그 key 의 Bloom filter — 입력 안에서 되풀이될 수 있는 key 가 있으면 그 입력을 한 번 더 읽어
+정확히 비교), 나머지(v3)는 모든 행을 32 B 씩 메모리에.
+
+### 5.2 analyzer 계약 (TTHHAnalyzer `include/ExpandedTtbarId.h`, `src/ExpandedTtbarId.cc`, STEP 45)
+
+- **load**: TNamed `lookup_format` 이 없으면 format 1(§1 그대로; `nano_datasets`·`datasetIdx` 가 있으면 E79), `"tthh-ttnb/2"` 이면 format 2,
+  다른 값은 E79. format 2 는 `nano_datasets`(빈 줄·중복·`/<primary>/<processed>/NANOAODSIM` 이 아닌 줄 없음)와 `datasetIdx/I`(모든 행이
+  범위 안)가 있어야 한다(아니면 E79). map 의 key = `(datasetIdx, run, lumi, event)` — **한 dataset 안의 값이 다른 중복이 E72**, 다른
+  dataset 의 같은 (run, lumi, event) 는 중복이 아니다. format 1 의 FNV 해시는 그대로(byte-identical, 00_PROMPT §8); format 2 만 dataset 을 섞는다.
+- **era 규칙**: NanoAODv12 era(2022, 2022EE, 2023, 2023BPix)는 format 2 만 — format 1 lookup 은 **E79** 로 멈춘다(`setRequireDatasetKey`).
+  Run 2 와 2024 는 format 1 을 지금처럼 읽는다(format 2 도 읽을 수 있다).
+- **입력 파일의 dataset**: event loop 전에 job 의 입력 파일마다 NanoAOD dataset 을 정한다(`bindInputs`) — TTHHAnalyzer `include/TtbarVetoKey.h`
+  `inputOrigins`, STEP 43 의 event veto 와 **같은 대응**: lxplus wrapper 의 `TTHH_INPUT_LFNS`(복사 방식의 지역 사본), 없으면 입력 경로의
+  `/store/mc/<campaign>/<primary>/NANOAODSIM/<processed>/…` 부분 → `/<primary>/<campaign>-<processed>/NANOAODSIM`. dataset 을 정할 수 없거나
+  `nano_datasets` 에 없으면 **E78**(job 시작에서).
+- **사건마다**: analyzer 가 입력 파일이 바뀔 때마다(`itreestream::number()`) 그 파일을 알리고(`selectInput`), `resolve(run, lumi, event,
+  genTtbarId)` 는 지금 파일의 dataset 으로 찾는다 — main·btagtrig·debug(`loop()`)와 prescan(`runPrescan()`) 모두. hit → 저장된
+  Expanded_genTtbarId, miss → NanoAOD genTtbarId(§1 과 같다). **genTtbarId self-check(E73)는 그대로**.
+- **로그**: `format = 2 (tthh-ttnb/2) ...` 와 dataset 목록, 입력의 dataset 분포 한 줄, 파일이 바뀔 때마다 `input i (<LFN>) -> dataset [d]`, 끝에
+  `[TTNB_COVERAGE]`(그대로)와 dataset 마다 `[TTNB_COVERAGE_DS] sample=… ds=d rows=… hits=… calls=…`.
+
+| 검사 (format 2) | 동작 |
+|---|---|
+| format 1 lookup 을 NanoAODv12 era 에서 / `lookup_format` 이 다른 값 / `nano_datasets`·`datasetIdx` 결함 | exit **79** |
+| 입력 파일의 dataset 을 정할 수 없음 / `nano_datasets` 에 없음 / `TTHH_INPUT_LFNS` 가 입력과 다름 | exit **78** |
+| 한 dataset 안의 값이 다른 중복 key | exit 72 (format 1 과 같은 번호) |
+| hit 의 genTtbarId ≠ NanoAOD | exit 73 (그대로) |
+
+### 5.3 판 A·B 의 입력 (TTHHAnalyzer `tools/lxplus/README.md` §18)
+
+판 A = MiniAODv4(main, ext1; priority 0) + MiniAODv3(main 만, lumi mask; priority 1), 판 B = MiniAODv4 만. MiniAODv3 출력의 사건은 main
+NanoAOD dataset 의 사건이므로 `--input` 왼쪽은 **main 의 NanoAOD dataset**. dataset 대응표: TTHHAnalyzer
+`docs/claude-remote/daily/lxplus/files/2026-11-04_ttbar_parents/ttbar_crab_table.tsv`(nano_dataset, v4_dataset, v3_dataset). 판의 lookup
+디렉터리(`DerivedCorr/expandedTtbarId/<era>_A`, `_B`)의 sha256 은 STEP 43 의 veto index 가 고정한다.
+
+### 5.4 시험
+
+- 생산: `Validation/tests/test_extract_format2.sh <new tool> --old <format 2 전의 도구>`(22 check) — 합성 extend 파일로 v4 우선(v4 가 큰
+  입력·작은 입력일 때 모두, 명령줄 순서와 무관), 두 dataset 의 같은 key, 두 입력의 conflict 셋(exit 8, 출력 없음)과 `--on-conflict report`, **한
+  입력 안의 같은 key**(tt+nb 둘·tt+nb 와 아닌 것·tt+nb 아닌 둘 — 그 입력이 흘려 읽힐 때와 메모리에 들 때 모두 exit 8; 같은 두 행은 하나), 0 인
+  입력과 `--expect`(6), `--replace` 와 임시 파일(4), 같은 sidecar 파일(`..`·`//`·symlink, 한 입력에 두 번; 2), 잘못된 사용·입력(2/3/5/7) — 실패마다
+  `RESULT FAIL … (exit N)`, **format 1 = format 2 전의 도구**(stdout·exit code·출력 파일의 md5 — ROOT 의 `?reproducible=` 모드).
+- analyzer: TTHHAnalyzer `test/test_ExpandedTtbarId.cc`(단위), `test/offline_smoke/run_offline_smoke.sh` 의 STEP 45 블록(main·ext1 이 같은
+  key 를 다른 사건에 쓰는 2022 표본 — 출력이 파일의 dataset 을 따르고 입력 순서와 무관), `run_regression.sh`(Run 2·2024 의 format 1
+  lookup 으로 base 와 같음).

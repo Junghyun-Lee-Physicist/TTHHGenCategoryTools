@@ -2,7 +2,7 @@
 
 > **목적**: "왜 이 선택인가? 다른 후보는? 아직 유효한가?"의 단일 출처.
 > **대상 독자**: 설계를 바꾸려는 사람; DECIDED를 다시 열기 전 반드시 여기 확인.
-> **상태**: 살아있는 문서 — 마지막 갱신 **2026-10-16** (D20 보탬: lxplus 에서 오래 걸리는 단계는 condor job — tmux 에 걸지 않는다, T-44; D22: 2024 TTbar_Hadronic job 1012 의 출력을 같은 입력·코드로 lxplus 에서 만들어 CRAB 자리에 두고 manager 완료 점검으로 받는다; 나중에 CRAB 재생산과 비교, O11). 그 전 **2026-10-15** (D21: 2024(Run 3) extend 를 v15 영역에서; `dataset: ""` 와 `--fill`; release 짝 검사). 그 전 **2026-10-14** (D19: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`; D20: 사람 없이 도는 것은 결정론적 manager, AI 세션은 branch 에서). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
+> **상태**: 살아있는 문서 — 마지막 갱신 **2026-11-05** (D24 DECIDED: lookup format 2, TTHHAnalyzer STEP 45 `8eac0dc`) · 그 전 **2026-10-16** (D20 보탬: lxplus 에서 오래 걸리는 단계는 condor job — tmux 에 걸지 않는다, T-44; D22: 2024 TTbar_Hadronic job 1012 의 출력을 같은 입력·코드로 lxplus 에서 만들어 CRAB 자리에 두고 manager 완료 점검으로 받는다; 나중에 CRAB 재생산과 비교, O11). 그 전 **2026-10-15** (D21: 2024(Run 3) extend 를 v15 영역에서; `dataset: ""` 와 `--fill`; release 짝 검사). 그 전 **2026-10-14** (D19: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`; D20: 사람 없이 도는 것은 결정론적 manager, AI 세션은 branch 에서). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
 > **관련**: 시간순 이력은 [03_changelog.md](03_changelog.md), 실패 사례는 [08_troubleshooting.md](08_troubleshooting.md).
 
 각 항목: 선택 / 근거 / 검토·기각된 대안 / 상태.
@@ -327,6 +327,24 @@ HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳
 - **기각한 대안**: ① unmatched 사건을 위해 extend 를 다시 만든다 — 그 parent MiniAOD 파일이 지금 VALID 가 아니어서(추정) 같은 입력을 만들 수 없고 영향이
   통계보다 훨씬 작다. ② 2024 의 plan AN 을 미룬다 — 사용자의 우선순위(TT4b 사용, TTHHAnalyzer D-2026-10-15-F)에 어긋난다.
 - **남은 일**: 파일 단위 확인(`Validation/scripts/das_lineage.py`, O3 — 아직 실사용 안 됨). 결과가 (i) 와 다르면 이 항목을 다시 본다.
+
+## D24 — 2022–23 tt+nb lookup 은 format 2: key 에 NanoAOD dataset (`extractTtbarIdPatch --input`) · **DECIDED** 2026-11-05(사용자 15:2x KST "STEP 45 시작", 17:5x KST "커밋·push 하기" — TTHHAnalyzer STEP 45 `8eac0dc`, CEO 의 STEP 45 지시서)
+
+- **선택**: lookup 의 key 를 `(datasetIdx, run, luminosityBlock, event)` 로 — 같은 `ttnb_<S>.root` / `TtNb` 와 branch 일곱 + `datasetIdx/I`,
+  TNamed `nano_datasets`(추출이 처리한 NanoAOD dataset 모두, 이름 순; 번호 = 줄), `lookup_format = "tthh-ttnb/2"`, `sources`. 생산은 CRAB
+  출력(MiniAOD dataset)마다 `--input <NanoAOD dataset>=<filelist>[:<priority>]`: 한 dataset 안에서 같은 key 는 priority 숫자가 낮은 입력의 행
+  (MiniAODv4 = 0 > MiniAODv3 = 1), **모든 행**을 비교해(tt+nb 가 아닌 행도, 한 입력 안의 두 행도) genTtbarId·Expanded 가 다르면 멈춘다(exit 8, 출력
+  없음); 입력마다 entries 가 있어야 하고(`--expect` 로 CRAB 출력의 사건 수와 견줌), 한 sidecar 파일은 한 번만; 출력은 임시 파일을 쓰고 끝에 이름을
+  바꾼다(`--replace` 없이는 있는 파일을 덮지 않음). 판 A = v4 + v3, 판 B = v4 만. 2022–23 analyzer 는 format 1 을 거절한다(TTHHAnalyzer E79).
+  계약: [07](07_analyzer_integration.md) §5, 명령: [Validation/README.md](../Validation/README.md) §4.2, 분석 쪽 기록: TTHHAnalyzer
+  `docs/changes/STEP_45_ttnb_dataset_key.md`.
+- **근거**: 2022·2022EE 의 main 과 ext1 NanoAOD dataset 이 같은 (run, lumi, event) 를 **다른 사건에** 쓴다(여섯 표본에 공유 key 350,885;
+  TTHHAnalyzer `docs/claude-remote/daily/lxplus/files/2026-11-04_dup_scan/main_ext_overlap.tsv`) — D7 의 key 3 개로는 ext1 사건이 main 사건의
+  범주를 받는다. 2017·2018·2024 는 표본마다 dataset 이 하나라 D7 이 맞았다; 그 lookup(format 1)은 그대로 유효하다.
+- **검토·기각한 대안**: ① dataset 이름을 행마다 문자열로 — 파일이 커지고 analyzer 가 사건마다 문자열을 비교한다. ② dataset 마다 lookup 파일
+  하나 — analyzer 의 표본 이름 규약(`ttnb_<sample>.root`)과 STEP 43 의 sha256 고정을 바꿔야 한다. ③ (run, lumi, event) 그대로 두고 ext1 의 겹치는
+  key 를 빼기 — 그 사건들의 tt+nb 를 잃는다.
+- **상태**: PROPOSED — 결정은 TTHHAnalyzer CEO 의 STEP 45 지시서(2026-11-05, 두 차례), 사용자의 말을 받으면 DECIDED 로.
 
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 

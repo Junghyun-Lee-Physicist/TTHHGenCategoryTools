@@ -1765,3 +1765,27 @@ unmatched 가 어디에 어떻게 나오는지).
 
 - 사용자(10-17): "해당 사항을 기록해 두되 네 권고대로 2024 lookup을 그대로 쓴다." → [04](04_decisions.md) D23(근거·영향·기각한 대안), [06](06_validation_results.md)·[01](01_status.md) O10 에 표시.
 - **코드 변경 없음.**
+
+## 2026-11-05 — `extractTtbarIdPatch` format 2: key 에 NanoAOD dataset (TTHHAnalyzer STEP 45; 커밋 전, 맥에서 시험; 독립 검토 뒤 고침 포함)
+
+**동작 변경 고지 (00_PROMPT §5)** — 새 모드 하나, 옛 모드는 그대로:
+- **무엇**: `--input <NanoAOD dataset>=<filelist>[:<priority>]`(되풀이)를 주면 **format 2** lookup 을 쓴다 — 같은 `ttnb_<S>.root` / `TtNb`
+  와 branch + `datasetIdx/I`, TNamed `nano_datasets`(dataset 이름 순, 행이 0 인 것도), `lookup_format = "tthh-ttnb/2"`, `sources`(입력·dataset 의
+  entries 포함). 한 dataset 안의 같은 key 는 priority 숫자가 낮은 입력의 행(v4 = 0 > v3 = 1). **모든 행을 비교**(tt+nb 가 아닌 행도, 한 입력 안의
+  두 행도, 그 입력이 메모리에 들든 흘려 읽히든 — 흘려 읽는 입력은 Bloom filter 로 되풀이될 수 있는 key 를 찾아 한 번 더 읽음): genTtbarId·
+  Expanded 가 다르면 exit 8, 출력 없음(`--on-conflict report` 는 세기만). 다른 dataset 의 같은 key 는 두 행. entries 가 0 인 입력·`--expect` 와 다른
+  dataset 은 exit 6; 같은 sidecar 파일 둘(정규화한 경로)은 exit 2; 출력은 임시 파일 → 성공할 때만 이름 바꾸기, 있는 `--out` 은 `--replace` 로만
+  (아니면 exit 4); 0 이 아닌 모든 exit 는 마지막 줄 `RESULT FAIL … (exit N)`. 계약: [07](07_analyzer_integration.md) §5, 명령:
+  [Validation/README.md](../Validation/README.md) §4.2, 결정: [04](04_decisions.md) D24(DECIDED 2026-11-05).
+- **왜**: 2022·2022EE 의 main 과 ext1 NanoAOD dataset 이 같은 (run, lumi, event) 를 다른 사건에 쓴다(공유 key 350,885; TTHHAnalyzer
+  `docs/claude-remote/daily/lxplus/files/2026-11-04_dup_scan/main_ext_overlap.tsv`) — (run, lumi, event) key 로는 ext1 사건이 main 사건의
+  범주를 받는다. 2022–23 lookup 은 v4·v3 CRAB 출력 여럿에서 뽑는다(TTHHAnalyzer D-2026-11-04-E/F, D-2026-11-05-B: 판 A = v4 + v3, 판 B = v4).
+- **전후**: `--filelist`(format 1)는 **바이트까지 같다** — `Validation/tests/test_extract_format2.sh --old` 가 stdout·exit code·출력 파일의
+  md5(ROOT `?reproducible=`)로 확인(여섯 경우, exit 0·7·3 포함). analyzer(TTHHAnalyzer `ExpandedTtbarId`)는 2022–23 에서 format 1 을 거절(E79),
+  Run 2·2024 는 format 1 그대로.
+- **검토 뒤 고침(같은 날)**: 독립 검토가 찾은 비대칭 — 메모리에 든 입력은 모든 행을, 흘려 읽는 입력은 tt+nb 행만 한 입력 안에서 비교 — 을 없앰
+  (Bloom filter + 둘째 읽기); 0 인 입력과 `--expect`; `RESULT FAIL` 줄; `--replace` 와 임시 파일; 같은 파일은 filelist 이름이 아니라 정규화한 경로로.
+- **시험(맥, ROOT 6.34.08)**: `test_extract_format2.sh` `RESULT OK test_extract_format2: 22 PASS, 0 FAIL`. lxplus 실물(큰 v4 입력의 시간·메모리,
+  둘째 읽기의 시간)은 아직 — TTHHAnalyzer `tools/lxplus/README.md` §18.
+- **파일**: `Validation/tools/extractTtbarIdPatch.cc`, `Validation/tests/`(새: `test_extract_format2.sh`, `make_sidecar.C`, `dump_lookup.C`),
+  `docs/07_analyzer_integration.md` §5, `Validation/README.md` §2·§4·§4.2, [04](04_decisions.md) D24, `00_PROMPT.md` §4(exit code), 이 항목.
