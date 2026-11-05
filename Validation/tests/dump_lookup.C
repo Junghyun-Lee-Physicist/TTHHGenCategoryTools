@@ -2,7 +2,8 @@
 //   root -l -b -q 'dump_lookup.C("ttnb_X.root","TtNb")'
 // Lines: NAMED <name> (then its text, one LINE per line, then END) for lookup_format, nano_datasets, sources;
 //   TREE <name> <entries>; LEAF <name> <type> per leaf; ROW <datasetIdx or -1> run lumi event genTtbarId
-//   Expanded_genTtbarId nAddBJets nAddBJetsMulti per entry, in the file's order.
+//   Expanded_genTtbarId nAddBJets nAddBJetsMulti per entry, in the file's order; [STEP 46] a tree with Generator_x1
+//   (format 3) adds Generator_x1 Generator_x2 (%.9g: exact for a float) Generator_id1 Generator_id2 to each ROW.
 #include <cstdio>
 #include <string>
 
@@ -48,9 +49,22 @@ void dump_lookup(const char* file, const char* tree = "TtNb") {
   t->SetBranchAddress("nAddBJetsMulti", &nmulti);
   const bool hasDs = t->GetBranch("datasetIdx") != nullptr;
   if (hasDs) t->SetBranchAddress("datasetIdx", &ds);
+  Float_t x1 = 0, x2 = 0;
+  Int_t id1 = 0, id2 = 0;
+  const bool hasFp = t->GetBranch("Generator_x1") != nullptr;   // [STEP 46] format 3
+  if (hasFp) {
+    t->SetBranchAddress("Generator_x1", &x1);
+    t->SetBranchAddress("Generator_x2", &x2);
+    t->SetBranchAddress("Generator_id1", &id1);
+    t->SetBranchAddress("Generator_id2", &id2);
+  }
   for (Long64_t i = 0; i < t->GetEntries(); ++i) {
     t->GetEntry(i);
-    std::printf("ROW %d %u %u %llu %d %d %d %d\n", hasDs ? ds : -1, run, lumi, (unsigned long long)event, gen, exp,
-                nadd, nmulti);
+    if (hasFp)
+      std::printf("ROW %d %u %u %llu %d %d %d %d %.9g %.9g %d %d\n", hasDs ? ds : -1, run, lumi, (unsigned long long)event,
+                  gen, exp, nadd, nmulti, static_cast<double>(x1), static_cast<double>(x2), id1, id2);
+    else
+      std::printf("ROW %d %u %u %llu %d %d %d %d\n", hasDs ? ds : -1, run, lumi, (unsigned long long)event, gen, exp,
+                  nadd, nmulti);
   }
 }

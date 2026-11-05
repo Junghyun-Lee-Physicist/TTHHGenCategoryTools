@@ -165,3 +165,53 @@ NanoAOD dataset 의 사건이므로 `--input` 왼쪽은 **main 의 NanoAOD datas
 - analyzer: TTHHAnalyzer `test/test_ExpandedTtbarId.cc`(단위), `test/offline_smoke/run_offline_smoke.sh` 의 STEP 45 블록(main·ext1 이 같은
   key 를 다른 사건에 쓰는 2022 표본 — 출력이 파일의 dataset 을 따르고 입력 순서와 무관), `run_regression.sh`(Run 2·2024 의 format 1
   lookup 으로 base 와 같음).
+
+### 5.5 format 3 — 한 행 = 한 사건: key + 사건 지문(fingerprint) (2026-11-05, TTHHAnalyzer STEP 46)
+
+> **왜**: 중앙 NanoAODv12 에는 한 dataset 이 **같은 (run, luminosityBlock, event) 의 서로 다른 사건 둘**을 유효한 두 파일에 담는 것이
+> 있다(lxplus 11-05, 모든 사본의 생성 변수 일곱을 비교: 2022EE TTbar_DiLep 684,185 key, 2022EE TTbar_Hadronic ext1 646,584, 2023BPix
+> TTbar_SemiLep 5,403,000, 2022 QCD_HT1200to1500 42,517; 예 2022EE DiLep key (1, 86001, 60974001) 의 x1 0.0259 / 0.0320, x2 0.3788 /
+> 0.0862). format 2 의 key (dataset, run, lumi, event) 로는 둘을 가를 수 없다 — 사건의 생성 변수("지문")로 가른다.
+
+**입력(CRAB sidecar, lxplus 의 `TtbarIdExtender` 가 더함)**: `Generator_x1/F`, `Generator_x2/F` = `GenEventInfoProduct::pdf()->x.first /
+x.second`(float, 반올림 없음), `Generator_id1/I`, `Generator_id2/I` = `pdf()->id.first / id.second`; pdf 가 없으면 넷 다 −1.
+`extractTtbarIdPatch --input …` 의 **모든 입력 파일에 넷이 다 있으면 format 3**, 어느 파일에도 없으면 format 2(전과 똑같이), 섞이면(넷이 있는
+파일과 없는 파일, 일부만 있는 파일) **exit 5**(한 run 은 한 형식).
+
+| 항목 | format 2 | format 3 |
+|---|---|---|
+| branch | 일곱 + `datasetIdx/I` | + `Generator_x1/F Generator_x2/F Generator_id1/I Generator_id2/I`(sidecar 의 값 그대로) |
+| TNamed `lookup_format` | `tthh-ttnb/2` | `tthh-ttnb/3` |
+| `nano_datasets`, `sources` | §5.1 | 같다; `sources` 에 dataset 마다 "사건 둘 이상인 key" 수 |
+| 행 | dataset 안에서 key 하나에 한 행 | **사건 하나에 한 행**: (datasetIdx, run, lumi, event, 지문) 순 정렬 |
+
+**규칙(한 NanoAOD dataset 안)**: 같은 key·**비트까지 같은** 지문 = 같은 사건 → format 2 의 우선순위(v4 0 > v3 1)와 conflict(exit 8) 그대로.
+같은 key·다른 지문 = 다른 사건 → 둘 다 남긴다. 그리고 **다른 두 사건 중 하나가 tt+nb 이면 NanoAOD 에서 가를 수 있어야 한다**: id1, id2 가 같고
+x1, x2 가 각각 2^-10(상대) 안이면 "너무 가까움" → **exit 9**, 아무것도 쓰지 않음(`--on-conflict report` 는 세기만, RESULT WARN). NanoAOD 는
+x1, x2 를 14 bit 로 줄여 저장하므로(CMSSW 13_0_X `PhysicsTools/NanoAOD/python/globals_cff.py` genTable `precision=14`) 2^-10 은 그 걸음의 16 배 —
+analyzer 의 정확한 짝짓기(아래)와 E84 의 "가까운 빗나감"(2^-11)이 두 사건을 헷갈리지 않게 하는 여유다. 모든 행 쌍을 비교하는 것은 format 2 와
+같다(메모리에 든 입력끼리, 흘려 읽는 입력과 그 key 의 메모리 행, 흘려 읽는 입력 안의 되풀이 key 는 둘째 읽기에서). 메모리에 드는 행은 48 B.
+
+**analyzer 계약(TTHHAnalyzer `ExpandedTtbarId`, STEP 46)**: NanoAODv12 era(2022, 2022EE, 2023, 2023BPix)는 **format 3 만**(format 1·2 는 E79);
+Run 2·2024 는 format 1 그대로. 사건의 (dataset, key) 행들 가운데 id1, id2 가 사건의 NanoAOD `Generator_id1/id2` 와 같고 x1, x2 를 **NanoAOD 가 하듯
+14 bit 로 줄인 값**(CMSSW `DataFormats/Math/interface/libminifloat.h` `ReduceMantissaToNbitsRounding` 을 그대로 흉내: 버리는 bit 의 첫째가
+1 이면 올림, 단 남는 mantissa 가 2^14−2 이상이면 버림 — 흔한 반올림과 다르다)이 사건의 `Generator_x1/x2` 와 **비트까지 같은** 행 하나 →
+그 범주(E73 self-check 그대로). 맞는 행이 없으면 "key hit, other event": tt+nb 가 아님, NanoAOD genTtbarId(coverage 줄의 `other=`). 둘 이상이면
+**E83**; 정확히 맞는 행은 없는데 2^-11 안의 행이 있으면 **E84**(줄이는 방식이 NanoAOD 와 다르다 — bit 수가 틀렸거나 sidecar 가 x 를 다르게
+저장 — 조용히 "other event" 로 넘기지 않음). load 에서 한 key 의 두 행이 위 "너무 가까움"이면 E83(이 생산기가 만든 lookup 이 아님). 네 NanoAOD
+branch 가 입력에 없으면 E11. (2 차, 2026-11-05) 정확히 맞는 행이 없는데 사건의 14 bit x1·x2 에 ids 만 다른 행, 또는 x1·x2 가 뒤바뀐 행이 있으면
+**E85**(sidecar 의 규약이 NanoAOD 와 다름); load 에서도 E85 — 행의 −1 규칙(pdf 없음 = 넷 다 −1), x ∈ [0, 1], 16 행 이상이 모두 pdf 없음 또는 모두
+x1 = x2. 그 밖의 차이는 prescan 이 dataset 마다 적는 hit 수(`ttnbHits_ds<d>`)를 `consolidate_prescan.py --ttbar-veto-index` 가 lookup 의 행과 견주어
+잡는다(TTHHAnalyzer `docs/changes/STEP_46_event_fingerprint.md` §5.2). 그래서 생산기는 sidecar 의 값을 그대로 쓴다(바꾸지 않음).
+
+| 생산기 exit (format 3) | 뜻 |
+|---|---|
+| 0 | `RESULT OK … format 3: <rows> rows, …, <k> key(s) with two or more events, <c> conflict(s), <p> too-close pair(s)` |
+| 5 | 지문 branch 가 섞인 입력(넷이 있는 파일과 없는 파일, 일부만 있는 파일), 그 밖 format 2 의 5 |
+| 8 | 같은 사건(key + 같은 지문)의 genTtbarId / Expanded_genTtbarId 가 다름 |
+| 9 | 한 key 의 다른 두 사건(하나는 tt+nb)이 NanoAOD 정밀도로 가를 수 없을 만큼 가까움(id 같고 x1, x2 가 2^-10 안) |
+| 2 / 3 / 4 / 6 / 7 | format 2 와 같음; 마지막 줄 `RESULT FAIL extractTtbarIdPatch format 3: … (exit N)` |
+
+시험: `Validation/tests/test_extract_format3.sh <new tool> --old <format 3 전의 도구>`(17 check — 한 입력·두 입력의 다른 사건 둘, 같은 사건의
+우선순위, 같은 지문의 다른 범주 exit 8(흘려 읽힘·메모리), 너무 가까운 두 사건 exit 9(흘려 읽힘·메모리·둘 사이), 바로 바깥(2^-10)·다른 id 는
+통과, 섞인 입력 exit 5, **format 2 와 format 1 = 전의 도구**). analyzer 쪽: TTHHAnalyzer `test/test_ExpandedTtbarId.cc` §6, smoke 의 STEP 46 블록.

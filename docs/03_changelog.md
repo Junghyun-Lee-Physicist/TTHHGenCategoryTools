@@ -1789,3 +1789,22 @@ unmatched 가 어디에 어떻게 나오는지).
   둘째 읽기의 시간)은 아직 — TTHHAnalyzer `tools/lxplus/README.md` §18.
 - **파일**: `Validation/tools/extractTtbarIdPatch.cc`, `Validation/tests/`(새: `test_extract_format2.sh`, `make_sidecar.C`, `dump_lookup.C`),
   `docs/07_analyzer_integration.md` §5, `Validation/README.md` §2·§4·§4.2, [04](04_decisions.md) D24, `00_PROMPT.md` §4(exit code), 이 항목.
+
+## 2026-11-05 (2) — patch 의 format 3: 한 행 = 한 사건, 사건 지문 (TTHHAnalyzer STEP 46)
+
+- **왜**: 중앙 NanoAODv12 에서 한 dataset 이 같은 (run, luminosityBlock, event) 의 **서로 다른 사건 둘**을 유효한 두 파일에 담는다(lxplus 11-05:
+  2022EE TTbar_DiLep 684,185 key, 2022EE TTbar_Hadronic ext1 646,584, 2023BPix TTbar_SemiLep 5,403,000, 2022 QCD_HT1200to1500 42,517). format 2 의
+  key 로는 둘을 가를 수 없다.
+- **`extractTtbarIdPatch --input`**: 모든 입력 파일에 `Generator_x1/F Generator_x2/F Generator_id1/I Generator_id2/I`(CRAB sidecar 의
+  `GenEventInfoProduct::pdf()`)가 있으면 **format 3**(`tthh-ttnb/3`): 한 dataset 안에서 같은 key·비트까지 같은 지문 = 같은 사건(format 2 의
+  우선순위·conflict exit 8), 다른 지문 = 다른 사건(둘 다 남김); 다른 두 사건(하나는 tt+nb)이 id 가 같고 x1·x2 가 2^-10 안이면 exit 9(NanoAOD 는
+  x 를 14 bit 로 줄인다: CMSSW 13_0_X genTable `precision=14`). 지문 branch 가 섞인 입력은 exit 5. 없으면 format 2 그대로(전의 도구와 같은
+  출력·stdout, 시험이 견줌), format 1 은 바이트까지 그대로.
+- **시험(맥, ROOT 6.34.08)**: `test_extract_format3.sh`(새) `RESULT OK test_extract_format3: 17 PASS, 0 FAIL`, `test_extract_format2.sh` 22 PASS
+  그대로(`--old` = format 3 전의 도구). `make_sidecar.C` 다섯째 인자(지문 branch), `dump_lookup.C` 의 format 3 ROW. lxplus 실물은 아직.
+- **파일**: `Validation/tools/extractTtbarIdPatch.cc`, `Validation/tests/test_extract_format3.sh`(새), `make_sidecar.C`, `dump_lookup.C`,
+  `docs/07_analyzer_integration.md` §5.5, `Validation/README.md` §2·§4·§4.3, `00_PROMPT.md` §4(exit 5·9), 이 항목. `TtbarIdExtender/`(CMSSW
+  plugin)는 lxplus 가 고치고 cmsRun 으로 시험한다 — 여기서는 바꾸지 않았다.
+- **2 차(같은 날, 독립 검토 뒤)**: 둘째 읽기의 메모리를 적었다 — 흘려 읽는 입력에서 되풀이될 수 있는 key 의 모든 행을 메모리에 둔다(행 56 B,
+  key 16 B): 2023BPix TTbar_SemiLep ≈ 0.6 GB 더(머리말, `Validation/README.md` §4.3, TTHHAnalyzer README §18). 코드는 그대로(주석만); 시험은 다시
+  돌림(format 2·3).

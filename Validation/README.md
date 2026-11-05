@@ -2,7 +2,7 @@
 
 > **목적**: ttbarId-extend ↔ 중앙 NanoAODv9의 전량 byte-identity 검증, 분포 비교, analyzer용 patch 파일 추출의 **복붙 가능한 명령 모음**.
 > **대상 독자**: 검증을 (재)수행하거나 새 샘플을 추가하는 사람. 검사 로직·설계는 [../docs/05_architecture.md](../docs/05_architecture.md) §3, 완료된 결과 수치는 [../docs/06_validation_results.md](../docs/06_validation_results.md).
-> **상태**: 워크플로 DECIDED. **2026-11-05: patch 의 format 2 — `--input`, key 에 NanoAOD dataset(2022–23 은 이것만, §4.2; TTHHAnalyzer STEP 45).** 2026-07-28: **HTCondor 전량 검증 경로 신설·실동작 확인**(§4.0) — 스모크가 인터랙티브와 전 카운터 일치. 2026-06 캠페인(2017)은 인터랙티브 경로로 완료. 2026-07-05: 도구 rename `extractTtNb` → `extractTtbarIdPatch` (로직 무변경, D12) — 이 문서의 명령은 신규약 기준, 구규약 재생산법 병기.
+> **상태**: 워크플로 DECIDED. **2026-11-05: patch 의 format 3 — 같은 `--input` 에 sidecar 가 사건 지문 `Generator_x1/x2/id1/id2` 를 가지면 한 행 = 한 사건(2022–23 은 이것만, §4.3; TTHHAnalyzer STEP 46). format 2 — `--input`, key 에 NanoAOD dataset(§4.2; STEP 45).** 2026-07-28: **HTCondor 전량 검증 경로 신설·실동작 확인**(§4.0) — 스모크가 인터랙티브와 전 카운터 일치. 2026-06 캠페인(2017)은 인터랙티브 경로로 완료. 2026-07-05: 도구 rename `extractTtNb` → `extractTtbarIdPatch` (로직 무변경, D12) — 이 문서의 명령은 신규약 기준, 구규약 재생산법 병기.
 > **환경**: CMSSW 불필요. `root-config`가 PATH에 있는 아무 ROOT 6.x 환경 (KNU Tier3, lxplus 등). 소스는 `Validation/tools/`에 있고 BuildFile.xml이 없어 **scram이 건드리지 않는다**(standalone `make`). 소스를 `src/`가 아니라 `tools/`에 둔 이유는 [../docs/08_troubleshooting.md](../docs/08_troubleshooting.md) T-15.
 
 ## 한눈에 보는 워크플로 (번호 없음 — 아래 §0부터가 실행 순서)
@@ -316,7 +316,7 @@ bin/plotTtbarCompare --match match_tt4b.root --out tt4b.png --label tt4b
 | `matchTtbarId` | **결정판 검증(소샘플)**: ttbarId-extend 전체를 3-key map으로, nano 전 event lookup — id byte-identity + 확장 무결성 | 0 ok / 5 unmatched / 6 mismatch / 7 dup / 8 확장 위반 / 9 run≠1 |
 | `sortSplitExtend` | 대샘플 전처리: external sort → `part%05d.root`(50만 row≈16 MB)+`index.txt` | — |
 | `matchTtbarIdSorted` | 대샘플용 matchTtbarId (part 1개만 상주) | matchTtbarId와 동일 계약 |
-| `extractTtbarIdPatch` | tt+nb row만 추출한 per-sample patch (analyzer 소비용). `--filelist` = format 1, `--input` = format 2 (key 에 NanoAOD dataset, 2022–23; §4.2) | 0 / 2 args / 3 filelist / 7 selection 불일치; format 2 는 + 4 출력(있는 파일은 `--replace` 로만) / 5 입력 파일·branch / 6 entries(0 인 입력, `--expect`) / 8 conflict(같은 dataset 의 key 하나에 genTtbarId·Expanded 가 다른 두 행) — 실패는 마지막 줄 `RESULT FAIL … (exit N)` |
+| `extractTtbarIdPatch` | tt+nb row만 추출한 per-sample patch (analyzer 소비용). `--filelist` = format 1, `--input` = format 2 (key 에 NanoAOD dataset; §4.2) 또는 [STEP 46] format 3 (입력 파일마다 `Generator_x1/x2/id1/id2` 가 있으면: 한 행 = 한 사건, 2022–23 은 이것만; §4.3) | 0 / 2 args / 3 filelist / 7 selection 불일치; format 2·3 은 + 4 출력(있는 파일은 `--replace` 로만) / 5 입력 파일·branch(format 3: 지문 branch 가 섞인 입력도) / 6 entries(0 인 입력, `--expect`) / 8 conflict(같은 dataset 의 같은 사건에 genTtbarId·Expanded 가 다른 두 행) / 9(format 3) 한 key 의 다른 두 사건이 NanoAOD 정밀도로 너무 가까움 — 실패는 마지막 줄 `RESULT FAIL … (exit N)` |
 | `makeTtbarHist`+`plotTtbarCompare` | 분포·shape 비교 (per-bin ratio 숫자, 1 이탈은 red) | ratio≠1 sub-code를 stdout 나열 |
 | `scanOrder` | filelist 정렬/키범위 진단 (스트리밍) | — |
 | `scripts/submit_validation_condor.py` | **전량 검증 오케스트레이션** (§4.0): `--sort-only` → `--preflight` → `--smoke` → 전량 → `--report` → `--resubmit-failed` | preflight 가 FAIL 나열 / job exit 는 §4.0 표 |
@@ -402,7 +402,7 @@ done
 
 출력 로그의 `selected tt+nb rows`와 `tt+bbb(61+62) / tt+4b(71+72)` 개수는 같은 샘플의 match 검증 로그와 **정확히 일치**해야 한다 (일치 = 추출 정확). 2026-06에 산출된 7편(구 규약)은 [`lookup/`](lookup/README.txt)에 보존 — 두 규약을 한 디렉토리에 섞지 말 것.
 
-**2022–23 (NanoAODv12) 은 format 2 로만 만든다**(`--input <NanoAOD dataset>=<filelist>[:<priority>]`, §4.2): main 과 ext1 이 같은 (run, lumi, event) 를 다른 사건에 쓰므로 key 에 dataset 이 든다. 위 `--filelist` 명령(format 1)은 Run 2·2024 용으로 그대로다.
+**2022–23 (NanoAODv12) 은 format 3 으로만 만든다**(`--input <NanoAOD dataset>=<filelist>[:<priority>]`, 사건 지문이 든 sidecar 로; §4.2, §4.3): main 과 ext1 이 같은 (run, lumi, event) 를 다른 사건에 쓰므로 key 에 dataset 이 들고, 한 dataset 안에서도 다른 두 사건이 같은 key 를 쓰므로 행마다 사건 지문이 든다. 위 `--filelist` 명령(format 1)은 Run 2·2024 용으로 그대로다.
 
 ### 4.0 ★ 권장 경로 — HTCondor 전량 검증 (2026-07-28 실동작 확인)
 
@@ -746,6 +746,37 @@ format 2 의 exit(0 이 아니면 마지막 줄 `RESULT FAIL … (exit N)`, 출�
 시험(맥·lxplus, ROOT 만): `/bin/bash tests/test_extract_format2.sh bin/extractTtbarIdPatch --old <format 2 전의 도구>` → 마지막 줄
 `RESULT OK test_extract_format2: 22 PASS, 0 FAIL`. 전의 도구는 `git show 25c07a7:Validation/tools/extractTtbarIdPatch.cc` 를 같은 플래그로
 빌드한 것(스크립트 머리말).
+
+### 4.3 format 3 — 한 행 = 한 사건: key + 사건 지문 (2026-11-05, TTHHAnalyzer STEP 46; 2022–23 은 이것만)
+
+**왜**: 중앙 NanoAODv12 의 dataset 가운데 하나가 **같은 (run, luminosityBlock, event) 의 서로 다른 사건 둘**을 유효한 두 파일에 담는 것이 있다
+(lxplus 11-05: 2022EE TTbar_DiLep 684,185 key, 2022EE TTbar_Hadronic ext1 646,584, 2023BPix TTbar_SemiLep 5,403,000, 2022 QCD_HT1200to1500
+42,517). format 2 의 key (dataset, run, lumi, event) 로는 둘을 가를 수 없다. 계약: [../docs/07_analyzer_integration.md](../docs/07_analyzer_integration.md) §5.5.
+
+**입력**: lxplus 의 CRAB sidecar 가 branch 넷을 더한다 — `Generator_x1/F`, `Generator_x2/F`(`GenEventInfoProduct::pdf()->x.first / x.second`,
+float, 반올림 없음), `Generator_id1/I`, `Generator_id2/I`(`pdf()->id`); pdf 가 없으면 넷 다 −1. **명령은 format 2 와 같다**(§4.2 의 블록 그대로):
+모든 입력 파일에 넷이 다 있으면 format 3, 어느 파일에도 없으면 format 2, 섞이면 exit 5(넷이 있는 파일과 없는 파일, 일부만 있는 파일). 로그의 첫
+줄이 `start: format 3 (tthh-ttnb/3), key (datasetIdx, run, luminosityBlock, event) and the event fingerprint …` 인지 본다.
+
+**규칙(한 NanoAOD dataset 안)**:
+- 같은 key·**비트까지 같은** 지문 = 같은 사건: format 2 의 규칙 그대로(priority 숫자가 낮은 입력의 행, 모든 행 비교, 다르면 exit 8).
+- 같은 key·다른 지문 = 다른 사건: 둘 다 남긴다(tt+nb 인 것은 행이 하나씩).
+- 다른 두 사건 중 하나가 tt+nb 이면 NanoAOD 에서 가를 수 있어야 한다: id1·id2 가 같고 x1·x2 가 각각 2^-10(상대) 안이면 **exit 9**(출력 없음;
+  `--on-conflict report` 는 세기만, RESULT WARN). NanoAODv12 는 x1·x2 를 14 bit 로 줄여 저장한다(CMSSW 13_0_X genTable `precision=14`).
+- 메모리에 드는 행 48 B(format 2 는 32 B). 흘려 읽는 입력의 되풀이 key 는 format 2 처럼 둘째 읽기에서 모두 비교한다 — **둘째 읽기는 그런 key 의
+  모든 행을 메모리에 둔다**(행 56 B, key 16 B; 2 차 2026-11-05): format 3 에서는 한 dataset 의 사건 둘 이상인 key 가 모두 그렇다 — 2023BPix
+  TTbar_SemiLep 5,403,000 key ≈ 10.8 M 행 ≈ 0.6 GB(+ key 0.09 GB), 2022EE TTbar_DiLep 684,185 key ≈ 77 MB, 2022EE TTbar_Hadronic ext1 646,584 key
+  ≈ 72 MB, 여기에 Bloom filter 의 거짓 양성(흘려 읽는 행의 약 0.3 %)과 출력 행 64 B. 메모리에 드는 행·Bloom filter(행마다 12 bit) 위에 더해진다:
+  lxplus 의 메모리 요청은 합으로(큰 표본 ≈ 2 GB, 3 GB 를 요청; TTHHAnalyzer `tools/lxplus/README.md` §18).
+
+**출력**: format 2 + `Generator_x1/F Generator_x2/F Generator_id1/I Generator_id2/I`(sidecar 의 값), `lookup_format = "tthh-ttnb/3"`, 행은
+(datasetIdx, run, lumi, event, 지문) 순 — 사건 하나에 한 행. `sources` 에 dataset 마다 "사건 둘 이상인 key" 수(lxplus 가 센 key 수와 견줄 것).
+기대 출력: `exit=0` 과 마지막 줄 `RESULT OK extractTtbarIdPatch format 3: <rows> rows, …, <k> key(s) with two or more events, 0 conflict(s),
+0 too-close pair(s); …`. `tests/dump_lookup.C` 의 ROW 줄은 format 3 에서 x1 x2(`%.9g`) id1 id2 를 더한다.
+
+시험: `/bin/bash tests/test_extract_format3.sh bin/extractTtbarIdPatch --old <format 3 전의 도구>` → `RESULT OK test_extract_format3: 17 PASS,
+0 FAIL`(format 2 와 format 1 의 출력·stdout 이 전의 도구와 같음 포함; 전의 도구 = `git show 12e8011:Validation/tools/extractTtbarIdPatch.cc`).
+`tests/make_sidecar.C` 의 다섯째 인자 1 = 지문 branch 넷(TSV 에 x1 x2 id1 id2 네 칸 더), 2 = `Generator_x1` 만(깨진 입력).
 
 ## 5. 분포 비교 (선택) — 로컬 또는 HTCondor
 
