@@ -119,6 +119,15 @@ site_config(`out_lfn_base` placeholder, `/store/` 접두) · era 별 dataset 상
 MiniAOD↔Nano primary 일치, `enabled`/`verified` 조합, 기존 CRAB project dir).
 `--check-das` 를 붙이면 모든 MiniAOD/Nano 경로를 DAS 로 조회해 **잘못된 `-vN` 접미사를
 제출 전에** 잡는다. 로그: `crab/preflight_extend_<eras>_<timestamp>.log`, FAIL 시 exit 1.
+2026-11-06(STEP 47, §2.2f)부터 더 보는 것: era 의 `pset_year`(있으면 그 값이 `year=`), 2022–23 항목의 `nano_role`·`miniaod_version`·
+lumi mask(그 항목의 파일 이름 `crab_lumimask_<era>_<name>_v3.json`, 파일, md5, lumi 수)와 MiniAOD 판별 campaign, 데이터셋 이름의 `_ext1` 과 `nano_role` 의 일치, request 이름의 길이(CRAB 한도 100 자)와
+**datasets.yaml 전체에서 겹치지 않음**, `--request` 값. 줄 이름은 `<era>/<name>`(2022–23 은 `<era>/<name>[main|ext1|v3]`).
+
+**제출 경로의 사전 검사(2026-11-06).** `--dry-run`·`--crab-dryrun`·본제출은 고른 task 를 **모두 먼저** 만들고 검사한 뒤(lumi mask 의 파일 이름·존재·md5·lumi 수,
+2022–23 항목 필드와 campaign, request 이름의 길이·겹침) 하나라도 걸리면 `[REFUSED] …` 와 `RESULT: NOTHING SUBMITTED` 를 찍고 **exit 3, 아무것도
+내지 않는다**(작업 표도 쓰지 않음). 통과하면 **plan**(TSV)을 쓰고 차례로 제출한 뒤 **record**(plan + task 마다 outcome)를 쓴다(§2.2f).
+2016–2018·2024 의 CRAB 설정은 전과 바이트까지 같다(시험: 175 설정). 그 밖의 종료 코드는 그대로다: 실패·건너뜀이 있어도 exit 0(`launch_extend.sh` 는
+출력을 grep 한다), 인자·설정 오류 exit 1.
 
 ---
 
@@ -533,6 +542,244 @@ git push
 [`../Validation/README.md`](../Validation/README.md) §0.1d. 오프라인 시험(가짜 cmsRun·DAS·CRAB·cvmfs): cfg 14, resolve 18, launch 13,
 제출기 13, manager 9 — 전부 기대대로([../docs/03_changelog.md](../docs/03_changelog.md) 2026-10-15 (5)). 실제 15_0_18 + Summer24 MiniAODv6 의
 첫 확인은 (2)의 로컬 단계다.
+
+### 2.2f 2022·2022EE·2023·2023BPix (Run 3, NanoAODv12) 제출 — 39 task, v3 의 lumi mask, 작업 표(plan·record) (2026-11-06 추가, 같은 날 2 차; TTHHAnalyzer STEP 47, [../docs/04_decisions.md](../docs/04_decisions.md) D25)
+
+**왜.** 2022–23 의 tt+nb lookup(format 3, [../docs/07_analyzer_integration.md](../docs/07_analyzer_integration.md) §5.5)은 사건 지문
+`Generator_x1/x2/id1/id2` 가 든 sidecar 로 뽑는다(`870445b`) — 중앙 NanoAODv12 의 한 dataset 이 같은 (run, lumi, event) 의 다른 두 사건을
+담을 수 있어서다. 이 절은 그 sidecar 를 만드는 CRAB 제출이다. 제출기는 이제 그 네 era 를 안다(전에는 era 블록, `Data.lumiMask`, main·ext1·v3 를
+가르는 이름, cfg 의 year 가 없었다 — lxplus 11-06 보고).
+
+**39 task = lxplus 의 계획표 그대로**(TTHHAnalyzer `docs/claude-remote/daily/lxplus/files/2026-11-04_dup_scan/2026-11-06_step46_check/crab_plan_2022-23.tsv`,
+md5 `5de5ac33e28a37d9ce908bc8354f3548`; DAS 는 lxplus 가 2026-11-06 에 읽음 → `verified: true`). `crab/datasets.yaml` 의 네 블록이 계획표의 줄 순서
+그대로 항목 하나 = task 하나:
+
+| era | MiniAODv4 (main) | MiniAODv4 (ext1) | MiniAODv3 (main, lumi mask) | task | MiniAOD 파일(DAS) | job(units_per_job 10) |
+|---|---|---|---|---|---|---|
+| 2022 | 7 | 3 (TTbar 셋) | 2 (TTbar_Hadronic 462 lumi, TTbar_SemiLep 172) | 12 | 13,254 (v3 4,138) | v4 916 + v3 ≤ 415 |
+| 2022EE | 7 | 3 | 3 (TTbar_Hadronic 1,077, TTbar_SemiLep 3,410, TTbar_DiLep 13,922) | 13 | 44,176 (v3 15,523) | v4 2,871 + v3 ≤ 1,554 |
+| 2023 | 7 | — | — | 7 | 9,409 | 944 |
+| 2023BPix | 7 | — | — | 7 | 4,893 | 493 |
+
+(job 은 파일 수 ÷ 10 의 올림 — CRAB 의 block 경계로 몇 개 더 생긴다. 가장 큰 task 는 2022EE TTbar_SemiLep ext1 의 8,801 파일 → 881 job; task 당
+10,000 상한(D15)에 멀다. v3 는 mask 의 lumi 가 든 파일만 나뉘므로 "≤".)
+
+**`datasets.yaml` 의 새 필드**(이 네 era 에만; 제출기가 검사한다):
+
+| 필드 | 값 | 뜻 |
+|---|---|---|
+| `nano_role` | `main` \| `ext1` | task 의 사건이 속하는 NanoAODv12 dataset(`nano_child`). v3 task 는 **main** 의 사건 |
+| `miniaod_version` | `v4` \| `v3` | `dataset:` 의 MiniAOD 판. preflight 의 campaign 접두, 작업 표의 추출 priority(v4 0, v3 1), request 이름의 꼬리표를 정한다 |
+| `lumi_mask`, `lumi_mask_md5` | v3 만 | `crab/lumimasks/` 의 파일 이름(반드시 `crab_lumimask_<era>_<name>_v3.json`)과 md5 — `Data.lumiMask` = 그 파일의 절대 경로 |
+| (era) `pset_year` | `"2024"` | cfg 에 주는 `year=`(아래) |
+| (era) `request_name_suffix` | `"fp"` | request 이름의 끝(지문 sidecar) |
+
+**lumi mask.** `crab/lumimasks/crab_lumimask_<era>_<sample>_v3.json` 다섯 개는 lxplus 의 11-05 저녁 판(TTHHAnalyzer
+`docs/claude-remote/daily/lxplus/files/2026-11-04_ttbar_parents/crab_lumimasks/`)을 바이트까지 그대로 옮긴 것이다(md5 `afe592c5…`·`dddf2c9b…`·
+`c07becdd…`·`58027376…`·`eb17621c…` = 계획표). v3 task 는 그 mask 의 lumi 만 돈다 — 그 lumi 의 사건은 MiniAODv4 parent 가 없어졌고, v3 의 나머지는
+v4 task 와 겹친다. 제출기는 task 를 만들 때 mask 를 본다: 파일 이름이 그 항목의 것(`crab_lumimask_<era>_<name>_v3.json`)인가, 파일이 있는가, md5 가
+`lumi_mask_md5` 와 같은가, CRAB 의 lumi-mask JSON 이고 lumi 가 하나 이상인가. **하나라도 아니면 그 task 를 거절하고 그 run 은 아무것도 내지
+않는다**(exit 3). v4 task 에는 mask 가 없다(있으면 거절). splitting 은 그대로 `FileBased`: 이 저장소에도, CRAB 의 설정 문서(twiki
+`CRAB3ConfigurationFile` r99, 2026-01-22)에도 FileBased 가 mask 를 못 쓴다는 말이 없다. **mask 를 건 job 수는 lxplus 의 `crab submit --dryrun`
+((h))이 확인하고, 끝난 v3 sidecar 가 mask 안에만 있는지는 `crab/check_sidecar_lumimask.py`((k))가 본다** — preflight 의 job 수는 mask 를 모르는
+윗값이다. (h) 에서 mask 가 걸리지 않은 것이 보이면(아래의 기준) v3 task 는 LumiBased splitting 으로 바꾼다(CEO).
+
+**request 이름 = 계획표의 `request_name`**: `<name>_<era>_<main|ext1|v3>_extend_fp`(예 `TTbar_Hadronic_2022_v3_extend_fp`; 가장 긴 것 38 자). 가운데
+꼬리표는 `miniaod_version` 이 v3 이면 `v3`, 아니면 `nano_role`(계획표를 만든 lxplus `crab_plan.py` 의 규칙); `fp` 는 era 의 `request_name_suffix`.
+`outputDatasetTag` 도 같은 이름이라 출력은 `<out_lfn_base>/<era>/<primary>/<request 이름>/<timestamp>/` — 같은 primary 의 main·ext1·v3 가 갈린다.
+옛 era 의 이름(`<name>_<era>_extend`)은 그대로. datasets.yaml 전체에서 이름이 겹치면 preflight FAIL, 제출 거절. 한 task 만 다시 내려면 그 project
+dir 을 옮기고 `--request <이름>` — `request_name_tag` 를 바꾸지 않는다(모든 era 의 모든 이름이 바뀐다).
+
+**cfg 의 year.** 네 era 는 `pset_year: "2024"` → `year=2024`(era modifier `Run3_2024`). cfg 의 `year` 는 2016/2016APV/2017/2018/2024 만 알고 cfg 는
+바꾸지 않는다: 이 job 은 gen 수준이고 쓰는 module 은 era 로 바뀌지 않으며, lxplus 가 2022–23 MiniAODv4 파일에 `year=2024`(CMSSW_15_0_18)를 돌려
+id 와 지문이 NanoAOD 와 비트까지 같았다(2026-11-06). preflight 의 year 검사도 같은 값을 본다(`accepts year=2024 (era 2022),…`).
+
+**release.** `CMSSW_15_0_X`(2024 와 같은 v15 영역 `~/TTHHGenCategoryTools_v15/CMSSW_15_0_18`, `cmssw-el8`). 한 호출에 2024 와 섞을 수 있고 Run 2 era 와는
+안 된다. MiniAODv3(124X) 를 15_0_18 로 읽는 것은 아직 아무도 돌려 보지 않았다 — (h) 의 `--crab-dryrun` 이 CRAB 의 local test job(몇 사건)으로 처음
+본다.
+
+**작업 표 둘 — plan 과 record.** 제출 run 마다(`--dry-run`, `--crab-dryrun` 포함):
+- **plan** — 첫 제출 **전에** 쓴다: `crab/task_tables/tasks_<eras>_<UTC>Z_<dryrun|crabdryrun|submit>_plan.tsv`. 열(task 마다, 제출 순서):
+  `request_name  era  sample  nano_role  miniaod_version  miniaod_dataset  nano_dataset  extract_priority  lumi_mask  lumi_mask_md5  units_per_job  pset_year  out_lfn_dir_base`
+- **record** — run 이 끝날 때(Ctrl-C·예외로 멈출 때도) 쓴다: 같은 이름의 `…_record.tsv`, plan 의 줄 + `outcome` — `submitted`, `dryrun-uploaded`
+  (`--crab-dryrun`), `skipped-existing-project`(project dir 이 이미 있음), `failed`(crab submit 실패, 또는 그 task 를 내는 도중에 멈춤 — 상태를 손으로
+  확인), `not-attempted`(`--dry-run`, 또는 run 이 그 전에 멈춤).
+- 머리 `#` 줄: 시각, mode, git HEAD 와 `TtbarIdExtender/` 의 커밋 안 된 변경 여부, `datasets.yaml`·`site_config.yaml` 의 md5, CRAB work area, 명령
+  (값 안의 CR·LF·TAB 은 빈칸으로). `--task-table <경로>` 는 plan 의 자리를 정하고 record 는 그 옆 `<경로>_record.tsv`; 둘 중 하나라도 있으면 덮지
+  않고 exit 1(아무것도 안 냄).
+- `crab/task_tables/` 는 git 이 무시한다(`.gitignore`). **본제출의 plan 과 record 는 lxplus 가 TTHHAnalyzer 의 하루 기록 첨부
+  (`docs/claude-remote/daily/lxplus/files/…`)로 남긴다** — 이 저장소에는 넣지 않는다.
+- lxplus 는 record 로 추출 입력을 만든다: `outcome` 이 `submitted` 인 줄마다 그 task 의 CRAB 출력(`<out_lfn_dir_base>/<miniaod_dataset 의 primary>/
+  <request_name>/<timestamp>/`)의 filelist → `extractTtbarIdPatch --input <nano_dataset>=<filelist>:<extract_priority>`; 판 A = v4 + v3 줄, 판 B = v4 줄만
+  ([../docs/07_analyzer_integration.md](../docs/07_analyzer_integration.md) §5.3). 옛 era 의 줄은 `nano_role`·`miniaod_version`·mask 가 비고 priority 0.
+
+**종료 코드(그대로; `launch_extend.sh` 가 출력을 grep 한다).** 제출 run 은 어떤 task 가 실패하거나 건너뛰어도 **exit 0** — 그것은 `[FAILED]`·
+`[skip] project dir already exists` 줄과 record 의 `outcome` 이 말한다. exit 3 = 첫 제출 전의 거절(`[REFUSED]`, 아무것도 안 냄), exit 1 = 인자·설정
+오류(메시지와 함께; 예: 모르는 `--request`, 있는 작업 표).
+
+**`--crab-dryrun`(2 차, CEO 결정 A).** `crab submit --dryrun` 은 **`--request` 로 이름을 준 task 에만**(쉼표로 여럿; 없으면 exit 1). project dir 은
+제출과 다른 work area **`crab_projects_dryrun/`**(site_config 의 `work_area` + `_dryrun`; git 이 무시)에 생긴다. dry-run task 는 CRAB 에 UPLOADED 로
+남고 **아무도 내지 않는다**(kill 하지도 않는다) — 본제출은 (i) 의 새 일반 제출이고 자기 project dir(`crab_projects/`)을
+쓴다. dry run 이 업로드 뒤에 실패하면(예: local test job) 메시지가 dry-run project dir 이 남았을 수 있다는 것, 본제출에는 영향이 없다는 것, 볼 곳
+(CRAB 의 메시지, `crab_projects_dryrun/crab_<이름>/crab.log`, `crab status -d …`)을 말한다; record 의 `outcome` 은 `failed`.
+
+**`--report` 와 `--kill`(2 차, CEO 결정 C).** `--report` 의 줄과 DEAD 블록의 이름은 era 를 단다: `2022/TT4b[main]`, 옛 era 는 `2017/TT4b`(이름만 바뀌고
+설정은 그대로). UPLOADED 인 task(crab submit --dryrun 의 것)는 `[ok]` 가 아니라 따로 `[UPLOADED -- uploaded, not running]` 블록. `--kill` 은 묻기 전에
+지울 request 이름 전부와 그 수(project dir 이 있는 것의 수)를 찍는다.
+
+**다른 도구.** `launch_extend.sh`·`manager_condor.sh` 는 이 네 era 를 모른다(거절). `extend_manager.py` 도 **네 era 모두 거절**하고 이 절을 가리킨다
+(CEO 결정 F2 — 이 era 들은 제출기로만 내고 `--report` 로 본다). `resolve_parents.sh` 도 이 era 를 모른다 — 짝은 lxplus 의 DAS 작업에서 왔다.
+
+**맥의 시험은 가짜 CRAB·DAS 로만 했다**(TTHHAnalyzer `docs/changes/STEP_47_crab_2022_23.md` §5·§9: PyYAML 6.0.3 과 Ruby 의 YAML 두 가지로 같은 결과;
+`check_sidecar_lumimask.py` 는 Homebrew ROOT 6.34.08 의 합성 sidecar 로). 진짜 CRAB client·DAS·proxy·EOS 는 lxplus 의 아래 단계가 처음이다.
+
+**lxplus 의 순서**(블록은 셸이 바뀌는 곳과 비밀번호를 묻는 곳에서 나뉜다 — 하나씩 붙이고 프롬프트가 돌아온 뒤 다음 것; T-41). (a)–(h) 와 (k) 는
+lxplus 팀, (i) 의 본제출은 **사장님(사용자)의 몫**이다. STEP 47 이 커밋·push 된 뒤에. 시간은 잰 값이 있으면 그 값과 출처, 없으면 "모름 — 첫 줄로 판단".
+
+```bash
+# (a) [lxplus 기본 셸] GitHub 키를 이 셸에 올린다 -- 이 줄만 (passphrase 를 묻는다)
+switch
+```
+```bash
+# (b) [lxplus 기본 셸] v15 영역을 STEP 47 커밋으로 -- 기대: Fast-forward, 마지막 줄이 STEP 47 커밋. 몇 초.
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools && git status --short && git pull --ff-only && git log --oneline -1
+```
+```bash
+# (c) [lxplus 기본 셸] 컨테이너로 -- 이 줄만
+cmssw-el8
+```
+```bash
+# (d) [cmssw-el8 안] 빌드(지문이 든 plugin, 870445b) -- 기대: scram rc=0.
+#     시간: 다시 컴파일할 것이 없으면 약 20 초(lxplus 11-06 에 잰 값 18 s); 있으면 모름.
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && scram b -j8; echo "scram rc=$?"
+```
+```bash
+# (e) [cmssw-el8 안] proxy -- 이 줄만 (GRID pass phrase). 24 h 넘게 남은 proxy.cert 가 있으면 건너뛴다:
+#     voms-proxy-info -file ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert -timeleft
+voms-proxy-init -voms cms -rfc -valid 192:00 --out ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/proxy.cert
+```
+```bash
+# (f) [cmssw-el8 안] 읽기 전용 점검 -- 기대: 'RESULT: READY TO SUBMIT', FAIL 0, WARN 0
+#     (PASS 줄: state 39, lumi mask 5, job count 39 -- v3 다섯은 'at most', MiniAOD on disk 39, DAS 78, 'request names ... distinct').
+#     'MiniAOD on disk' WARN(tape 뿐)이 나오면 여기서 멈추고 CEO 에 알린다.
+#     시간: 모름 -- DAS 조회가 117 번(summary 78 + site 39), 한 번에 한 줄씩 찍힌다.
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/TtbarIdExtender
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+export X509_USER_PROXY=$PWD/proxy.cert
+python3 crab/submit_ttbarIdExtend.py --era 2022,2022EE,2023,2023BPix --preflight --check-das
+```
+```bash
+# (g) [cmssw-el8 안] 계획(CRAB 에 닿지 않음) -- 기대: 'attempted : 39', 'lumiMask   :' 줄 5, 그리고 실제로 찍히는 두 줄
+#       task plan  : /afs/cern.ch/user/j/junghyun/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/crab/task_tables/tasks_2022-2022EE-2023-2023BPix_<UTC>Z_dryrun_plan.tsv  (39 task(s); written before the first submission)
+#       task record: /afs/cern.ch/user/j/junghyun/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/crab/task_tables/tasks_2022-2022EE-2023-2023BPix_<UTC>Z_dryrun_record.tsv  (not-attempted 39)
+#     (<UTC> 는 예 20261106_093000). 시간: 몇 초(맥의 가짜 CRAB 로 1 초 안; lxplus 에서 잰 값 없음).
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/TtbarIdExtender
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+export X509_USER_PROXY=$PWD/proxy.cert
+python3 crab/submit_ttbarIdExtend.py --era 2022,2022EE,2023,2023BPix --dry-run
+```
+```bash
+# (g2) [cmssw-el8 안] (h) 전에: v3 MiniAOD 다섯이 VALID 이고 disk 에 완전한 사본이 있는가(DAS; 읽기만). 데이터셋 이름은 (g) 의 plan 에서.
+#     기대(다섯 모두): 첫 줄에 데이터셋 이름이 찍힌다(VALID; 비면 VALID 가 아님 -> 멈춤), site 기록 가운데 이름이 _Tape/_MSS 로 끝나지 않는 것이
+#     하나 이상이고 그 fraction(replica/block) 이 100 %. tape 뿐이거나 100 % 인 disk 사본이 없으면 멈추고 CEO 에 알린다.
+#     (site 기록의 필드 이름은 DAS 의 JSON 그대로 본다 -- 맥에서 확인하지 못했다.) 시간: 모름 -- 조회 10 번.
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/TtbarIdExtender
+export X509_USER_PROXY=$PWD/proxy.cert
+PLAN=$(ls -t crab/task_tables/tasks_2022-2022EE-2023-2023BPix_*_dryrun_plan.tsv | head -1); echo "plan: $PLAN"
+for ds in $(awk -F'\t' '$5=="v3" {print $6}' "$PLAN"); do echo "== $ds"; dasgoclient -query="dataset=$ds"; dasgoclient -query="site dataset=$ds" -json | python3 -m json.tool | grep -E '"name"|"kind"|fraction|completion'; done
+```
+```bash
+# (h) [cmssw-el8 안] crab submit --dryrun, era 마다 한 task -- CRAB 명령이라 한 줄씩, 블록마다 셋업을 다시(첫 CRAB 명령은 GRID pass phrase 를 물을 수 있다).
+#     CRAB 은 task 를 올려 나누기만 하고 grid 에 job 을 내지 않는다(local test job 이 몇 사건을 돈다); dry-run task 는 crab_projects_dryrun/ 에
+#     UPLOADED 로 남고 아무도 내지 않는다. 기대(블록마다): CRAB 의 'Task consists of N jobs to process M lumis' 줄, 'Dry run requested: task paused',
+#     '[crab-dryrun] uploaded and split', 'uploaded  : 1', record 의 outcome dryrun-uploaded. CRAB 의 job·lumi 줄을 그대로 하루 기록에 적는다.
+#     시간: 모름 -- 업로드, 서버의 나누기, local test job 이 차례로 찍힌다.
+#   (h1) 2022 TTbar_SemiLep v3 -- 받는 기준(CEO 결정 D-M4): N 이 윗값 251 보다 뚜렷이 작다. mask 는 172 lumi 라 lumi 가 파일 하나씩에 있으면 파일
+#        172 개 이하 -> 약 18 job 이하(+ block 경계), M = 172. N 이 251 가까이면 mask 가 걸리지 않은 것 -- 여기서 멈추고 CEO 에 알린다(v3 를
+#        LumiBased splitting 으로 바꾼다).
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/TtbarIdExtender
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+export X509_USER_PROXY=$PWD/proxy.cert
+python3 crab/submit_ttbarIdExtend.py --request TTbar_SemiLep_2022_v3_extend_fp --crab-dryrun
+```
+```bash
+#   (h2) 2022EE TTbar_Hadronic v3 -- mask 1,077 lumi -> 파일 1,077 개 이하 -> 약 108 job 이하(윗값 520). N 이 520 가까이면 (h1) 처럼 멈춘다.
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/TtbarIdExtender
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+export X509_USER_PROXY=$PWD/proxy.cert
+python3 crab/submit_ttbarIdExtend.py --request TTbar_Hadronic_2022EE_v3_extend_fp --crab-dryrun
+```
+```bash
+#   (h3) 2023 TT4b -- 기대 N = 11(109 파일; + block 경계)
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/TtbarIdExtender
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+export X509_USER_PROXY=$PWD/proxy.cert
+python3 crab/submit_ttbarIdExtend.py --request TT4b_2023_main_extend_fp --crab-dryrun
+```
+```bash
+#   (h4) 2023BPix TT4b -- 기대 N = 8(71 파일; + block 경계)
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/TtbarIdExtender
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+export X509_USER_PROXY=$PWD/proxy.cert
+python3 crab/submit_ttbarIdExtend.py --request TT4b_2023BPix_main_extend_fp --crab-dryrun
+```
+
+```bash
+# (i) [cmssw-el8 안] 본제출 -- 사장님(사용자)이 친다, lxplus 의 (f)-(h) 결과를 본 뒤. 39 task 모두 새로(dry-run task 는 그대로 둔다). CRAB 명령 한 줄.
+#     기대: '[submitted]' 39, 'submitted : 39', 'task record: …_submit_record.tsv  (submitted 39)'. '[FAILED]' 나 '[skip]' 이 있으면 그 줄과 record
+#     를 보고 그 task 만 --request 로 다시. 시간: 모름 -- task 마다 [submitted] 줄이 찍힌다.
+#     실제로 찍히는 표 줄:
+#       task plan  : /afs/cern.ch/user/j/junghyun/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/crab/task_tables/tasks_2022-2022EE-2023-2023BPix_<UTC>Z_submit_plan.tsv  (39 task(s); written before the first submission)
+#       task record: /afs/cern.ch/user/j/junghyun/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender/crab/task_tables/tasks_2022-2022EE-2023-2023BPix_<UTC>Z_submit_record.tsv  (submitted 39)
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/TtbarIdExtender
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+export X509_USER_PROXY=$PWD/proxy.cert
+python3 crab/submit_ttbarIdExtend.py --era 2022,2022EE,2023,2023BPix 2>&1 | tee crab/submit_2022-23_$(date +%Y%m%d_%H%M).log
+```
+```bash
+# (j) [cmssw-el8 안] 몇 분 뒤 -- 기대: DEAD TASK 블록 없음, UPLOADED 블록 없음(dry-run task 는 crab_projects_dryrun/ 에 있어 여기 안 나온다),
+#     줄 39(이름 <era>/<name>[main|ext1|v3]). 시간: 모름 -- task 마다 crab status 한 번.
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/TtbarIdExtender
+source /cvmfs/cms.cern.ch/common/crab-setup.sh
+export X509_USER_PROXY=$PWD/proxy.cert
+python3 crab/submit_ttbarIdExtend.py --era 2022,2022EE,2023,2023BPix --report
+```
+```bash
+# [lxplus 기본 셸로] 컨테이너를 나온다 -- 이 줄만
+exit
+```
+
+**(k) v3 task 가 끝난 뒤(lxplus): sidecar 가 mask 안에만 있는가** — `crab/check_sidecar_lumimask.py`(PyROOT; 2 차, CEO 결정 D). v3 task 다섯마다
+EOS 의 출력 파일 목록과 그 mask 로: 모든 (run, luminosityBlock) 이 mask 안이면 `RESULT OK`(exit 0)와 수(entries, 서로 다른 lumi, mask 안·밖, mask 의
+lumi 가운데 본 것); 밖이 하나라도 있으면 그 lumi 를 찍고 `RESULT FAIL … (exit 1)` — CRAB 이 mask 대신 파일 통째를 돌린 것이니 멈추고 CEO 에.
+읽을 수 없는 파일 exit 3, 인자·mask 문제 exit 2, `--require-full-mask` 인데 못 본 mask lumi 가 있으면 exit 4, 사건 0 exit 5. 시간: 맥에서 1,000,000
+사건 0.6 초(로컬 파일, Homebrew ROOT); lxplus 의 EOS 에서는 잰 값 없음(가장 큰 2022EE TTbar_DiLep v3 는 약 1,000 만 사건 — 13,922 lumi × lumi 당
+약 715).
+
+```bash
+# (k1) [lxplus 기본 셸] 본제출 record 의 v3 줄마다 EOS 의 출력 파일 목록(root:// URL 로) -- 기대: 줄마다 '== <이름>: N files'(N > 0). 몇 초.
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src/TTHHGenCategoryTools/TtbarIdExtender
+REC=$(ls -t crab/task_tables/tasks_2022-2022EE-2023-2023BPix_*_submit_record.tsv | head -1); echo "record: $REC"
+mkdir -p ~/v3check
+awk -F'\t' '$5=="v3" {print $1, $6, $13}' "$REC" | while read rn mini lfn; do prim=$(echo "$mini" | cut -d/ -f2); find "/eos/user/j/junghyun${lfn#/store/user/junghyun}/$prim/$rn" -name 'ttbarIDExtend_*.root' | sort | sed 's#^/eos#root://eosuser.cern.ch//eos#' > ~/v3check/$rn.txt; echo "== $rn: $(wc -l < ~/v3check/$rn.txt) files"; done
+```
+```bash
+# (k2) [lxplus 기본 셸] 컨테이너로 -- 이 줄만
+cmssw-el8
+```
+```bash
+# (k3) [cmssw-el8 안] 검사 -- 기대: v3 다섯 모두 'RESULT OK check_sidecar_lumimask: … 0 outside the mask …'
+cd ~/TTHHGenCategoryTools_v15/CMSSW_15_0_18/src && cmsenv && cd TTHHGenCategoryTools/TtbarIdExtender
+REC=$(ls -t crab/task_tables/tasks_2022-2022EE-2023-2023BPix_*_submit_record.tsv | head -1); echo "record: $REC"
+awk -F'\t' '$5=="v3" {print $1, $9}' "$REC" | while read rn mask; do echo "== $rn"; python3 crab/check_sidecar_lumimask.py --filelist ~/v3check/$rn.txt --mask crab/lumimasks/$mask; echo "EXIT $?"; done
+```
+```bash
+# [lxplus 기본 셸로] 컨테이너를 나온다 -- 이 줄만
+exit
+```
+
+(h) 의 dry-run task 넷은 `crab_projects_dryrun/` 에 UPLOADED 로 남는다 — 그대로 둔다(돌지 않고, 본제출과 project dir 이 겹치지 않는다). 본제출의
+plan·record(`…_submit_plan.tsv`, `…_submit_record.tsv`)와 (k) 의 출력은 lxplus 하루 기록의 첨부로 남긴다; `dryrun` 판 표는 지워도 된다.
 
 ### 2.3 진행 확인 / 재제출 / kill
 

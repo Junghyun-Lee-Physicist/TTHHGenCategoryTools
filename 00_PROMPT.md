@@ -2,7 +2,7 @@
 
 > **목적**: 이 저장소에서 작업하는 모든 AI 쓰레드가 지켜야 할 프로젝트별 작업 계약. `DOCUMENTATION_GUIDELINE` §6·§8의 일반 규칙을 이 코드베이스에 맞게 구체화한다.
 > **대상 독자**: AI 기여자(필수, 최우선 읽기), 그리고 AI가 어떻게 행동하도록 기대되는지 확인하려는 사람.
-> **상태**: DECIDED 2026-07-05 (v11 병합 시 제정). 갱신 2026-10-13 (§4: 진행 로그와 비정상 종료가 드러나는 로그 — 사용자 원칙 둘), 2026-10-14 (§9: AI 세션이 lxplus 에서 일할 때 — 일의 나눔, branch, 로그, 하면 안 되는 일, 멈출 때; 사용자 방향), 2026-10-15 (§10: 작업 블록마다 진행 방식을 먼저 묻는다; 사용자 지시; §6: 명령 블록은 셸 경계와 비밀번호 프롬프트에서 나눈다, T-41; §6: 블록마다 실행 위치를 쉬운 이름으로 — [lxplus 기본 셸], [cmssw-el7 안] 등, 사용자 지시), 2026-10-16 (§10: lxplus 에서 오래 걸리는 단계는 condor job — tmux·screen·`nohup` 에 걸지 않는다; 사용자 지시, T-44). **관련 문서**: [README.md](README.md)(지도), [docs/01_status.md](docs/01_status.md)(현재 상태).
+> **상태**: DECIDED 2026-07-05 (v11 병합 시 제정). 갱신 2026-10-13 (§4: 진행 로그와 비정상 종료가 드러나는 로그 — 사용자 원칙 둘), 2026-10-14 (§9: AI 세션이 lxplus 에서 일할 때 — 일의 나눔, branch, 로그, 하면 안 되는 일, 멈출 때; 사용자 방향), 2026-10-15 (§10: 작업 블록마다 진행 방식을 먼저 묻는다; 사용자 지시; §6: 명령 블록은 셸 경계와 비밀번호 프롬프트에서 나눈다, T-41; §6: 블록마다 실행 위치를 쉬운 이름으로 — [lxplus 기본 셸], [cmssw-el7 안] 등, 사용자 지시), 2026-10-16 (§10: lxplus 에서 오래 걸리는 단계는 condor job — tmux·screen·`nohup` 에 걸지 않는다; 사용자 지시, T-44), 2026-11-06 (§3: 숨은 경로 결합에 `crab/lumimasks/`·`crab/task_tables/`·dry-run work area·`check_sidecar_lumimask.py` — TTHHAnalyzer STEP 47, CEO 결정 F5). **관련 문서**: [README.md](README.md)(지도), [docs/01_status.md](docs/01_status.md)(현재 상태).
 
 ## 1. 관점 / 전문성 스탠스
 
@@ -23,6 +23,8 @@ AI 실행환경에는 통상 **CMSSW도, ROOT도, grid 접근도 없다.** 따�
 - `scram b`, `cmsRun`, `make`(ROOT 링크), CRAB 제출, xrootd 읽기는 AI가 검증할 수 없다. 이런 산출물은 **반드시 "미검증(syntax-review only); lxplus/<환경>에서 빌드·실행 필요"라고 표시**하라. 검증한 척 금지.
 - **숨은 파일 참조 결합** — 이 저장소에서 import가 아닌 *문자열/글롭/경로*로 파일을 참조하는 계층 (이름 변경·이동 전 반드시 grep 하고, 실제 실행 확인 필요를 표시할 것):
   - `TtbarIdExtender/crab/submit_ttbarIdExtend.py` : `SIDECAR_PSET_REL` (cfg 경로 문자열)
+  - `TtbarIdExtender/crab/submit_ttbarIdExtend.py` (2026-11-06, STEP 47) : `LUMI_MASK_DIR` = `crab/lumimasks/`(`datasets.yaml` 의 `lumi_mask` 는 이 디렉터리의 파일 이름이고 `crab_lumimask_<era>_<name>_v3.json` 이어야 하며, `lumi_mask_md5` 가 그 파일의 md5), `TASK_TABLE_DIR` = `crab/task_tables/`(제출 run 의 plan·record TSV; git 이 무시), `--crab-dryrun` 의 CRAB work area = site_config 의 `work_area` + `DRYRUN_WORK_AREA_SUFFIX`(`_dryrun`, 예 `crab_projects_dryrun/` — 실행 디렉터리 기준; git 이 무시)
+  - `TtbarIdExtender/crab/check_sidecar_lumimask.py` (2026-11-06) : sidecar 의 tree `Events` 와 branch `run`·`luminosityBlock` 의 이름과 타입(`UInt_t`)
   - `TtbarIdExtender/crab/preflight.py` : plugin 라이브러리 글롭 `pluginTTHHGenCategoryToolsTtbarIdExtender*.so`, python 등록 경로, cfg 경로 리스트
   - `Validation/Makefile` : `src/*.cc` 와일드카드 → 소스 파일명 = 실행파일명
   - tempTTHH(별도 저장소) `ExpandedTtbarId::loadFromDir` : lookup 파일명 접두 `"ttnb_"` 와 tree 이름 `"TtNb"` 하드코딩 — patch 파일 명명 변경 시 좌표 변경 필수 ([docs/07](docs/07_analyzer_integration.md))

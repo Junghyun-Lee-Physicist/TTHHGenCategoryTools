@@ -2,7 +2,7 @@
 
 > **목적**: 무엇이 언제 바뀌었나. 새 항목은 **아래에 추가만** 한다 (append-only).
 > **대상 독자**: 최신 변경을 따라잡으려는 모든 기여자.
-> **상태**: 살아있는 문서 — 마지막 항목 **2026-10-16 (2)** (O10: 1012 직접 생성 끝·CRAB 자리, manager 다시 띄움 → `EXIT=0`(DONE), 추출·정렬은 condor job — T-44 tmux, T-45 manager lock; `.gitignore` 에 `crab.log`; 00_PROMPT §10: 오래 걸리는 lxplus 단계는 condor). 그 전 2026-10-16 (O10: TTbar_Hadronic job 1012 멈춤 → `crab kill` → resubmit 거부 → 같은 입력으로 직접 생성, T-43·D22; O11 신설). 그 전 2026-10-15 (11) (O9 ⑨: 2016 patch 열넷 추출·행 수 대조·md5; O10: 2024 patch 를 검증과 병렬로 — 사용자 "run3 먼저"). 그 전 2026-10-15 (10) (O9 ⑧: 2016 두 era 대조 ALL PASS, [06](06_validation_results.md) 에 수치). 그 전 2026-10-15 (9) (T-42: 검증 job 의 CMSSW 영역은 스크립트의 영역 — 2016 22 job 이 exit 127). 그 전 2026-10-15 (8) (O10: 2024 CRAB 제출 3,557 job, manager `extend2024`; NanoAOD > MiniAOD 네 샘플과 DAS 확인; O9 ⑧ 진행). 그 전 2026-10-15 (7) (T-41: 명령 블록을 셸 경계와 비밀번호 프롬프트에서 나눔, `switch`; O9 ⑧ 결과). 그 전 2026-10-15 (6) (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
+> **상태**: 살아있는 문서 — 마지막 항목 **2026-11-06 (2)** (CRAB 제출기의 2022·2022EE·2023·2023BPix: 39 task, v3 의 lumi mask, request 이름, 작업 표 plan·record, 따로의 dry-run work area — TTHHAnalyzer STEP 47 과 그 2 차, D25). 그 전 2026-11-06 (TtbarIdExtender 의 사건 지문 `870445b`). 그 전 2026-11-05 (2) (patch 의 format 3, STEP 46). 그 전 2026-10-16 (2) (O10: 1012 직접 생성 끝·CRAB 자리, manager 다시 띄움 → `EXIT=0`(DONE), 추출·정렬은 condor job — T-44 tmux, T-45 manager lock; `.gitignore` 에 `crab.log`; 00_PROMPT §10: 오래 걸리는 lxplus 단계는 condor). 그 전 2026-10-16 (O10: TTbar_Hadronic job 1012 멈춤 → `crab kill` → resubmit 거부 → 같은 입력으로 직접 생성, T-43·D22; O11 신설). 그 전 2026-10-15 (11) (O9 ⑨: 2016 patch 열넷 추출·행 수 대조·md5; O10: 2024 patch 를 검증과 병렬로 — 사용자 "run3 먼저"). 그 전 2026-10-15 (10) (O9 ⑧: 2016 두 era 대조 ALL PASS, [06](06_validation_results.md) 에 수치). 그 전 2026-10-15 (9) (T-42: 검증 job 의 CMSSW 영역은 스크립트의 영역 — 2016 22 job 이 exit 127). 그 전 2026-10-15 (8) (O10: 2024 CRAB 제출 3,557 job, manager `extend2024`; NanoAOD > MiniAOD 네 샘플과 DAS 확인; O9 ⑧ 진행). 그 전 2026-10-15 (7) (T-41: 명령 블록을 셸 경계와 비밀번호 프롬프트에서 나눔, `switch`; O9 ⑧ 결과). 그 전 2026-10-15 (6) (T-40: 검증 `--report`·`--resubmit-failed` 가 condor queue 를 본다, 찍는 명령은 절대 경로, `batch_name`). 그 전 2026-10-15 (5) (O10: era 2024(Run 3) extend 준비 — v15 영역, `--fill`, release 짝, 검증 도구의 2024, 독립 검토 반영). 그 전 2026-10-15 (4)(T-39, manager.log 줄마다 닫기), (3)(T-38), (2)(O9 ⑦: 검증 도구가 2016APV·2016 을 안다). 그 전 2026-10-15 (2016 제출 완료; `launch_extend.sh` 의 끝 요약이 el7 의 bash 4.2 에서 안 찍힌 것 T-37). 그 전 2026-10-14 (3) (두 era 제출의 pset 캐시 거부 T-36, condor manager, §9 AI 세션 규칙).
 > **관련**: 각 변경의 "왜"는 [04_decisions.md](04_decisions.md), 문제·해결 세부는 [08_troubleshooting.md](08_troubleshooting.md). v3–v10의 원자적 세부는 동결 원본 [legacy/GenSidecar_pre-merge_ARCHITECTURE.md](legacy/GenSidecar_pre-merge_ARCHITECTURE.md)에 보존.
 
 표기: 날짜가 문서에 명시돼 있던 항목만 일 단위로 적고, 나머지는 월 단위로 적는다 (지어내지 않는다).
@@ -1808,3 +1808,83 @@ unmatched 가 어디에 어떻게 나오는지).
 - **2 차(같은 날, 독립 검토 뒤)**: 둘째 읽기의 메모리를 적었다 — 흘려 읽는 입력에서 되풀이될 수 있는 key 의 모든 행을 메모리에 둔다(행 56 B,
   key 16 B): 2023BPix TTbar_SemiLep ≈ 0.6 GB 더(머리말, `Validation/README.md` §4.3, TTHHAnalyzer README §18). 코드는 그대로(주석만); 시험은 다시
   돌림(format 2·3).
+
+## 2026-11-06 — TtbarIdExtender: 모든 sidecar 행에 사건 지문 `Generator_x1/x2/id1/id2` (`870445b`; lxplus 2026-11-05/06, TTHHAnalyzer STEP 46, D-2026-11-05-E)
+
+**동작 변경 고지 (00_PROMPT §5)** — sidecar 에 branch 넷이 더해진다; 옛 일곱 branch 와 값은 그대로:
+- **무엇**: `TtbarIdExtendAnalyzer` 가 `GenEventInfoProduct`(untracked InputTag `generator`, 기본 `generator`)를 읽어 `Generator_x1`·`Generator_x2`
+  (`Float_t`, `pdf()->x.first / x.second` 그대로 — NanoAOD 는 mantissa 14 bit 로 줄여 담는다)와 `Generator_id1`·`Generator_id2`(`Int_t`,
+  `pdf()->id.first / id.second`)를 쓴다; pdf 가 없는 사건은 넷 다 −1 이고 endJob 요약이 센다. `BuildFile.xml` 에 `SimDataFormats/GeneratorProducts`.
+  새 branch 는 옛 일곱 뒤에 온다. 패키지의 다른 것은 바뀌지 않았다(`plugins/TtbarIdExtendAnalyzer.cc`, `plugins/BuildFile.xml` 두 파일).
+- **왜**: 중앙 NanoAOD 의 한 dataset 이 같은 (run, luminosityBlock, event) 의 다른 두 사건을 두 파일에 담을 수 있다(lxplus 11-05: 2022EE
+  TTbar_DiLep, 2022EE TTbar_Hadronic ext1, 2023BPix TTbar_SemiLep, 2022 QCD_HT1200to1500). `extractTtbarIdPatch` 의 format 3(`c9d154a`, 이 changelog
+  2026-11-05 (2))과 TTHHAnalyzer 의 analyzer 는 이 네 값으로 둘을 가른다 — 2022–23 ttbar 의 CRAB sidecar 에 있어야 한다.
+- **시험(lxplus, CMSSW_15_0_18 el8_amd64_gcc12, cmssw-el8)**: `12e8011` 위에서 `scram b` rc 0(11-05), `c9d154a` 위로 옮긴 뒤 패키지만 `scram b clean`
+  → `scram b -j6` rc 0, 경고 0(11-06). `cmsRun run_ttbarIdExtend_cfg.py year=2024`(cfg 에 2022–23 키가 없음; gen 수준이라 era 무관)로 era 마다 유효한
+  MiniAODv4 TTbar_DiLep 파일 하나의 1,000 사건을 그 NanoAODv12 자식과 사건마다 대조: x1·x2 는 `MiniFloatConverter::reduceMantissaToNbitsRounding`
+  14 bit 뒤 NanoAOD 와 비트까지 같고, id1·id2 같고, x1/x2 뒤바뀜·pdf 없음 0 — 2022·2022EE·2023·2023BPix 각 1000/1000, 다른 것 0(11-05); `c9d154a`
+  위에서 2022 다시 1000/1000, 0(11-06). 줄이기 전에는 4,000 개의 x1 가운데 7 개만 같았다. 실제 짝: 2022EE TTbar_Hadronic ext1 의 lumi 227001 에서
+  유효한 MiniAODv4 파일 둘이 같은 번호의 사건 696 개를 담는다 — 지문이 696 쌍을 모두 가르고 NanoAOD 사본마다 MiniAOD 사건 하나에 맞춘다(696/696).
+- **기록**: TTHHAnalyzer `docs/claude-remote/daily/lxplus/2026-11-04.md`(12:25 UTC 항목)와 `2026-11-06.md`. 커밋 `870445b`(작성자 junghyun,
+  2026-11-05 17:53:53 CET = 11-06 01:53 KST, lxplus 에서 push).
+- **허락**: 사용자, CEO 의 전달말(2026-11-05 23:34:13 KST) 항목 4 — `c9d154a` 위의 커밋 하나. 이 항목은 lxplus 11-06 §3 의 4 의 요청으로
+  나중에(STEP 47 2 차, CEO 결정 F4) 적는다.
+
+## 2026-11-06 (2) — CRAB 제출기가 2022·2022EE·2023·2023BPix 를 안다: 39 task, v3 의 lumi mask, request 이름, 작업 표(plan·record) (TTHHAnalyzer STEP 47; 같은 날 2 차; 커밋 전, 맥에서 가짜 CRAB·DAS 로 시험)
+
+**동작 변경 고지 (00_PROMPT §5)** — 새 era 넷과 제출 경로의 사전 검사; 옛 era 의 CRAB 설정은 바이트까지 그대로:
+- **무엇**: `crab/datasets.yaml` 에 era 블록 넷(`"2022"`, `"2022EE"`, `"2023"`, `"2023BPix"`) — lxplus 계획표 `crab_plan_2022-23.tsv`(TTHHAnalyzer
+  `docs/claude-remote/daily/lxplus/files/2026-11-04_dup_scan/2026-11-06_step46_check/`, md5 `5de5ac33e28a37d9ce908bc8354f3548`)의 39 줄 그대로, 줄
+  순서대로 항목 하나 = task 하나(v4 main 28, v4 ext1 6, v3 main 5). 새 항목 필드 `nano_role`(main|ext1), `miniaod_version`(v4|v3), v3 만
+  `lumi_mask`·`lumi_mask_md5`; 새 era 필드 `pset_year: "2024"`, `request_name_suffix: "fp"`. 새 디렉터리 `crab/lumimasks/`(lxplus 의 mask 다섯,
+  바이트까지 같은 사본).
+- **`crab/submit_ttbarIdExtend.py`**:
+  1. request 이름은 `request_name()` 한 곳에서: `<name>_<era>[_<꼬리표>]_extend[_<era 의 request_name_suffix>][_<request_name_tag>]`, 꼬리표 =
+     v3 이면 `v3`, 아니면 `nano_role`(2022–23 만). 39 개가 계획표의 `request_name` 과 같다; 옛 era 는 `<name>_<era>_extend` 그대로. preflight 와
+     `--clean-failed-shells` 도 이 함수(전에는 각자 문자열을 만들었다).
+  2. `Data.lumiMask` = `crab/lumimasks/<lumi_mask>` 의 절대 경로, v3 항목만 — 파일 이름이 그 항목의 것(`crab_lumimask_<era>_<name>_v3.json`), 있고,
+     md5 = `lumi_mask_md5`, CRAB lumi-mask JSON 이고 lumi 가 하나 이상일 때(`TaskRefused`). bulk action(status/report/resubmit/kill)은 mask 를
+     보지 않는다(`check_lumi_mask=False`). splitting 은 `FileBased` 그대로.
+  3. `year=` 는 `pset_year()`: era 블록의 `pset_year`, 없으면 era 키(옛 era 그대로). 2022–23 = `2024`. preflight 의 year 검사도 같은 값.
+  4. `_ERA_CMSSW_PREFIX`: 네 era 가 `CMSSW_15_0_`(2024 와 한 호출 가능, Run 2 era 와는 거절). `_ERA_CAMPAIGN_PREFIX`: 네 era 는 MiniAOD 접두가
+     `miniaod_version` 별(`Run3Summer22MiniAODv4-`/`Run3Summer22MiniAODv3-`, `Run3Summer22EE…`, `Run3Summer23MiniAODv4-`, `Run3Summer23BPixMiniAODv4-`),
+     자식은 `…NanoAODv12-`; `campaign_matches_era()` 가 판을 받는다(옛 era 의 판정은 그대로, 시험).
+  5. **제출 경로의 사전 검사**: `--dry-run`·`--crab-dryrun`·본제출은 고른 task 를 모두 먼저 만들고 검사한다 — lumi mask, 2022–23 항목 필드
+     (`entry_problems`: 판·역할 값, v3 는 main 만, mask 는 v3 만, 이름의 `_ext1` 과 역할), 2022–23 campaign, request 이름(100 자, datasets.yaml
+     전체에서 겹침). 하나라도 걸리면 `[REFUSED] …`·`RESULT: NOTHING SUBMITTED` 와 **exit 3, 아무것도 안 냄**.
+  6. **작업 표 둘**: 제출 run 마다 **plan**(첫 제출 전) — 기본 `crab/task_tables/tasks_<eras>_<UTC>Z_<dryrun|crabdryrun|submit>_plan.tsv`, 열
+     request_name, era, sample, nano_role, miniaod_version, miniaod_dataset, nano_dataset, extract_priority(v4 0, v3 1, 옛 era 0), lumi_mask,
+     lumi_mask_md5, units_per_job, pset_year, out_lfn_dir_base — 와 **record**(run 이 끝날 때, Ctrl-C·예외에도: 같은 줄 + `outcome` submitted |
+     dryrun-uploaded | skipped-existing-project | failed | not-attempted). 머리 `#` 줄에 git HEAD 와 커밋 안 된 변경 여부, yaml 두 md5, work area,
+     명령(CR·LF·TAB 은 빈칸). `--task-table` 이 plan 자리를 정하고 record 는 `<plan>_record.tsv`; 있는 파일은 덮지 않음(exit 1).
+  7. 새 옵션 `--request <이름,…>`(모든 mode; 모르는 이름은 exit 1), `--crab-dryrun`(CRABAPI `dryrun=True` = `crab submit --dryrun`, `--request`
+     필수, work area `<work_area>_dryrun`; task 는 UPLOADED 로 남고 내지 않는다), `--task-table`.
+  8. 출력: 2022–23 의 줄 이름 `<name>[main|ext1|v3]`(preflight·bulk 머리), `--report` 의 줄·DEAD 블록은 `<era>/<name>[label]`(옛 era `<era>/<name>`),
+     UPLOADED 블록, `--kill` 은 이름과 수를 먼저, `lumiMask   :` 줄, preflight 의 `lumi mask`·`entry fields`·`request names`·`request name clash` 줄,
+     mask 가 있는 task 의 job 수는 "at most". `[skip]`·preflight 의 project dir 안내는 "dir 을 옮기고 `--request`"(전: `request_name_tag` 를 올려라 /
+     `rm -rf`). 옛 era 의 `--dry-run` 출력은 plan·record 줄 넷만 다르다(시험).
+  9. 종료 코드는 그대로: 실패·건너뜀이 있어도 0(`launch_extend.sh` 가 출력을 grep), 거절 3, 인자 오류 1.
+- **`crab/check_sidecar_lumimask.py`(새, PyROOT)**: 끝난 v3 task 의 sidecar filelist 와 그 mask 로 — 모든 (run, luminosityBlock) 이 mask 안이면
+  `RESULT OK`(exit 0)와 수; 밖이 있으면 찍고 exit 1; 인자·mask 2, 파일 3, `--require-full-mask` 4, 사건 0 은 5. lxplus 의 v15 cmsenv 에서.
+- **`crab/extend_manager.py`**: 네 새 era(2022, 2022EE, 2023, 2023BPix)를 시작 전에 거절하고 README §2.2f 를 가리킨다(그 manager 는 era/name 으로
+  상태를 두고 MiniAOD 전체 사건 수로 끝을 판정한다). 옛 era 의 task 목록은 HEAD 와 같다(시험).
+- **`.gitignore`**: `crab_projects_dryrun/`, `TtbarIdExtender/crab/task_tables/`.
+- **바꾸지 않음**: cfg `test/run_ttbarIdExtend_cfg.py`, `launch_extend.sh`·`manager_condor.sh`·`resolve_parents.sh`(새 era 를 모른다 — 거절),
+  `site_config.yaml`.
+- **왜**: 2022–23 lookup(format 3)은 지문이 든 sidecar 로 뽑는다(`870445b`, 위 항목); lxplus(11-06)가 찾은 넷 — era 블록 없음, `Data.lumiMask` 없음
+  (v3 다섯에 필요), main·ext1·v3 가 한 표본 이름이라 request 가 겹침, cfg 의 year 에 2022–23 없음. 결정: CEO 의 STEP 47 지시서 A–G 와 2 차 결정 A–F
+  → [04](04_decisions.md) D25.
+- **2 차(같은 날, CEO 의 재시험과 독립 검토 뒤)**: 1 차의 `--crab-dryrun` 은 `crab_projects/` 에 project dir 을 만들어 뒤의 본제출이 그 task 를
+  건너뛰고 `crab proceed` 로 이어 내게 했다 — 2 차는 dry run 을 따로의 work area 에 두고 본제출은 39 개 모두 새로(검토 H1, L2, L3, D5, L6). 그 밖에
+  record(L5), `--report`·`--kill`(M1–M3), mask 이름·0 lumi(L4), 끝난 v3 의 검사 도구(M4), 머리 줄과 git 호출(L1), preflight 의 `--request`(D6),
+  README 의 블록·시간·표 경로(D1–D3), docstring 의 종료 코드(D4), manager 의 네 era 거절(F2), `.gitignore`(F3), 이 changelog 의 `870445b`
+  항목(F4), [01](01_status.md) O13 과 [../00_PROMPT.md](../00_PROMPT.md) §3(F5).
+- **시험(맥; 가짜 CRAB client·CRABAPI·dasgoclient·voms-proxy-info, 아무것도 밖으로 안 감)**: 열한 시험, **두 YAML 로**(사용자의 venv `crabtest` 의
+  PyYAML 6.0.3 / 시스템 Ruby 의 Psych) 같은 결과 — `RESULT OK run_all pyyaml: 11 tests`, `RESULT OK run_all ruby: 11 tests`; 옛 era 의 설정 175 개
+  (다섯 site 변형)가 HEAD 와 같음, datasets.yaml 대 계획표 39 줄 모든 필드, 39 설정·plan 이 계획표와 줄마다 같음, mask 거절(손상·없음·md5·다른
+  항목의 파일·0 lumi·형식), release·campaign, preflight, 명령줄 끝에서 끝까지(본제출·`--crab-dryrun`·record·중단·`--report`·`--kill` 은 가짜 CRAB
+  으로), `check_sidecar_lumimask.py` 는 Homebrew ROOT 6.34.08 의 합성 sidecar 로. RESULT 줄 전부: TTHHAnalyzer `docs/changes/STEP_47_crab_2022_23.md`
+  §5·§9. 진짜 CRAB·DAS·EOS 는 lxplus 의 README §2.2f (f)–(h)·(k) 가 처음.
+- **파일**: `TtbarIdExtender/crab/submit_ttbarIdExtend.py`, `crab/datasets.yaml`, `crab/extend_manager.py`, `crab/check_sidecar_lumimask.py`(새),
+  `crab/lumimasks/`(새, 다섯), `.gitignore`, `TtbarIdExtender/README.md` §2.2 의 preflight 글·§2.2f(새), [01](01_status.md) O13,
+  [../00_PROMPT.md](../00_PROMPT.md) §3, [04](04_decisions.md) D25, 이 항목과 위의 `870445b` 항목.

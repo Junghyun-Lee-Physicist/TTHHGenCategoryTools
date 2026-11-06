@@ -3,9 +3,13 @@
 # =============================================================================
 # Each enabled entry triggers a CRAB submission of run_ttbarIdExtend_cfg.py over the
 # given UL MiniAODv2 input (era "2024": Run 3 MiniAODv6, submitted from a
-# CMSSW_15_0_X area -- see that block).  The output is a small ROOT TTree ("Events") with
+# CMSSW_15_0_X area -- see that block; eras "2022", "2022EE", "2023", "2023BPix":
+# MiniAODv4 / MiniAODv3 parents of NanoAODv12, several entries per sample, from the
+# same area -- see the last block header).  The output is a small ROOT TTree ("Events") with
 # one row per event holding
-#     (run, luminosityBlock, event, genTtbarId, Expanded_genTtbarId, nAddBJets, nAddBJetsMulti).
+#     (run, luminosityBlock, event, genTtbarId, Expanded_genTtbarId, nAddBJets, nAddBJetsMulti)
+# and, since TtbarIdExtender 870445b (2026-11-05), the generator fingerprint
+# Generator_x1/x2/id1/id2.
 #
 # `nano_child` is the central NanoAODv9 dataset that the MiniAOD parent
 # produces.  Comparators (bin/compareExtendToCentral) use it to validate
@@ -566,3 +570,585 @@ eras:
           ttbb (powheg) DL, Summer24. NanoAODv15 12,499,196 ev / 203 files.
           Smallest 2024 ttbar sample: launch_extend.sh takes one of its MiniAOD
           files for the local cmsRun year=2024 check.
+
+  # ===========================================================================
+  # 2022, 2022EE, 2023, 2023BPix (Run 3, NanoAODv12) -- added 2026-11-06
+  # (TTHHAnalyzer STEP 47, docs/04_decisions.md D25)
+  # ===========================================================================
+  # WHY:   the 2022-23 tt+nb lookups (format 3, docs/07 sec.5.5) are extracted
+  #        from sidecars that carry the generator fingerprint Generator_x1/x2/
+  #        id1/id2 (TtbarIdExtender 870445b): one central NanoAODv12 dataset
+  #        can hold two different events with the same (run, lumi, event), and
+  #        only the fingerprint tells them apart.
+  # TASKS: exactly the 39 rows of the lxplus plan (2026-11-06, DAS read then),
+  #        in its row order: TTHHAnalyzer docs/claude-remote/daily/lxplus/files/
+  #        2026-11-04_dup_scan/2026-11-06_step46_check/crab_plan_2022-23.tsv
+  #        (md5 5de5ac33e28a37d9ce908bc8354f3548). verified: true = lxplus
+  #        resolved every MiniAOD / NanoAODv12 pair in DAS on 2026-11-06.
+  #          2022, 2022EE  each NanoAODv12 dataset (main and ext1) with its
+  #                        MiniAODv4 parent (20 tasks), and for five main
+  #                        datasets also the MiniAODv3 parent of the events
+  #                        whose MiniAODv4 parent is gone (5 tasks, each over
+  #                        the lumis of its mask only)
+  #          2023, 2023BPix  MiniAODv4 only (14 tasks)
+  #        So one `name` can have up to three entries in an era (main v4, main
+  #        v3, ext1 v4); `name` + era is no longer a task. The submitter takes
+  #        the task identity from the fields below.
+  # NEW ENTRY FIELDS (these eras only; the submitter checks them):
+  #   nano_role:       main | ext1 -- the NanoAODv12 dataset (nano_child) the
+  #                    task's events belong to; a v3 task belongs to the MAIN one.
+  #   miniaod_version: v4 | v3 -- the MiniAOD campaign of `dataset:`. It picks
+  #                    the campaign prefix of the preflight, the extract priority
+  #                    of the task table (v4 0, v3 1; extractTtbarIdPatch keeps
+  #                    the lower number) and the request label (v3 -> "v3",
+  #                    v4 -> its nano_role).
+  #   lumi_mask:       v3 only -- crab_lumimask_<era>_<name>_v3.json, a file
+  #                    in crab/lumimasks/ (byte-identical copies of lxplus's
+  #                    2026-11-05 masks); Data.lumiMask = its absolute path.
+  #                    v4 entries have none.
+  #   lumi_mask_md5:   v3 only -- md5 of that file. Another file name, a missing
+  #                    file, another md5 or a mask with 0 lumis refuses the
+  #                    task, and the run submits nothing.
+  # NEW ERA FIELDS:
+  #   pset_year: "2024" -- the year= of run_ttbarIdExtend_cfg.py, whose year
+  #              option knows 2016/2016APV/2017/2018/2024 only (the pset is not
+  #              changed). The job is gen level and none of its modules is
+  #              era-modified; lxplus ran year=2024 on 2022-23 MiniAODv4 files
+  #              (CMSSW_15_0_18, 2026-11-06) and the ids and the fingerprint
+  #              matched NanoAOD bit for bit. The preflight checks this value.
+  #   request_name_suffix: "fp" -- requestName (= outputDatasetTag) is
+  #              <name>_<era>_<main|ext1|v3>_extend_fp, the plan's request_name.
+  # global_tag / era_modifiers are documentation (gen-level pset, no GlobalTag);
+  #        era_modifiers is what the job applies (year=2024 -> Run3_2024), not
+  #        the campaign's own era.
+  # RELEASE: CMSSW_15_0_X (cmssw-el8), like 2024; one call may mix these eras
+  #        with 2024, never with a Run 2 era.
+  # SIZE:  valid MiniAOD files (the plan's DAS summary): 2022 13,254 (v3
+  #        4,138), 2022EE 44,176 (v3 15,523), 2023 9,409, 2023BPix 4,893 =
+  #        71,732; a v3 task splits only the files with a masked lumi. At
+  #        units_per_job 10: at most 7,193 jobs in all, the largest task 2022EE
+  #        TTbar_SemiLep ext1 (8,801 files -> 881 jobs, + CRAB block
+  #        boundaries) -- far below 10,000 per task (D15).
+  # OTHER TOOLS: launch_extend.sh and manager_condor.sh refuse these eras
+  #        (unknown era); extend_manager.py refuses all four (it keys tasks by
+  #        era/name and checks whole-dataset event counts) and points to
+  #        TtbarIdExtender/README.md sec.2.2f -- these eras are submitted and
+  #        watched (--report) with submit_ttbarIdExtend.py only;
+  #        resolve_parents.sh does not know them (the pairs come from lxplus's
+  #        DAS work). crab/check_sidecar_lumimask.py checks finished v3 tasks.
+  # ===========================================================================
+  "2022":
+    global_tag: "130X_mcRun3_2022_realistic_v5 (MiniAODv3 parents: 124X_mcRun3_2022_realistic_v12)"
+    era_modifiers: ["Run3_2024"]
+    pset_year: "2024"
+    request_name_suffix: "fp"
+    datasets:
+
+      - name: "TTbar_Hadronic"
+        dataset:    "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM"
+        nano_child: "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 1,251 valid files,
+          53,220,176 events, 76,908 lumis.
+
+      - name: "TTbar_Hadronic"
+        dataset:    "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv3-124X_mcRun3_2022_realistic_v12-v4/MINIAODSIM"
+        nano_child: "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v3"
+        lumi_mask: "crab_lumimask_2022_TTbar_Hadronic_v3.json"
+        lumi_mask_md5: "afe592c567322dbdfa48f4aacb18d28c"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv3 parent of the 2022 events of the main NanoAODv12 dataset
+          whose MiniAODv4 parent is gone: runs ONLY over the 462 lumis of its
+          mask (Data.lumiMask). Pair resolved in DAS by lxplus 2026-11-06
+          (crab_plan_2022-23.tsv); whole MiniAODv3 dataset: 1,633 valid files,
+          53,926,016 events, 77,928 lumis.
+
+      - name: "TTbar_Hadronic"
+        dataset:    "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v2/MINIAODSIM"
+        nano_child: "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5_ext1-v2/NANOAODSIM"
+        nano_role: "ext1"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the ext1 NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 1,931 valid files,
+          52,573,597 events, 77,201 lumis.
+
+      - name: "TTbar_SemiLep"
+        dataset:    "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM"
+        nano_child: "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 1,188 valid files,
+          66,419,700 events, 95,568 lumis.
+
+      - name: "TTbar_SemiLep"
+        dataset:    "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv3-124X_mcRun3_2022_realistic_v12-v5/MINIAODSIM"
+        nano_child: "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v3"
+        lumi_mask: "crab_lumimask_2022_TTbar_SemiLep_v3.json"
+        lumi_mask_md5: "dddf2c9bef1ee7cbd9862721e6d0f687"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv3 parent of the 2022 events of the main NanoAODv12 dataset
+          whose MiniAODv4 parent is gone: runs ONLY over the 172 lumis of its
+          mask (Data.lumiMask). Pair resolved in DAS by lxplus 2026-11-06
+          (crab_plan_2022-23.tsv); whole MiniAODv3 dataset: 2,505 valid files,
+          80,599,090 events, 114,970 lumis.
+
+      - name: "TTbar_SemiLep"
+        dataset:    "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v2/MINIAODSIM"
+        nano_child: "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5_ext1-v2/NANOAODSIM"
+        nano_role: "ext1"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the ext1 NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 2,749 valid files,
+          77,002,090 events, 110,319 lumis.
+
+      - name: "TTbar_DiLep"
+        dataset:    "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM"
+        nano_child: "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 429 valid files,
+          23,802,613 events, 34,053 lumis.
+
+      - name: "TTbar_DiLep"
+        dataset:    "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v2/MINIAODSIM"
+        nano_child: "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5_ext1-v2/NANOAODSIM"
+        nano_role: "ext1"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the ext1 NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 993 valid files,
+          24,084,800 events, 34,212 lumis.
+
+      - name: "TTbb_Hadronic"
+        dataset:    "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM"
+        nano_child: "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 159 valid files,
+          2,977,424 events, 4,485 lumis.
+
+      - name: "TTbb_SemiLep"
+        dataset:    "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM"
+        nano_child: "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 243 valid files,
+          4,488,542 events, 6,660 lumis.
+
+      - name: "TTbb_DiLep"
+        dataset:    "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM"
+        nano_child: "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 98 valid files,
+          2,494,596 events, 3,232 lumis.
+
+      - name: "TT4b"
+        dataset:    "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM"
+        nano_child: "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 75 valid files, 996,120
+          events, 2,054 lumis.
+
+  "2022EE":
+    global_tag: "130X_mcRun3_2022_realistic_postEE_v6 (MiniAODv3 parents: 124X_mcRun3_2022_realistic_postEE_v1)"
+    era_modifiers: ["Run3_2024"]
+    pset_year: "2024"
+    request_name_suffix: "fp"
+    datasets:
+
+      - name: "TTbar_Hadronic"
+        dataset:    "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM"
+        nano_child: "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 2,991 valid files,
+          179,466,187 events, 266,271 lumis.
+
+      - name: "TTbar_Hadronic"
+        dataset:    "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv3-124X_mcRun3_2022_realistic_postEE_v1-v3/MINIAODSIM"
+        nano_child: "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v3"
+        lumi_mask: "crab_lumimask_2022EE_TTbar_Hadronic_v3.json"
+        lumi_mask_md5: "c07becdd922981b9acf1e6de2bbb469d"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv3 parent of the 2022EE events of the main NanoAODv12 dataset
+          whose MiniAODv4 parent is gone: runs ONLY over the 1,077 lumis of its
+          mask (Data.lumiMask). Pair resolved in DAS by lxplus 2026-11-06
+          (crab_plan_2022-23.tsv); whole MiniAODv3 dataset: 5,196 valid files,
+          182,793,725 events, 271,208 lumis.
+
+      - name: "TTbar_Hadronic"
+        dataset:    "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6_ext1-v2/MINIAODSIM"
+        nano_child: "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6_ext1-v2/NANOAODSIM"
+        nano_role: "ext1"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the ext1 NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 6,271 valid files,
+          187,547,263 events, 268,550 lumis.
+
+      - name: "TTbar_SemiLep"
+        dataset:    "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM"
+        nano_child: "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 4,567 valid files,
+          265,581,161 events, 381,035 lumis.
+
+      - name: "TTbar_SemiLep"
+        dataset:    "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv3-124X_mcRun3_2022_realistic_postEE_v1-v2/MINIAODSIM"
+        nano_child: "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v3"
+        lumi_mask: "crab_lumimask_2022EE_TTbar_SemiLep_v3.json"
+        lumi_mask_md5: "58027376cb8947726bf01cbb82690e31"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv3 parent of the 2022EE events of the main NanoAODv12 dataset
+          whose MiniAODv4 parent is gone: runs ONLY over the 3,410 lumis of its
+          mask (Data.lumiMask). Pair resolved in DAS by lxplus 2026-11-06
+          (crab_plan_2022-23.tsv); whole MiniAODv3 dataset: 7,894 valid files,
+          270,695,747 events, 388,373 lumis.
+
+      - name: "TTbar_SemiLep"
+        dataset:    "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6_ext1-v2/MINIAODSIM"
+        nano_child: "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6_ext1-v2/NANOAODSIM"
+        nano_role: "ext1"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the ext1 NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 8,801 valid files,
+          275,487,429 events, 394,682 lumis.
+
+      - name: "TTbar_DiLep"
+        dataset:    "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM"
+        nano_child: "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 1,388 valid files,
+          74,311,182 events, 104,812 lumis.
+
+      - name: "TTbar_DiLep"
+        dataset:    "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv3-124X_mcRun3_2022_realistic_postEE_v1-v2/MINIAODSIM"
+        nano_child: "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v3"
+        lumi_mask: "crab_lumimask_2022EE_TTbar_DiLep_v3.json"
+        lumi_mask_md5: "eb17621cbbab99de7620608326c4ff53"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv3 parent of the 2022EE events of the main NanoAODv12 dataset
+          whose MiniAODv4 parent is gone: runs ONLY over the 13,922 lumis of its
+          mask (Data.lumiMask). Pair resolved in DAS by lxplus 2026-11-06
+          (crab_plan_2022-23.tsv); whole MiniAODv3 dataset: 2,433 valid files,
+          85,770,040 events, 120,005 lumis.
+
+      - name: "TTbar_DiLep"
+        dataset:    "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6_ext1-v2/MINIAODSIM"
+        nano_child: "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6_ext1-v2/NANOAODSIM"
+        nano_role: "ext1"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the ext1 NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 2,921 valid files,
+          84,925,614 events, 120,805 lumis.
+
+      - name: "TTbb_Hadronic"
+        dataset:    "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM"
+        nano_child: "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 508 valid files,
+          10,220,621 events, 17,963 lumis.
+
+      - name: "TTbb_SemiLep"
+        dataset:    "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM"
+        nano_child: "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 594 valid files,
+          15,626,525 events, 20,268 lumis.
+
+      - name: "TTbb_DiLep"
+        dataset:    "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM"
+        nano_child: "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 428 valid files,
+          8,631,256 events, 13,658 lumis.
+
+      - name: "TT4b"
+        dataset:    "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM"
+        nano_child: "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 184 valid files,
+          3,471,443 events, 6,930 lumis.
+
+  "2023":
+    global_tag: "130X_mcRun3_2023_realistic_v14 (TTbar), _v15 (TTbb, TT4b)"
+    era_modifiers: ["Run3_2024"]
+    pset_year: "2024"
+    request_name_suffix: "fp"
+    datasets:
+
+      - name: "TTbar_Hadronic"
+        dataset:    "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM"
+        nano_child: "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 2,821 valid files,
+          104,963,000 events, 104,963 lumis.
+
+      - name: "TTbar_SemiLep"
+        dataset:    "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM"
+        nano_child: "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 4,455 valid files,
+          152,653,000 events, 152,653 lumis.
+
+      - name: "TTbar_DiLep"
+        dataset:    "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM"
+        nano_child: "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 1,224 valid files,
+          48,104,000 events, 48,104 lumis.
+
+      - name: "TTbb_Hadronic"
+        dataset:    "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM"
+        nano_child: "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 165 valid files,
+          5,992,000 events, 5,992 lumis.
+
+      - name: "TTbb_SemiLep"
+        dataset:    "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM"
+        nano_child: "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 445 valid files,
+          8,955,000 events, 8,955 lumis.
+
+      - name: "TTbb_DiLep"
+        dataset:    "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM"
+        nano_child: "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 190 valid files,
+          4,884,000 events, 4,884 lumis.
+
+      - name: "TT4b"
+        dataset:    "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM"
+        nano_child: "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 109 valid files,
+          1,955,000 events, 1,955 lumis.
+
+  "2023BPix":
+    global_tag: "130X_mcRun3_2023_realistic_postBPix_v2 (TTbar), _v6 (TTbb, TT4b)"
+    era_modifiers: ["Run3_2024"]
+    pset_year: "2024"
+    request_name_suffix: "fp"
+    datasets:
+
+      - name: "TTbar_Hadronic"
+        dataset:    "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM"
+        nano_child: "/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v3/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 1,726 valid files,
+          52,849,000 events, 52,849 lumis.
+
+      - name: "TTbar_SemiLep"
+        dataset:    "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM"
+        nano_child: "/TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v3/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 1,978 valid files,
+          63,875,000 events, 63,875 lumis.
+
+      - name: "TTbar_DiLep"
+        dataset:    "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM"
+        nano_child: "/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v3/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 700 valid files,
+          24,556,000 events, 24,556 lumis.
+
+      - name: "TTbb_Hadronic"
+        dataset:    "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v6-v2/MINIAODSIM"
+        nano_child: "/TTBBto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 161 valid files,
+          2,944,000 events, 2,944 lumis.
+
+      - name: "TTbb_SemiLep"
+        dataset:    "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v6-v2/MINIAODSIM"
+        nano_child: "/TTBBtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 171 valid files,
+          4,410,000 events, 4,410 lumis.
+
+      - name: "TTbb_DiLep"
+        dataset:    "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v6-v2/MINIAODSIM"
+        nano_child: "/TTBBto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 86 valid files,
+          2,500,000 events, 2,500 lumis.
+
+      - name: "TT4b"
+        dataset:    "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v6-v2/MINIAODSIM"
+        nano_child: "/TT4B_TuneCP5_13p6TeV_madgraph-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v6-v2/NANOAODSIM"
+        nano_role: "main"
+        miniaod_version: "v4"
+        enabled: true
+        verified: true
+        notes: >
+          MiniAODv4 parent of the main NanoAODv12 dataset. Pair resolved in DAS
+          by lxplus 2026-11-06 (crab_plan_2022-23.tsv): 71 valid files, 997,000
+          events, 997 lumis.

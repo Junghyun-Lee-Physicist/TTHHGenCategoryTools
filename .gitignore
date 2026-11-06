@@ -11,6 +11,12 @@ preflight_*.log
 submit_*_20*.log
 status_*_20*.log
 crab_projects/
+# --- submit_ttbarIdExtend.py (2026-11-06, STEP 47): the work area of --crab-dryrun
+#     (<work_area>_dryrun, next to crab_projects/) and the task plan/record tables.
+#     The real submission's plan and record go to lxplus's daily attachments in
+#     TTHHAnalyzer (TtbarIdExtender/README.md sec.2.2f), not into this repository.
+crab_projects_dryrun/
+TtbarIdExtender/crab/task_tables/
 # CRAB client log that crab commands leave in the directory they are run from
 # (TtbarIdExtender/crab.log seen 2026-10-16) -- a transcript, never committed
 crab.log

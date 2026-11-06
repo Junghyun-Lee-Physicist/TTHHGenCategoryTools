@@ -2,7 +2,7 @@
 
 > **목적**: "왜 이 선택인가? 다른 후보는? 아직 유효한가?"의 단일 출처.
 > **대상 독자**: 설계를 바꾸려는 사람; DECIDED를 다시 열기 전 반드시 여기 확인.
-> **상태**: 살아있는 문서 — 마지막 갱신 **2026-11-05** (D24 DECIDED: lookup format 2, TTHHAnalyzer STEP 45 `8eac0dc`) · 그 전 **2026-10-16** (D20 보탬: lxplus 에서 오래 걸리는 단계는 condor job — tmux 에 걸지 않는다, T-44; D22: 2024 TTbar_Hadronic job 1012 의 출력을 같은 입력·코드로 lxplus 에서 만들어 CRAB 자리에 두고 manager 완료 점검으로 받는다; 나중에 CRAB 재생산과 비교, O11). 그 전 **2026-10-15** (D21: 2024(Run 3) extend 를 v15 영역에서; `dataset: ""` 와 `--fill`; release 짝 검사). 그 전 **2026-10-14** (D19: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`; D20: 사람 없이 도는 것은 결정론적 manager, AI 세션은 branch 에서). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
+> **상태**: 살아있는 문서 — 마지막 갱신 **2026-11-06** (D25 DECIDED — 사용자 07:33:41 KST "STEP47 시작", 10:40:37 KST "커밋·push 하기" — TTHHAnalyzer STEP 47: 2022–23 CRAB sidecar 의 39 task, v3 lumi mask, request 이름, `year=2024`, 작업 표 plan·record, dry run 은 따로의 work area — TTHHAnalyzer STEP 47, 같은 날 2 차 포함) · 그 전 **2026-11-05** (D24 DECIDED: lookup format 2, TTHHAnalyzer STEP 45 `8eac0dc`) · 그 전 **2026-10-16** (D20 보탬: lxplus 에서 오래 걸리는 단계는 condor job — tmux 에 걸지 않는다, T-44; D22: 2024 TTbar_Hadronic job 1012 의 출력을 같은 입력·코드로 lxplus 에서 만들어 CRAB 자리에 두고 manager 완료 점검으로 받는다; 나중에 CRAB 재생산과 비교, O11). 그 전 **2026-10-15** (D21: 2024(Run 3) extend 를 v15 영역에서; `dataset: ""` 와 `--fill`; release 짝 검사). 그 전 **2026-10-14** (D19: 2016 두 기간의 extend 생산과 `resolve_parents.sh --apply`; D20: 사람 없이 도는 것은 결정론적 manager, AI 세션은 branch 에서). 그 전 2026-07-27 (D15 신설: CRAB task 당 job 10,000 상한).
 > **관련**: 시간순 이력은 [03_changelog.md](03_changelog.md), 실패 사례는 [08_troubleshooting.md](08_troubleshooting.md).
 
 각 항목: 선택 / 근거 / 검토·기각된 대안 / 상태.
@@ -345,6 +345,49 @@ HTXS float 잔차, NN 추론의 하드웨어 의존 마지막 비트 — 세 곳
   하나 — analyzer 의 표본 이름 규약(`ttnb_<sample>.root`)과 STEP 43 의 sha256 고정을 바꿔야 한다. ③ (run, lumi, event) 그대로 두고 ext1 의 겹치는
   key 를 빼기 — 그 사건들의 tt+nb 를 잃는다.
 - **상태**: PROPOSED — 결정은 TTHHAnalyzer CEO 의 STEP 45 지시서(2026-11-05, 두 차례), 사용자의 말을 받으면 DECIDED 로.
+
+## D25 — 2022–23 의 CRAB sidecar: era 블록 넷에 39 task, MiniAODv3 는 lumi mask 로, 이름 `<name>_<era>_<main|ext1|v3>_extend_fp`, `year=2024`, 제출 run 마다 작업 표(plan·record) · **DECIDED** 2026-11-06(사용자 07:33:41 KST "STEP47 시작", 10:40:37 KST "커밋·push 하기" — TTHHAnalyzer STEP 47; CEO 의 STEP 47 지시서 결정 A–G 와 같은 날의 2 차 결정 A–F)
+
+- **선택**: (A) `crab/datasets.yaml` 에 `"2022"`·`"2022EE"`·`"2023"`·`"2023BPix"` — lxplus 계획표 `crab_plan_2022-23.tsv`(2026-11-06, md5
+  `5de5ac33…`)의 39 줄을 줄 순서대로, 항목 하나 = task 하나(`verified: true` = lxplus 가 DAS 로 짝을 확인); 항목 필드 `nano_role`(main|ext1),
+  `miniaod_version`(v4|v3), v3 만 `lumi_mask`·`lumi_mask_md5`; mask 다섯은 `crab/lumimasks/` 에 바이트까지 같은 사본. (B) request 이름 =
+  `request_name()`: 꼬리표(v3 → `v3`, 아니면 `nano_role` — 계획표의 규칙)와 era 의 `request_name_suffix: "fp"` → 계획표의 `request_name` 39 개와 같음;
+  옛 era 의 이름과 설정은 그대로. (C) `Data.lumiMask` = mask 의 절대 경로, v3 만 — 파일 이름이 그 항목의 것(`crab_lumimask_<era>_<name>_v3.json`),
+  파일이 있고 md5 가 같고 lumi 가 하나 이상일 때만; 아니면 그 task 거절, 그 run 은 아무것도 내지 않음(제출 경로가 모든 task 를 먼저 검사; 2 차의
+  결정 F1 로 그대로 둠); splitting 은 `FileBased` 그대로, mask 를 건 job 수는 lxplus 의 `crab submit --dryrun`(`--crab-dryrun`)이 확인하고 끝난 v3
+  sidecar 는 `crab/check_sidecar_lumimask.py` 가 mask 안에만 있는지 본다 — 2022 TTbar_SemiLep v3 의 dry run 에서 job 수가 윗값 251 가까이면 mask 가
+  걸리지 않은 것으로 보고 v3 를 LumiBased splitting 으로 바꾼다(2 차 결정 D). (D) era 의 `pset_year: "2024"` → `year=2024`, preflight 의 year 검사도 같은
+  값; cfg 는 그대로. (E) 네 era 의 release 는 `CMSSW_15_0_`; campaign 검사는 `miniaod_version` 별 MiniAOD 접두(v4·v3)와 NanoAODv12 접두(계획표의
+  dataset 이름에서). (F) 제출 run 마다(`--dry-run` 포함) **plan**(첫 제출 전, 열에 추출 priority v4 0 / v3 1)과 **record**(run 이 끝날 때 — 멈출
+  때도 — plan 의 줄 + `outcome`: submitted, dryrun-uploaded, skipped-existing-project, failed, not-attempted); 자리 `crab/task_tables/`(git 이 무시;
+  본제출의 두 표는 lxplus 하루 기록 첨부로), `--task-table`. 종료 코드는 그대로(실패·건너뜀이 있어도 0 — `launch_extend.sh` 가 출력을 grep; 거절 3;
+  인자 오류 1). (G) Python 3.6, ASCII.
+- **2 차(같은 날, CEO 의 재시험과 독립 검토 뒤 — 결정 A–F)**: `--crab-dryrun` 은 `--request` 로 이름을 준 task 에만, 자기 work area
+  `<work_area>_dryrun`(예 `crab_projects_dryrun/`)에서; dry-run task 는 UPLOADED 로 남고 아무도 내지 않으며(본제출은 39 개 모두 새 일반 제출),
+  업로드 뒤 실패하면 그 사실과 본제출에 영향이 없음을 말한다. `[skip]`·preflight 의 안내는 project dir 을 옮기고 `--request` — `request_name_tag` 를
+  바꾸라고 하지 않는다(모든 era 의 이름이 바뀐다). `--report` 의 줄과 DEAD 블록은 era 를 달고(`2022/TT4b[main]`), UPLOADED 는 따로 보인다; `--kill`
+  은 묻기 전에 이름과 수를 찍는다. 작업 표 머리의 CR·LF·TAB 은 빈칸, 모든 머리 줄은 `#`; git 은 `cwd=` 와 `GIT_OPTIONAL_LOCKS=0` 으로(el7 의 git
+  1.8.3 은 `-C`·`--no-optional-locks` 를 모른다). preflight 의 `--request` 검사는 `--process` 도 본다. `extend_manager.py` 는 네 era 를 모두 거절하고
+  `TtbarIdExtender/README.md` §2.2f 를 가리킨다(이 era 들은 제출기로만).
+- **근거**: 2022–23 lookup(format 3, D24 와 [07](07_analyzer_integration.md) §5.5)은 사건 지문이 든 sidecar(`870445b`)에서 뽑는다. lxplus(11-06)가
+  지금의 제출기로는 낼 수 없는 까닭 넷을 찾았다 — era 블록 없음, `Data.lumiMask` 없음(v3 다섯은 mask 의 lumi 만 돌아야 한다: 그 사건만 v4 parent 가
+  없고 나머지는 v4 task 와 겹친다), main·ext1·v3 가 한 표본 이름이라 `<name>_<era>_extend` 가 겹침, cfg 의 `year` 에 2022–23 없음. `year=2024` 는
+  lxplus 가 2022–23 MiniAODv4 파일에서 NanoAOD 와 비트까지 맞춘 길이다(gen 수준, era modifier 가 출력에 영향 없음 — D21 과 같은 provenance 문제).
+  CRAB 문서(twiki `CRAB3ConfigurationFile` r99, 읽은 날 2026-11-06)는 `Data.lumiMask` 를 splitting 과 무관하게 적고 requestName 을 100 자로 묶는다;
+  `CRAB3Commands` r42 의 `crab submit --dryrun` 은 나누기만 하고 job 을 내지 않는다(task 는 UPLOADED); `CRABClientLibraryAPI` r36: 값 없는 옵션은
+  `True` 로(`dryrun=True`). 2 차: dry run 이 본제출이 되는 길(같은 project dir, 이어서 내기)을 없애 두 일을 가른다(검토 H1).
+- **검토·기각한 대안**: ① cfg 에 2022–23 의 year 를 더하기 — 시험된 길이 있고, cfg 를 바꾸면 cmsRun 시험을 다시 해야 한다(지시서 D). ② 항목마다
+  `request_label` 필드 — `nano_role`·`miniaod_version` 에서 정해지는 값을 두 번 적으면 어긋날 수 있다; 계획표의 규칙을 그대로 계산하고 겹침은 검사가
+  막는다. ③ 처음부터 LumiBased·EventAwareLumiBased splitting — FileBased 가 mask 를 못 쓴다는 근거가 저장소에도 CRAB 문서에도 없고, 바꾸면 job 수
+  가드(D15, 파일 수 기반)도 바뀐다; (h) 의 dry run 과 (k) 의 검사가 아니라고 하면 그때 바꾼다. ④ mask 가 깨진 task 만 빼고 나머지를 내기 — 깨진
+  mask 는 검토된 checkout 이 아니라는 뜻이라 run 전체를 멈춘다(2 차 F1 로 확정). ⑤ 작업 표를 `crab_projects/` 에 — workArea 는 실행 디렉터리
+  기준이라 찾기 어렵다. ⑥ `launch_extend.sh`·manager 를 새 era 로 넓히기 — 한 era 의 한 이름 = 한 task, MiniAOD 전체의 사건 수 같은 전제가 v3·ext1
+  에서 깨진다; manager 는 네 era 를 거절(2 차 F2). ⑦ dry-run task 를 `crab proceed` 로 본제출하기(1 차의 안) — dry run 과 본제출이 한 project dir 을
+  쓰고, 본제출의 기록이 dry run 의 설정에 묶인다(2 차 A 로 버림).
+- **영향**: 2016–2018·2024 의 CRAB 설정은 바이트까지 같다(시험: 175 설정, 다섯 site 변형). 제출 run 의 출력에 plan·record 줄 넷, `--report` 의 줄
+  이름에 era 가 붙고, preflight 에 줄 몇 개가 더 생긴다. 시험: TTHHAnalyzer `docs/changes/STEP_47_crab_2022_23.md` §5·§9(PyYAML·Ruby 두 YAML 로
+  같은 결과). 진짜 CRAB·DAS·EOS 는 lxplus 의 `TtbarIdExtender/README.md` §2.2f (f)–(h)·(k), 본제출은 사용자.
+- **상태**: PROPOSED — 결정은 CEO 의 STEP 47 지시서와 2 차 결정(2026-11-06), 사용자의 말을 받으면 DECIDED 로.
 
 ## D-DEP1 — Approach 2 (enriched NanoAOD) · DEPRECATED (v8에서 실질, v10에서 파일 제거)
 

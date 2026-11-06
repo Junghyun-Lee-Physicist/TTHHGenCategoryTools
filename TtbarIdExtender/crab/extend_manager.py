@@ -319,6 +319,25 @@ class Manager(object):
         for era in self.eras:
             if era not in eras:
                 raise SystemExit("ERROR: era %s not in %s" % (era, self.a.datasets))
+            # 2026-11-06 (STEP 47, CEO decision F2): the 2022-23 eras (2022, 2022EE,
+            # 2023, 2023BPix) are submitted and watched with submit_ttbarIdExtend.py
+            # only (TtbarIdExtender/README.md sec.2.2f). Their blocks have up to
+            # three entries of one name (main v4, ext1 v4, main v3), lumi masks
+            # and request names <name>_<era>_<label>_extend_fp; this manager keys
+            # its state and files by era/name and checks each task against the
+            # whole MiniAOD dataset's DAS event count -- refuse instead of mixing.
+            blk = eras[era]
+            ents = blk.get("datasets") or []
+            if (S._versioned_era(era) or blk.get("pset_year") or blk.get("request_name_suffix")
+                    or any(d.get("miniaod_version") or d.get("nano_role") or d.get("lumi_mask")
+                           for d in ents)):
+                raise SystemExit("ERROR: era %s is a 2022-23 era block (STEP 47: several "
+                                 "entries per name, lumi masks, request names "
+                                 "<name>_<era>_<label>_extend_fp) -- extend_manager.py does "
+                                 "not handle it. Submit and watch these tasks with "
+                                 "crab/submit_ttbarIdExtend.py as in TtbarIdExtender/README.md "
+                                 "sec.2.2f (python3 crab/submit_ttbarIdExtend.py --era %s "
+                                 "--report)" % (era, era))
             for d in (eras[era].get("datasets") or []):
                 # 2026-10-15 review: a new era (2024) starts with dataset: "" until
                 # resolve_parents.sh --fill; say so instead of an IndexError below.
